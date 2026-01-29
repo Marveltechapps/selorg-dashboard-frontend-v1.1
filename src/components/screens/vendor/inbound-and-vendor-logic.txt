@@ -1,0 +1,578 @@
+
+   Frontend-only logic for InboundOperations UI.
+   Drop this file into the frontend repo and import/init from the InboundOperations component.
+   - DO NOT change any JSX/HTML/CSS.
+   - This file contains: state management, mock data + persistence, event handlers,
+     async simulation, in-app notifications, and real-time sync (BroadcastChannel/storage).
+*/
+
+/* ============================
+   Types (JSDoc/TS-style)
+   ============================ */
+
+/**
+ * @typedef {'pending'|'approved'|'rejected'|'review'|'rtv'} InboundStatus
+ */
+
+/**
+ * @typedef {Object} InboundItem
+ * @property {string} id
+ * @property {string} reference
+ * @property {string} vendor
+ * @property {InboundStatus} status
+ * @property {number} quantity
+ * @property {Date | string} createdAt
+ * @property {Date | null} updatedAt
+ * @property {number} views
+ * @property {boolean} archived
+ * @property {Object=} meta
+ */
+
+/* ============================
+   Constants
+   ============================ */
+
+const STORAGE_KEY = 'inbound_ops_data_v1';
+const NOTIF_KEY = 'inbound_ops_notifs_v1';
+const BROADCAST_CHANNEL = 'inbound_ops_channel_v1';
+const SIMULATED_NETWORK_MS = { short: 250, normal: 700, long: 1200 };
+
+/* ============================
+   Utilities
+   ============================ */
+
+function uid(prefix = '') {
+  return prefix + Math.random().toString(36).slice(2, 9);
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
+function wait(ms = 500) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+function deepClone(v) {
+  return JSON.parse(JSON.stringify(v));
+}
+
+/* ============================
+   Mock Data / Persistence
+   ============================ */
+
+function createMockInboundItem(index = 1) {
+  const statuses = ['pending', 'review', 'approved'];
+  return {
+    id: uid('inb_'),
+    reference: `INB-${String(1000 + index)}`,
+    vendor: ['Acme Supplies', 'Green Farms', 'Global Traders'][index % 3],
+    status: statuses[index % statuses.length],
+    quantity: (10 + index * 3) % 100,
+    createdAt: nowISO(),
+    updatedAt: null,
+    views: 0,
+    archived: false,
+    meta: {
+      notes: `Mock inbound entry #${index}`,
+    },
+  };
+}
+
+function seedIfNeeded(count = 8) {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (e) {
+      // fallthrough to recreate
+    }
+  }
+  const arr = Array.from({ length: count }).map((_, i) => createMockInboundItem(i + 1));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  return arr;
+}
+
+function persistItems(items = []) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  broadcastChange({ type: 'sync:save', payload: { timestamp: nowISO() } });
+}
+
+/* ============================
+   Notification Queue
+   ============================ */
+
+const NotificationCenter = (function () {
+  const subs = new Set();
+  function load() {
+    try {
+      return JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+  function save(list) {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(list));
+    broadcastChange({ type: 'notifs:update' });
+  }
+  let list = load();
+
+  return {
+    push(notification) {
+      const entry = {
+        id: uid('n_'),
+        title: notification.title || 'Notification',
+        message: notification.message || '',
+        createdAt: nowISO(),
+        read: false,
+        meta: notification.meta || {},
+      };
+      list.unshift(entry);
+      save(list);
+      subs.forEach((s) => s(getPublic()));
+    },
+    getPublic() {
+      return list.slice();
+    },
+    markRead(id) {
+      list = list.map((n) => (n.id === id ? { ...n, read: true } : n));
+      save(list);
+    },
+    subscribe(cb) {
+      subs.add(cb);
+      cb(list.slice());
+      return () => subs.delete(cb);
+    },
+    clear() {
+      list = [];
+      save(list);
+    },
+  };
+})();
+
+/* ============================
+   BroadcastChannel / Multi-tab sync
+   ============================ */
+
+let bc = null;
+function setupBroadcastChannel() {
+  if (typeof window === 'undefined') return;
+  if ('BroadcastChannel' in window) {
+    try {
+      bc = new BroadcastChannel(BROADCAST_CHANNEL);
+      bc.onmessage = (ev) => {
+        InboundStore._handleExternalMessage(ev.data);
+      };
+    } catch (e) {
+      bc = null;
+    }
+  }
+  window.addEventListener('storage', (ev) => {
+    // fallback: if storage key updated, re-load
+    if (ev.key === STORAGE_KEY || ev.key === NOTIF_KEY) {
+      InboundStore._handleExternalMessage({ type: 'storage:changed', key: ev.key });
+    }
+  });
+}
+
+function broadcastChange(message) {
+  try {
+    if (bc) {
+      bc.postMessage(message);
+    } else {
+      // storage ping fallback
+      localStorage.setItem('__inbound_ops_ping__', JSON.stringify({ ...message, t: Date.now() }));
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+/* ============================
+   Simple Store (pub/sub)
+   ============================ */
+
+const InboundStore = (function () {
+  let items = seedIfNeeded();
+  const listeners = new Set();
+  let loading = false;
+  let uiState = {
+    modal: null, // {type: 'view'|'print'|'approve'|'reject'|'review'|'rtv', payload: {...}}
+    operationLoading: {}, // per id
+    globalLoading: false,
+  };
+
+  function emit() {
+    listeners.forEach((cb) => {
+      try {
+        cb(getPublic());
+      } catch (e) {
+        console.error('InboundStore listener error', e);
+      }
+    });
+  }
+
+  function getPublic() {
+    return {
+      items: deepClone(items),
+      loading,
+      uiState: deepClone(uiState),
+    };
+  }
+
+  function setLoading(flag) {
+    loading = !!flag;
+    emit();
+  }
+
+  function setGlobalLoading(flag) {
+    uiState.globalLoading = !!flag;
+    emit();
+  }
+
+  function setItemOperationLoading(id, flag) {
+    uiState.operationLoading = { ...uiState.operationLoading, [id]: !!flag };
+    emit();
+  }
+
+  function findIndexById(id) {
+    return items.findIndex((i) => i.id === id);
+  }
+
+  return {
+    init() {
+      items = seedIfNeeded();
+      setupBroadcastChannel();
+      emit();
+    },
+    subscribe(cb) {
+      listeners.add(cb);
+      cb(getPublic());
+      return () => listeners.delete(cb);
+    },
+    getItems() {
+      return deepClone(items);
+    },
+    async fetchItems({ simulateMs = SIMULATED_NETWORK_MS.normal } = {}) {
+      setLoading(true);
+      await wait(simulateMs);
+      // reload from localstorage in case other tab changed it
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try {
+          items = JSON.parse(raw);
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+      setLoading(false);
+      emit();
+      return deepClone(items);
+    },
+    async viewItem(id) {
+      const idx = findIndexById(id);
+      if (idx === -1) return null;
+      setItemOperationLoading(id, true);
+      await wait(SIMULATED_NETWORK_MS.short);
+      items[idx].views = (items[idx].views || 0) + 1;
+      items[idx].updatedAt = nowISO();
+      persistItems(items);
+      setItemOperationLoading(id, false);
+      NotificationCenter.push({ title: 'Viewed', message: `${items[idx].reference} viewed` });
+      emit();
+      return deepClone(items[idx]);
+    },
+    async printItem(id) {
+      const idx = findIndexById(id);
+      if (idx === -1) return null;
+      setItemOperationLoading(id, true);
+      await wait(SIMULATED_NETWORK_MS.short);
+      items[idx].meta = { ...items[idx].meta, lastPrintedAt: nowISO() };
+      items[idx].updatedAt = nowISO();
+      persistItems(items);
+      setItemOperationLoading(id, false);
+      NotificationCenter.push({ title: 'Print', message: `${items[idx].reference} sent to print (simulated)` });
+      emit();
+      return deepClone(items[idx]);
+    },
+    async approveItem(id, opts = { actor: 'System' }) {
+      const idx = findIndexById(id);
+      if (idx === -1) throw new Error('Not found');
+      setItemOperationLoading(id, true);
+      // optimistic update
+      const before = deepClone(items[idx]);
+      items[idx] = { ...items[idx], status: 'approved', meta: { ...items[idx].meta, approvedBy: opts.actor }, updatedAt: nowISO() };
+      emit();
+      try {
+        await wait(SIMULATED_NETWORK_MS.normal);
+        // small chance to simulate failure
+        if (Math.random() < 0.06) throw new Error('Simulated approval failure');
+        persistItems(items);
+        NotificationCenter.push({ title: 'Approved', message: `${items[idx].reference} approved by ${opts.actor}` });
+      } catch (err) {
+        // rollback
+        items[idx] = before;
+        NotificationCenter.push({ title: 'Approval failed', message: err.message });
+      } finally {
+        setItemOperationLoading(id, false);
+        emit();
+      }
+      return deepClone(items[idx]);
+    },
+    async rejectItem(id, { actor = 'System', reason = 'Rejected via UI' } = {}) {
+      const idx = findIndexById(id);
+      if (idx === -1) throw new Error('Not found');
+      setItemOperationLoading(id, true);
+      items[idx] = { ...items[idx], status: 'rejected', meta: { ...items[idx].meta, rejectedBy: actor, rejectReason: reason }, updatedAt: nowISO() };
+      await wait(SIMULATED_NETWORK_MS.normal);
+      persistItems(items);
+      setItemOperationLoading(id, false);
+      NotificationCenter.push({ title: 'Rejected', message: `${items[idx].reference} rejected` });
+      emit();
+      return deepClone(items[idx]);
+    },
+    async markForReview(id, { actor = 'System', note = '' } = {}) {
+      const idx = findIndexById(id);
+      if (idx === -1) throw new Error('Not found');
+      setItemOperationLoading(id, true);
+      items[idx] = { ...items[idx], status: 'review', meta: { ...items[idx].meta, reviewBy: actor, reviewNote: note }, updatedAt: nowISO() };
+      await wait(SIMULATED_NETWORK_MS.short);
+      persistItems(items);
+      setItemOperationLoading(id, false);
+      NotificationCenter.push({ title: 'Review', message: `${items[idx].reference} moved to review` });
+      emit();
+      return deepClone(items[idx]);
+    },
+    async createRTV(id, { actor = 'System', reason = 'Quality issue' } = {}) {
+      const idx = findIndexById(id);
+      if (idx === -1) throw new Error('Not found');
+      setItemOperationLoading(id, true);
+      // Simulate creating an RTV record attached to the item
+      const rtv = {
+        id: uid('rtv_'),
+        sourceInboundId: id,
+        createdAt: nowISO(),
+        createdBy: actor,
+        reason,
+      };
+      items[idx] = { ...items[idx], status: 'rtv', meta: { ...items[idx].meta, rtv }, updatedAt: nowISO() };
+      await wait(SIMULATED_NETWORK_MS.normal);
+      persistItems(items);
+      setItemOperationLoading(id, false);
+      NotificationCenter.push({ title: 'RTV Created', message: `${items[idx].reference} RTV created` });
+      emit();
+      return { item: deepClone(items[idx]), rtv };
+    },
+    async archiveItem(id) {
+      const idx = findIndexById(id);
+      if (idx === -1) throw new Error('Not found');
+      items[idx].archived = true;
+      items[idx].updatedAt = nowISO();
+      persistItems(items);
+      NotificationCenter.push({ title: 'Archived', message: `${items[idx].reference} archived` });
+      emit();
+      return deepClone(items[idx]);
+    },
+    openModal(type, payload = {}) {
+      uiState.modal = { type, payload };
+      emit();
+    },
+    closeModal() {
+      uiState.modal = null;
+      emit();
+    },
+    getUIState() {
+      return deepClone(uiState);
+    },
+    setGlobalLoading(flag) {
+      setGlobalLoading(flag);
+    },
+    _handleExternalMessage(msg) {
+      // Accept a few message types
+      if (!msg) return;
+      if (msg.type === 'sync:save' || msg.type === 'notifs:update' || msg.type === 'storage:changed') {
+        // re-sync items from storage
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) items = JSON.parse(raw);
+        } catch (e) {
+          // ignore
+        }
+        emit();
+      } else if (msg.type === 'remote:update' && msg.payload) {
+        // payload: { id, patch }
+        const p = msg.payload;
+        const idx = findIndexById(p.id);
+        if (idx !== -1) {
+          items[idx] = { ...items[idx], ...p.patch, updatedAt: nowISO() };
+          persistItems(items);
+          NotificationCenter.push({ title: 'Remote update', message: `${items[idx].reference} updated externally` });
+        }
+        emit();
+      }
+    },
+
+    // Expose helper for tests / debug
+    _getRaw() {
+      return items;
+    },
+  };
+})();
+
+/* ============================
+   Simulated Remote Activity
+   ============================ */
+
+let simulatedRemoteInterval = null;
+function startSimulatedRemoteUpdates({ minSeconds = 12, maxSeconds = 28 } = {}) {
+  stopSimulatedRemoteUpdates();
+  async function tick() {
+    const waitSeconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
+    await wait(waitSeconds * 1000);
+    // pick a random item and tweak its meta/status slightly
+    const items = InboundStore._getRaw();
+    if (!items || items.length === 0) return tick();
+    const idx = Math.floor(Math.random() * items.length);
+    const target = items[idx];
+    const choices = ['review', 'approved', 'rejected', 'pending'];
+    const newStatus = choices[Math.floor(Math.random() * choices.length)];
+    const patch = { status: newStatus, meta: { ...target.meta, remoteNote: `Auto ${newStatus}` } };
+    // apply to local storage directly to simulate external change
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const i = parsed.findIndex((r) => r.id === target.id);
+      if (i !== -1) {
+        parsed[i] = { ...parsed[i], ...patch, updatedAt: nowISO() };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        // broadcast that external update happened
+        broadcastChange({ type: 'remote:update', payload: { id: target.id, patch } });
+      }
+    } catch (e) {
+      // ignore
+    }
+    return tick();
+  }
+  simulatedRemoteInterval = tick();
+}
+
+function stopSimulatedRemoteUpdates() {
+  if (simulatedRemoteInterval) {
+    simulatedRemoteInterval = null;
+  }
+}
+
+/* ============================
+   Public API (to import/use from component)
+   ============================ */
+
+const InboundLogic = {
+  init: function () {
+    InboundStore.init();
+    startSimulatedRemoteUpdates();
+  },
+  cleanup: function () {
+    stopSimulatedRemoteUpdates();
+    // close broadcast channel if present
+    if (typeof bc !== 'undefined' && bc && typeof bc.close === 'function') {
+      try {
+        bc.close();
+      } catch (e) {
+        // ignore
+      }
+    }
+  },
+  subscribe: function (cb) {
+    return InboundStore.subscribe(cb);
+  },
+  fetch: function (opts) {
+    return InboundStore.fetchItems(opts);
+  },
+  view: function (id) {
+    return InboundStore.viewItem(id);
+  },
+  print: function (id) {
+    return InboundStore.printItem(id);
+  },
+  approve: function (id, opts) {
+    return InboundStore.approveItem(id, opts);
+  },
+  reject: function (id, opts) {
+    return InboundStore.rejectItem(id, opts);
+  },
+  review: function (id, opts) {
+    return InboundStore.markForReview(id, opts);
+  },
+  createRTV: function (id, opts) {
+    return InboundStore.createRTV(id, opts);
+  },
+  archive: function (id) {
+    return InboundStore.archiveItem(id);
+  },
+  openModal: function (type, payload) {
+    return InboundStore.openModal(type, payload);
+  },
+  closeModal: function () {
+    return InboundStore.closeModal();
+  },
+  getUIState: function () {
+    return InboundStore.getUIState();
+  },
+  notifications: {
+    subscribe: (cb) => NotificationCenter.subscribe(cb),
+    push: (n) => NotificationCenter.push(n),
+    markRead: (id) => NotificationCenter.markRead(id),
+    clear: () => NotificationCenter.clear(),
+    list: () => NotificationCenter.getPublic(),
+  },
+  storage: {
+    persist: persistItems,
+  },
+  debug: {
+    _raw: () => InboundStore._getRaw(),
+  },
+};
+
+/* ============================
+   Example usage (COMMENT: integrate from React)
+   ============================
+   // In inbound component mount:
+   useEffect(() => {
+     InboundLogic.init();
+     const unsub = InboundLogic.subscribe((state) => {
+       // state: { items, loading, uiState }
+       setLocalState(state);
+     });
+     const notifUnsub = InboundLogic.notifications.subscribe(setNotifs);
+     return () => { unsub(); notifUnsub(); InboundLogic.cleanup(); };
+   }, []);
+
+   // Trigger actions:
+   // InboundLogic.view(itemId);
+   // InboundLogic.print(itemId);
+   // InboundLogic.approve(itemId, { actor: currentUser.name });
+   // InboundLogic.reject(itemId, { actor: currentUser.name, reason: 'Damaged' });
+   // InboundLogic.createRTV(itemId, { actor: currentUser.name, reason: 'Qty mismatch' });
+   // InboundLogic.openModal('view', { itemId });
+   // InboundLogic.closeModal();
+   // Access notifications: InboundLogic.notifications.list()
+*/
+
+/* ============================
+   Export for CommonJS / ESM environments
+   ============================ */
+
+try {
+  // @ts-ignore
+  if (typeof module !== 'undefined' && module.exports) {
+    // CommonJS
+    module.exports = InboundLogic;
+  } else if (typeof window !== 'undefined') {
+    // Attach to window for quick access if needed
+    // @ts-ignore
+    window.InboundLogic = InboundLogic;
+  }
+} catch (e) {
+  // ignore
+}
