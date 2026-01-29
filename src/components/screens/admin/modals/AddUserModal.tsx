@@ -49,6 +49,7 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
   const loadRoles = async () => {
     try {
       const data = await fetchRoles();
+<<<<<<< HEAD
       console.log('Roles loaded:', data);
       setRoles(data);
       if (data.length === 0) {
@@ -70,12 +71,18 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
       } catch (fallbackError) {
         toast.error('Failed to load roles. Please check your connection.');
       }
+=======
+      setRoles(data);
+    } catch (error) {
+      console.error('Failed to load roles:', error);
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+<<<<<<< HEAD
     console.log('Form submission:', formData);
     
     // Validation
@@ -94,11 +101,17 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       toast.error('Please enter a valid email address');
+=======
+    // Validation
+    if (!formData.email || !formData.name || !formData.department || !formData.roleId) {
+      toast.error('Please fill in all required fields');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       return;
     }
 
     setLoading(true);
     try {
+<<<<<<< HEAD
       console.log('Creating user with payload:', formData);
       const result = await createUser(formData);
       console.log('User created successfully:', result);
@@ -142,6 +155,14 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
           ? 'Your current role does not have permission to create users. Please contact your system administrator.'
           : undefined
       });
+=======
+      await createUser(formData);
+      toast.success('User created successfully');
+      onUserAdded?.();
+      handleClose();
+    } catch (error) {
+      toast.error('Failed to create user');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -255,6 +276,7 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
             <div className="space-y-2">
               <Label htmlFor="role">Assign Role *</Label>
               <Select 
+<<<<<<< HEAD
                 value={formData.roleId || ""} 
                 onValueChange={(value) => {
                   console.log('Role selected:', value);
@@ -281,6 +303,23 @@ export function AddUserModal({ open, onClose, onUserAdded }: AddUserModalProps) 
               {formData.roleId && (
                 <p className="text-xs text-emerald-600">✓ Role selected</p>
               )}
+=======
+                value={formData.roleId} 
+                onValueChange={(value) => setFormData({ ...formData, roleId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.name} - {role.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-[#6B7280]">User will have permissions of selected role</p>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
 
             {selectedRole && (

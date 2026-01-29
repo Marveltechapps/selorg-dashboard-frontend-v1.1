@@ -20,7 +20,11 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+<<<<<<< HEAD
 import { Store, createStore, updateStore, createWarehouse, Warehouse } from '../storeWarehouseApi';
+=======
+import { Store, createStore, updateStore } from '../storeWarehouseApi';
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { toast } from 'sonner@2.0.3';
 import { Store as StoreIcon, MapPin, Clock, Users } from 'lucide-react';
 
@@ -29,17 +33,28 @@ interface AddStoreModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editStore?: Store | null;
+<<<<<<< HEAD
   storeType?: 'store' | 'warehouse';
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+<<<<<<< HEAD
 export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeType = 'store' }: AddStoreModalProps) {
+=======
+export function AddStoreModal({ open, onOpenChange, onSuccess, editStore }: AddStoreModalProps) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     code: '',
+<<<<<<< HEAD
     type: (storeType === 'warehouse' ? 'warehouse' : 'store') as 'store' | 'dark_store' | 'warehouse',
+=======
+    type: 'store' as 'store' | 'dark_store' | 'warehouse',
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     address: '',
     city: 'Bangalore',
     state: 'Karnataka',
@@ -89,6 +104,7 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
         setOperationalHours(editStore.operationalHours);
       } else {
         resetForm();
+<<<<<<< HEAD
         // Set type based on storeType prop
         if (storeType === 'warehouse') {
           setFormData(prev => ({ ...prev, type: 'warehouse' }));
@@ -96,6 +112,11 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
       }
     }
   }, [open, editStore, storeType]);
+=======
+      }
+    }
+  }, [open, editStore]);
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   const resetForm = () => {
     setFormData({
@@ -176,6 +197,7 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
         operationalHours,
       };
 
+<<<<<<< HEAD
       let createdStore: Store | Warehouse;
       if (editStore) {
         createdStore = await updateStore(editStore.id, storeData);
@@ -212,20 +234,42 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
       console.error('Store creation error:', error);
       const errorMessage = error?.message || (editStore ? 'Failed to update store' : 'Failed to create store');
       toast.error(errorMessage);
+=======
+      if (editStore) {
+        await updateStore(editStore.id, storeData);
+        toast.success(`Store "${formData.name}" updated successfully`);
+      } else {
+        await createStore(storeData);
+        toast.success(`Store "${formData.name}" created successfully`);
+      }
+
+      onSuccess();
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      toast.error(editStore ? 'Failed to update store' : 'Failed to create store');
+    } finally {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       setLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+<<<<<<< HEAD
       <DialogContent className="max-w-3xl max-h-[95vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#e4e4e7] flex-shrink-0">
+=======
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#e4e4e7]">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
               <StoreIcon className="text-blue-600" size={20} />
             </div>
             <div>
               <DialogTitle className="text-xl">
+<<<<<<< HEAD
                 {editStore 
                   ? `Edit ${editStore.type === 'warehouse' ? 'Warehouse' : 'Store'}` 
                   : storeType === 'warehouse' 
@@ -238,13 +282,24 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
                   : storeType === 'warehouse'
                     ? 'Create a new warehouse or fulfillment center'
                     : 'Create a new store or fulfillment center'}
+=======
+                {editStore ? 'Edit Store' : 'Add New Store'}
+              </DialogTitle>
+              <DialogDescription>
+                {editStore ? 'Update store information and settings' : 'Create a new store or fulfillment center'}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
+<<<<<<< HEAD
         <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-2 flex-shrink-0">
+=======
+        <Tabs defaultValue="basic" className="flex-1">
+          <div className="px-6 pt-2">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic">Basic Info</TabsTrigger>
               <TabsTrigger value="location">Location & Contact</TabsTrigger>
@@ -252,8 +307,13 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
             </TabsList>
           </div>
 
+<<<<<<< HEAD
           <ScrollArea className="flex-1 px-6 min-h-0 overflow-y-auto">
             <TabsContent value="basic" className="space-y-4 mt-4 pb-6">
+=======
+          <ScrollArea className="h-[450px] px-6">
+            <TabsContent value="basic" className="space-y-4 mt-4">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               {/* Store Name */}
               <div className="space-y-2">
                 <Label htmlFor="store-name">Store Name *</Label>
@@ -351,7 +411,11 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
               </div>
             </TabsContent>
 
+<<<<<<< HEAD
             <TabsContent value="location" className="space-y-4 mt-4 pb-6">
+=======
+            <TabsContent value="location" className="space-y-4 mt-4">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               {/* Address */}
               <div className="space-y-2">
                 <Label htmlFor="address">Street Address *</Label>
@@ -455,7 +519,11 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
               </div>
             </TabsContent>
 
+<<<<<<< HEAD
             <TabsContent value="hours" className="space-y-4 mt-4 pb-6">
+=======
+            <TabsContent value="hours" className="space-y-4 mt-4">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <div className="space-y-3">
                 {DAYS.map(day => (
                   <div key={day} className="flex items-center gap-3 p-3 bg-[#f4f4f5] rounded-lg">
@@ -518,8 +586,13 @@ export function AddStoreModal({ open, onOpenChange, onSuccess, editStore, storeT
           </ScrollArea>
         </Tabs>
 
+<<<<<<< HEAD
         {/* Footer - Always visible */}
         <div className="px-6 py-4 border-t border-[#e4e4e7] flex justify-end gap-3 flex-shrink-0 bg-white">
+=======
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#e4e4e7] flex justify-end gap-3">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>

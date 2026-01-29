@@ -48,7 +48,10 @@ import { toast } from 'sonner@2.0.3';
 import {
   Map,
   Plus,
+<<<<<<< HEAD
   Minus,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   RefreshCw,
   MapPin,
   Edit,
@@ -94,6 +97,7 @@ export function GeofenceManager() {
     type: 'standard' as GeofenceZone['type'],
   });
 
+<<<<<<< HEAD
   // Drawing state
   const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -104,6 +108,8 @@ export function GeofenceManager() {
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [showLayers, setShowLayers] = useState(true);
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [settingsForm, setSettingsForm] = useState({
     deliveryFee: 39,
     minOrderValue: 149,
@@ -141,6 +147,7 @@ export function GeofenceManager() {
   };
 
   const handleCreateZone = async () => {
+<<<<<<< HEAD
     if (!zoneForm.name.trim()) {
       toast.error('Zone name is required');
       return;
@@ -160,19 +167,37 @@ export function GeofenceManager() {
         ...zoneForm,
         polygon: drawingPoints,
         center,
+=======
+    try {
+      await createZone({
+        ...zoneForm,
+        polygon: [
+          { lat: 19.0760, lng: 72.8777 },
+          { lat: 19.0760, lng: 72.8877 },
+          { lat: 19.0660, lng: 72.8877 },
+          { lat: 19.0660, lng: 72.8777 },
+        ],
+        center: { lat: 19.0710, lng: 72.8827 },
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       });
       toast.success('Zone created successfully');
       setShowCreateModal(false);
       setZoneForm({ name: '', city: 'Mumbai', region: 'West', type: 'standard' });
+<<<<<<< HEAD
       setDrawingPoints([]);
       setIsDrawing(false);
       loadData();
     } catch (error) {
       console.error('Create zone error:', error);
+=======
+      loadData();
+    } catch (error) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to create zone');
     }
   };
 
+<<<<<<< HEAD
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isDrawing || !showCreateModal) return;
     
@@ -194,6 +219,8 @@ export function GeofenceManager() {
     toast.info('Boundary points cleared');
   };
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const handleToggleStatus = async (zoneId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     try {
@@ -225,6 +252,7 @@ export function GeofenceManager() {
     }
   };
 
+<<<<<<< HEAD
   const handleExportZones = () => {
     try {
       const csv = [
@@ -285,6 +313,8 @@ export function GeofenceManager() {
     input.click();
   };
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const getZoneTypeColor = (type: string) => {
     const typeMap: Record<string, string> = {
       standard: 'bg-blue-500',
@@ -310,7 +340,17 @@ export function GeofenceManager() {
     );
   };
 
+<<<<<<< HEAD
   // Don't block rendering on loading - show data as it loads
+=======
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-[#71717a]">Loading geofence data...</div>
+      </div>
+    );
+  }
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   return (
     <div className="space-y-6">
@@ -321,6 +361,7 @@ export function GeofenceManager() {
           <p className="text-[#71717a] text-sm">Manage delivery zones and coverage areas</p>
         </div>
         <div className="flex gap-2">
+<<<<<<< HEAD
           <Button 
             size="sm" 
             onClick={async () => {
@@ -343,6 +384,15 @@ export function GeofenceManager() {
             variant="outline"
             onClick={handleExportZones}
           >
+=======
+          <Button size="sm" onClick={loadData} variant="outline">
+            <RefreshCw size={14} className="mr-1.5" /> Refresh
+          </Button>
+          <Button size="sm" variant="outline">
+            <Upload size={14} className="mr-1.5" /> Import
+          </Button>
+          <Button size="sm" variant="outline">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Download size={14} className="mr-1.5" /> Export
           </Button>
           <Button size="sm" onClick={() => setShowCreateModal(true)}>
@@ -560,12 +610,15 @@ export function GeofenceManager() {
                       variant="outline"
                       onClick={() => {
                         setSelectedZone(zone);
+<<<<<<< HEAD
                         setZoneForm({
                           name: zone.name,
                           city: zone.city,
                           region: zone.region,
                           type: zone.type,
                         });
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                         setShowEditModal(true);
                       }}
                     >
@@ -574,6 +627,7 @@ export function GeofenceManager() {
                     <Button
                       size="sm"
                       variant="outline"
+<<<<<<< HEAD
                       onClick={() => {
                         setSelectedZone(zone);
                         setSettingsForm({
@@ -592,6 +646,8 @@ export function GeofenceManager() {
                     <Button
                       size="sm"
                       variant="outline"
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       onClick={() =>
                         zone.status !== 'inactive' &&
                         handleToggleStatus(zone.id, zone.status)
@@ -621,6 +677,7 @@ export function GeofenceManager() {
                 <p className="text-xs text-[#71717a] mt-1">Visualize all zones on the map</p>
               </div>
               <div className="flex gap-2">
+<<<<<<< HEAD
                 <Select 
                   value={statusFilter || 'all'} 
                   onValueChange={(val) => {
@@ -667,6 +724,13 @@ export function GeofenceManager() {
                   }}
                 >
                   <Layers size={14} className="mr-1.5" /> {showLayers ? 'Hide' : 'Show'} Layers
+=======
+                <Button size="sm" variant="outline">
+                  <Filter size={14} className="mr-1.5" /> Filter
+                </Button>
+                <Button size="sm" variant="outline">
+                  <Layers size={14} className="mr-1.5" /> Layers
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 </Button>
               </div>
             </div>
@@ -684,6 +748,7 @@ export function GeofenceManager() {
                 />
               </div>
 
+<<<<<<< HEAD
               {/* Zone Overlays - apply mapZoom via transform */}
               <div 
                 className="absolute inset-0 flex items-center justify-center origin-center transition-transform duration-200"
@@ -692,6 +757,13 @@ export function GeofenceManager() {
                 {/* Zones Visualization (filtered by status and city) */}
                 {zones
                   .filter((z) => (statusFilter === 'all' || z.status === statusFilter) && (cityFilter === 'all' || z.city === cityFilter))
+=======
+              {/* Zone Overlays */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {/* Active Zones Visualization */}
+                {zones
+                  .filter((z) => z.status === 'active')
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   .map((zone, idx) => (
                     <div
                       key={zone.id}
@@ -753,6 +825,7 @@ export function GeofenceManager() {
 
               {/* Map Controls */}
               <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg border border-[#e4e4e7] overflow-hidden">
+<<<<<<< HEAD
                 <button 
                   className="w-10 h-10 flex items-center justify-center hover:bg-[#f4f4f5] border-b border-[#e4e4e7]"
                   onClick={() => {
@@ -772,6 +845,13 @@ export function GeofenceManager() {
                   title="Zoom Out"
                 >
                   <Minus size={16} />
+=======
+                <button className="w-10 h-10 flex items-center justify-center hover:bg-[#f4f4f5] border-b border-[#e4e4e7]">
+                  <Plus size={16} />
+                </button>
+                <button className="w-10 h-10 flex items-center justify-center hover:bg-[#f4f4f5]">
+                  <span className="text-xl">−</span>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 </button>
               </div>
 
@@ -931,6 +1011,7 @@ export function GeofenceManager() {
                       <h4 className="font-bold text-[#18181b]">{zone.name}</h4>
                       <p className="text-xs text-[#71717a]">{zone.id}</p>
                     </div>
+<<<<<<< HEAD
                     <Button 
                       size="sm" 
                       variant="outline"
@@ -947,6 +1028,9 @@ export function GeofenceManager() {
                         });
                       }}
                     >
+=======
+                    <Button size="sm" variant="outline">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       <Edit size={14} className="mr-1" /> Edit
                     </Button>
                   </div>
@@ -1148,6 +1232,7 @@ export function GeofenceManager() {
 
             <div className="bg-[#f4f4f5] rounded-lg p-4">
               <p className="text-sm font-medium text-[#18181b] mb-2">Draw Zone Boundaries</p>
+<<<<<<< HEAD
               <p className="text-xs text-[#71717a] mb-3">Click on the map to add points and create a polygon boundary</p>
               <div className="flex gap-2 mb-3">
                 <Button 
@@ -1233,6 +1318,11 @@ export function GeofenceManager() {
               )}
               <div className="mt-3 text-xs text-[#71717a]">
                 <p>💡 Tip: Add at least 3 points to create a zone. Click "Start Drawing" then click on the map to add points.</p>
+=======
+              <p className="text-xs text-[#71717a] mb-3">Use the map tools to define the zone polygon</p>
+              <div className="bg-gray-200 rounded h-48 flex items-center justify-center text-sm text-[#71717a]">
+                Interactive Map Drawing Tool (Simulated)
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </div>
             </div>
           </div>
@@ -1321,6 +1411,7 @@ export function GeofenceManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+<<<<<<< HEAD
 
       {/* Edit Zone Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
@@ -1504,6 +1595,8 @@ export function GeofenceManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

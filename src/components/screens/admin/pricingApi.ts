@@ -132,6 +132,7 @@ export interface PricingStats {
   couponRedemptionRate: number;
 }
 
+<<<<<<< HEAD
 // --- Mock Data Arrays ---
 let MOCK_SURGE_RULES: SurgeRule[] = [];
 let MOCK_DISCOUNTS: DiscountCampaign[] = [];
@@ -139,6 +140,8 @@ let MOCK_COUPONS: Coupon[] = [];
 let MOCK_FLASH_SALES: FlashSale[] = [];
 let MOCK_BUNDLES: Bundle[] = [];
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 // --- API Functions ---
 
 export async function fetchBasePrices(): Promise<BasePrice[]> {
@@ -149,6 +152,7 @@ export async function fetchBasePrices(): Promise<BasePrice[]> {
 export async function fetchSurgeRules(): Promise<SurgeRule[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: SurgeRule[] }>('/merch/pricing/surge-rules');
+<<<<<<< HEAD
     if (response.data && response.data.length > 0) {
       MOCK_SURGE_RULES = response.data;
       return response.data;
@@ -157,10 +161,17 @@ export async function fetchSurgeRules(): Promise<SurgeRule[]> {
   } catch (error) {
     console.error('Failed to fetch surge rules:', error);
     return MOCK_SURGE_RULES;
+=======
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to fetch surge rules:', error);
+    return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchDiscountCampaigns(): Promise<DiscountCampaign[]> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: DiscountCampaign[] }>('/merch/pricing/discounts');
     if (response && response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -214,6 +225,25 @@ export async function fetchBundles(): Promise<Bundle[]> {
     console.error('Failed to fetch bundles:', error);
     return MOCK_BUNDLES;
   }
+=======
+  // TODO: Implement backend endpoint for discount campaigns
+  return [];
+}
+
+export async function fetchCoupons(): Promise<Coupon[]> {
+  // TODO: Implement backend endpoint for coupons
+  return [];
+}
+
+export async function fetchFlashSales(): Promise<FlashSale[]> {
+  // TODO: Implement backend endpoint for flash sales
+  return [];
+}
+
+export async function fetchBundles(): Promise<Bundle[]> {
+  // TODO: Implement backend endpoint for bundles
+  return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function fetchPricingStats(): Promise<PricingStats> {
@@ -230,6 +260,7 @@ export async function fetchPricingStats(): Promise<PricingStats> {
 }
 
 export async function createSurgeRule(data: Partial<SurgeRule>): Promise<SurgeRule> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: SurgeRule }>('/merch/pricing/surge-rules', {
       method: 'POST',
@@ -578,6 +609,57 @@ export async function updateCouponStatus(id: string, status: 'active' | 'paused'
     }
     throw error;
   }
+=======
+  const response = await apiRequest<{ success: boolean; data: SurgeRule }>('/merch/pricing/surge-rules', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return response.data;
+}
+
+export async function updateSurgeRule(id: string, data: Partial<SurgeRule>): Promise<SurgeRule> {
+  const response = await apiRequest<{ success: boolean; data: SurgeRule }>(`/merch/pricing/surge-rules/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return response.data;
+}
+
+export async function deleteSurgeRule(id: string): Promise<void> {
+  await apiRequest(`/merch/pricing/surge-rules/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function createDiscount(data: Partial<DiscountCampaign>): Promise<DiscountCampaign> {
+  // TODO: Implement backend endpoint for discount campaigns
+  throw new Error('Not implemented');
+}
+
+export async function createCoupon(data: Partial<Coupon>): Promise<Coupon> {
+  // TODO: Implement backend endpoint for coupons
+  throw new Error('Not implemented');
+}
+
+export async function createFlashSale(data: Partial<FlashSale>): Promise<FlashSale> {
+  // TODO: Implement backend endpoint for flash sales
+  throw new Error('Not implemented');
+}
+
+export async function createBundle(data: Partial<Bundle>): Promise<Bundle> {
+  // TODO: Implement backend endpoint for bundles
+  throw new Error('Not implemented');
+}
+
+export async function deleteCoupon(id: string): Promise<void> {
+  // TODO: Implement backend endpoint for coupons
+  throw new Error('Not implemented');
+}
+
+export async function updateCouponStatus(id: string, status: 'active' | 'paused' | 'expired'): Promise<Coupon> {
+  // TODO: Implement backend endpoint for coupons
+  throw new Error('Not implemented');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function generateCouponCode(): Promise<string> {

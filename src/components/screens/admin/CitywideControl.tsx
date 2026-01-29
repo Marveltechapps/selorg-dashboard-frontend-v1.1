@@ -32,8 +32,11 @@ import { IncidentDetailModal } from './modals/IncidentDetailModal';
 import { SurgeControlModal } from './modals/SurgeControlModal';
 import { DispatchEngineModal } from './modals/DispatchEngineModal';
 import { AnalyticsModal } from './modals/AnalyticsModal';
+<<<<<<< HEAD
 import { SettingsModal } from '@/components/screens/SettingsModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { toast } from 'sonner@2.0.3';
 
 export function CitywideControl() {
@@ -50,10 +53,13 @@ export function CitywideControl() {
   const [showSurgeControl, setShowSurgeControl] = useState(false);
   const [showDispatchEngine, setShowDispatchEngine] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+<<<<<<< HEAD
   const [showSettings, setShowSettings] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showOutageManage, setShowOutageManage] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   useEffect(() => {
     loadAllData();
@@ -66,8 +72,12 @@ export function CitywideControl() {
     return () => clearInterval(interval);
   }, []);
 
+<<<<<<< HEAD
   const loadAllData = async (showLoading = false) => {
     if (showLoading) setRefreshing(true);
+=======
+  const loadAllData = async () => {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     try {
       const [metricsData, zonesData, incidentsData, exceptionsData] = await Promise.all([
         fetchLiveMetrics(),
@@ -81,6 +91,7 @@ export function CitywideControl() {
       setIncidents(incidentsData);
       setExceptions(exceptionsData);
       setLoading(false);
+<<<<<<< HEAD
       if (showLoading) {
         toast.success('Data refreshed');
       }
@@ -92,6 +103,11 @@ export function CitywideControl() {
       }
     } finally {
       if (showLoading) setRefreshing(false);
+=======
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      setLoading(false);
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     }
   };
 
@@ -188,11 +204,18 @@ export function CitywideControl() {
           <Button
             variant="outline"
             size="sm"
+<<<<<<< HEAD
             onClick={() => loadAllData(true)}
             disabled={refreshing}
           >
             <RefreshCw size={16} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
+=======
+            onClick={loadAllData}
+          >
+            <RefreshCw size={16} className="mr-2" />
+            Refresh
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </Button>
         </div>
       </div>
@@ -275,6 +298,7 @@ export function CitywideControl() {
           </div>
           <div className="flex-1 bg-[#f4f4f5] p-3 overflow-auto">
             {/* Interactive Zone Grid */}
+<<<<<<< HEAD
             {zones.length === 0 ? (
               <div className="flex items-center justify-center h-full text-[#71717a]">
                 <div className="text-center">
@@ -284,6 +308,8 @@ export function CitywideControl() {
                 </div>
               </div>
             ) : (
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <div className="grid grid-cols-4 gap-3 h-full">
               {zones.map((zone) => (
                 <div
@@ -322,7 +348,10 @@ export function CitywideControl() {
                 </div>
               ))}
             </div>
+<<<<<<< HEAD
             )}
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </div>
         </div>
 
@@ -361,10 +390,14 @@ export function CitywideControl() {
                              <p className="text-sm font-bold text-[#18181b]">Store Outage</p>
                              <p className="text-xs text-rose-700 font-bold">ST-102 (Power Failure)</p>
                          </div>
+<<<<<<< HEAD
                          <button 
                            className="px-2 py-1 text-xs font-bold bg-white border border-rose-200 text-rose-600 rounded shadow-sm hover:bg-rose-50"
                            onClick={() => setShowOutageManage(true)}
                          >
+=======
+                         <button className="px-2 py-1 text-xs font-bold bg-white border border-rose-200 text-rose-600 rounded shadow-sm hover:bg-rose-50">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                              Manage
                          </button>
                      </div>
@@ -466,6 +499,7 @@ export function CitywideControl() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+<<<<<<< HEAD
             <Button 
               variant="ghost" 
               size="sm" 
@@ -481,6 +515,13 @@ export function CitywideControl() {
               className="text-white hover:text-white hover:bg-white/10"
               onClick={() => setShowSettings(true)}
             >
+=======
+            <Button variant="ghost" size="sm" className="text-white hover:text-white hover:bg-white/10">
+              <Bell size={16} className="mr-2" />
+              Alerts
+            </Button>
+            <Button variant="ghost" size="sm" className="text-white hover:text-white hover:bg-white/10">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Settings size={16} className="mr-2" />
               Settings
             </Button>
@@ -511,6 +552,7 @@ export function CitywideControl() {
         open={showAnalytics}
         onClose={() => setShowAnalytics(false)}
       />
+<<<<<<< HEAD
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
@@ -654,6 +696,8 @@ export function CitywideControl() {
           </div>
         </DialogContent>
       </Dialog>
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

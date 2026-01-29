@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useMemo } from 'react';
+=======
+import React, { useState, useEffect } from 'react';
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+<<<<<<< HEAD
   Dialog,
   DialogContent,
   DialogHeader,
@@ -26,6 +31,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   Select,
   SelectContent,
   SelectItem,
@@ -76,7 +83,10 @@ export function UserManagement() {
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [sessions, setSessions] = useState<LoginSession[]>([]);
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
   const [error, setError] = useState<string | null>(null);
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,16 +101,22 @@ export function UserManagement() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [showBulkOps, setShowBulkOps] = useState(false);
+<<<<<<< HEAD
   const [showFilters, setShowFilters] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('UserManagement component mounted, loading data...');
+=======
+
+  useEffect(() => {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     loadAllData();
   }, []);
 
   const loadAllData = async () => {
     setLoading(true);
+<<<<<<< HEAD
     setError(null);
     try {
       console.log('Loading user management data...');
@@ -150,11 +166,35 @@ export function UserManagement() {
       const errorMsg = error?.message || 'Unknown error';
       setError(errorMsg);
       toast.error(`Failed to load user management data: ${errorMsg}`);
+=======
+    try {
+      const [usersData, rolesData, permsData, logsData, sessionsData] = await Promise.all([
+        fetchUsers(),
+        fetchRoles(),
+        fetchPermissions(),
+        fetchAccessLogs(),
+        fetchLoginSessions()
+      ]);
+      
+      setUsers(usersData);
+      setRoles(rolesData);
+      setPermissions(permsData);
+      setAccessLogs(logsData);
+      setSessions(sessionsData);
+      
+      if (rolesData.length > 0) {
+        setSelectedRoleId(rolesData[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toast.error('Failed to load user management data');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
   };
 
+<<<<<<< HEAD
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = !searchTerm || 
@@ -166,6 +206,16 @@ export function UserManagement() {
       return matchesSearch && matchesStatus && matchesRole;
     });
   }, [users, searchTerm, statusFilter, roleFilter]);
+=======
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    const matchesRole = roleFilter === 'all' || user.roleId === roleFilter;
+    
+    return matchesSearch && matchesStatus && matchesRole;
+  });
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers(prev =>
@@ -215,6 +265,7 @@ export function UserManagement() {
     }
   };
 
+<<<<<<< HEAD
   const handleExport = () => {
     try {
       console.log('Export clicked. Filtered users:', filteredUsers.length);
@@ -358,6 +409,8 @@ export function UserManagement() {
     input.click();
   };
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-emerald-500';
@@ -402,6 +455,7 @@ export function UserManagement() {
     return acc;
   }, {} as Record<string, Permission[]>);
 
+<<<<<<< HEAD
   // Show loading state
   if (loading && users.length === 0 && roles.length === 0) {
     return (
@@ -439,6 +493,8 @@ export function UserManagement() {
     error 
   });
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -448,6 +504,7 @@ export function UserManagement() {
           <p className="text-[#6B7280] mt-1">RBAC configuration and access logs</p>
         </div>
         <div className="flex gap-3">
+<<<<<<< HEAD
           <Button 
             variant="outline" 
             size="sm"
@@ -469,6 +526,17 @@ export function UserManagement() {
             size="sm"
             onClick={() => setShowFilters(true)}
           >
+=======
+          <Button variant="outline" size="sm">
+            <Upload size={16} className="mr-2" />
+            Import
+          </Button>
+          <Button variant="outline" size="sm">
+            <Download size={16} className="mr-2" />
+            Export
+          </Button>
+          <Button variant="outline" size="sm">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Filter size={16} className="mr-2" />
             Filters
           </Button>
@@ -525,6 +593,7 @@ export function UserManagement() {
               <Input
                 placeholder="Search users by name or email..."
                 value={searchTerm}
+<<<<<<< HEAD
                 onChange={(e) => {
                   const value = e.target.value;
                   console.log('Search term changed:', value);
@@ -540,6 +609,13 @@ export function UserManagement() {
                 setStatusFilter(value);
               }}
             >
+=======
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -550,6 +626,7 @@ export function UserManagement() {
                 <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
+<<<<<<< HEAD
             <Select 
               value={roleFilter} 
               onValueChange={(value) => {
@@ -557,6 +634,9 @@ export function UserManagement() {
                 setRoleFilter(value);
               }}
             >
+=======
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Role" />
               </SelectTrigger>
@@ -724,6 +804,7 @@ export function UserManagement() {
                         <span className="text-sm text-[#6B7280]">{selectedRole.userCount} user{selectedRole.userCount !== 1 ? 's' : ''} assigned</span>
                       </div>
                     </div>
+<<<<<<< HEAD
                     <Button 
                       variant="outline"
                       onClick={() => {
@@ -733,6 +814,9 @@ export function UserManagement() {
                     >
                       Edit Role
                     </Button>
+=======
+                    <Button variant="outline">Edit Role</Button>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   </div>
 
                   <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -773,6 +857,7 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+<<<<<<< HEAD
                 {Object.keys(permissionsByModule).length > 0 && roles.length > 0 ? (
                   Object.entries(permissionsByModule).map(([module]) => (
                     <TableRow key={module}>
@@ -800,6 +885,27 @@ export function UserManagement() {
                     </TableCell>
                   </TableRow>
                 )}
+=======
+                {Object.entries(permissionsByModule).map(([module]) => (
+                  <TableRow key={module}>
+                    <TableCell className="font-medium">{module}</TableCell>
+                    {roles.slice(0, 5).map(role => {
+                      const hasPermissions = permissions
+                        .filter(p => p.module === module)
+                        .some(p => role.permissions.includes(p.id));
+                      return (
+                        <TableCell key={role.id} className="text-center">
+                          {hasPermissions ? (
+                            <CheckCircle size={16} className="text-emerald-500 mx-auto" />
+                          ) : (
+                            <XCircle size={16} className="text-gray-300 mx-auto" />
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </TableBody>
             </Table>
           </div>
@@ -819,9 +925,14 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+<<<<<<< HEAD
                 {accessLogs.length > 0 ? (
                   accessLogs.map((log) => (
                     <TableRow key={log.id}>
+=======
+                {accessLogs.map((log) => (
+                  <TableRow key={log.id}>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     <TableCell>
                       <div className="text-sm">{formatTimeAgo(log.timestamp)}</div>
                       <div className="text-xs text-[#6B7280]">
@@ -846,6 +957,7 @@ export function UserManagement() {
                       )}
                     </TableCell>
                   </TableRow>
+<<<<<<< HEAD
                   ))
                 ) : (
                   <TableRow>
@@ -854,6 +966,9 @@ export function UserManagement() {
                     </TableCell>
                   </TableRow>
                 )}
+=======
+                ))}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </TableBody>
             </Table>
           </div>
@@ -874,6 +989,7 @@ export function UserManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+<<<<<<< HEAD
                 {sessions.length > 0 ? (
                   sessions.map((session) => {
                     const Icon = session.deviceType === 'mobile' ? Smartphone :
@@ -881,6 +997,14 @@ export function UserManagement() {
                     
                     return (
                       <TableRow key={session.id}>
+=======
+                {sessions.map((session) => {
+                  const Icon = session.deviceType === 'mobile' ? Smartphone :
+                              session.deviceType === 'laptop' ? Laptop : Monitor;
+                  
+                  return (
+                    <TableRow key={session.id}>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       <TableCell>
                         <div className="font-medium">{session.userName}</div>
                         <div className="text-xs text-[#6B7280]">{session.userEmail}</div>
@@ -911,6 +1035,7 @@ export function UserManagement() {
                         </Button>
                       </TableCell>
                     </TableRow>
+<<<<<<< HEAD
                     );
                   })
                 ) : (
@@ -920,6 +1045,10 @@ export function UserManagement() {
                     </TableCell>
                   </TableRow>
                 )}
+=======
+                  );
+                })}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </TableBody>
             </Table>
           </div>
@@ -935,6 +1064,7 @@ export function UserManagement() {
       
       <CreateRoleModal
         open={showCreateRole}
+<<<<<<< HEAD
         onClose={() => {
           setShowCreateRole(false);
           setEditingRoleId(null);
@@ -944,6 +1074,10 @@ export function UserManagement() {
           setEditingRoleId(null);
         }}
         editingRoleId={editingRoleId}
+=======
+        onClose={() => setShowCreateRole(false)}
+        onRoleCreated={loadAllData}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       />
       
       <BulkOperationsModal
@@ -955,6 +1089,7 @@ export function UserManagement() {
           loadAllData();
         }}
       />
+<<<<<<< HEAD
 
       {/* Filters Modal */}
       <Dialog open={showFilters} onOpenChange={setShowFilters}>
@@ -1040,6 +1175,8 @@ export function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

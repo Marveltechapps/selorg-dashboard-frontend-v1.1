@@ -116,10 +116,16 @@ export function AuditLogs() {
 
   const handleExport = async (format: 'csv' | 'json') => {
     try {
+<<<<<<< HEAD
       const result = await exportAuditLogs(format, logs);
       toast.success(`Audit logs exported as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export error:', error);
+=======
+      const result = await exportAuditLogs(format);
+      toast.success(`Audit logs exported as ${format.toUpperCase()}`);
+    } catch (error) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to export logs');
     }
   };

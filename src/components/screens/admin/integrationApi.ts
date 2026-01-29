@@ -664,6 +664,7 @@ const MOCK_STATS: IntegrationStats = {
 // --- API Functions ---
 
 export async function fetchIntegrations(): Promise<Integration[]> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: Integration[] }>('/admin/integrations');
     if (response.data && response.data.length > 0) {
@@ -716,6 +717,25 @@ export async function fetchIntegrationLogs(): Promise<IntegrationLog[]> {
     console.error('Failed to fetch integration logs:', error);
     return MOCK_LOGS;
   }
+=======
+  // TODO: Implement backend endpoint for integrations
+  return [];
+}
+
+export async function fetchWebhooks(): Promise<Webhook[]> {
+  // TODO: Implement backend endpoint for webhooks
+  return [];
+}
+
+export async function fetchApiKeys(): Promise<ApiKey[]> {
+  // TODO: Implement backend endpoint for API keys (security sensitive)
+  return [];
+}
+
+export async function fetchIntegrationLogs(): Promise<IntegrationLog[]> {
+  // TODO: Implement backend endpoint for integration logs
+  return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function fetchIntegrationStats(): Promise<IntegrationStats> {
@@ -731,6 +751,7 @@ export async function fetchIntegrationStats(): Promise<IntegrationStats> {
 }
 
 export async function toggleIntegration(integrationId: string, status: 'active' | 'inactive'): Promise<void> {
+<<<<<<< HEAD
   try {
     await apiRequest(`/admin/integrations/${integrationId}`, {
       method: 'PUT',
@@ -818,6 +839,20 @@ export async function createWebhook(webhook: Partial<Webhook>): Promise<Webhook>
     };
     return mockWebhook;
   }
+=======
+  // TODO: Implement backend endpoint for toggling integrations
+  throw new Error('Not implemented');
+}
+
+export async function testConnection(integrationId: string): Promise<{ success: boolean; message: string }> {
+  // TODO: Implement backend endpoint for testing connections
+  throw new Error('Not implemented');
+}
+
+export async function createWebhook(webhook: Partial<Webhook>): Promise<Webhook> {
+  // TODO: Implement backend endpoint for creating webhooks
+  throw new Error('Not implemented');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function generateApiKey(data: {
@@ -826,6 +861,7 @@ export async function generateApiKey(data: {
   name: string;
   environment: 'production' | 'sandbox';
 }): Promise<ApiKey> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: ApiKey }>('/admin/integrations/api-keys', {
       method: 'POST',
@@ -873,4 +909,18 @@ export async function retryWebhook(webhookId: string): Promise<void> {
     console.error('Failed to retry webhook:', error);
     // Silently fail - UI will update optimistically
   }
+=======
+  // TODO: Implement backend endpoint for generating API keys (security sensitive)
+  throw new Error('Not implemented');
+}
+
+export async function revokeApiKey(keyId: string): Promise<void> {
+  // TODO: Implement backend endpoint for revoking API keys (security sensitive)
+  throw new Error('Not implemented');
+}
+
+export async function retryWebhook(webhookId: string): Promise<void> {
+  // TODO: Implement backend endpoint for retrying webhooks
+  throw new Error('Not implemented');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

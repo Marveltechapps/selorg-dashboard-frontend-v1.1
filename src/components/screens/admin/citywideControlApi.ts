@@ -1,5 +1,8 @@
 import { apiRequest } from '@/api/apiClient';
+<<<<<<< HEAD
 import { v4 as uuidv4 } from 'uuid';
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
 // --- Type Definitions ---
 
@@ -302,6 +305,7 @@ export const fetchLiveMetrics = async (): Promise<LiveMetrics> => {
 export const fetchZones = async (): Promise<Zone[]> => {
   try {
     const response = await apiRequest<{ success: boolean; data: Zone[] }>('/merch/geofence/zones');
+<<<<<<< HEAD
     if (response.data && response.data.length > 0) {
       return response.data;
     }
@@ -311,6 +315,12 @@ export const fetchZones = async (): Promise<Zone[]> => {
     console.error('Failed to fetch zones:', error);
     // Return mock data as fallback so heatmap works
     return generateMockZones();
+=======
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to fetch zones:', error);
+    return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 };
 

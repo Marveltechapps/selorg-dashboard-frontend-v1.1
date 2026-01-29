@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import {
   Dialog,
   DialogContent,
@@ -19,7 +23,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+<<<<<<< HEAD
 import { createCoupon, updateCoupon, generateCouponCode, Coupon } from '../pricingApi';
+=======
+import { createCoupon, generateCouponCode } from '../pricingApi';
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { toast } from 'sonner@2.0.3';
 import { Ticket, RefreshCw, Copy, Sparkles } from 'lucide-react';
 
@@ -27,12 +35,16 @@ interface AddCouponModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+<<<<<<< HEAD
   editCoupon?: Coupon | null;
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 const CATEGORIES = ['Fresh Produce', 'Dairy & Eggs', 'Beverages', 'Snacks', 'Personal Care', 'Household'];
 const USER_SEGMENTS = ['all', 'new_users', 'premium', 'inactive', 'high_value'];
 
+<<<<<<< HEAD
 export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: AddCouponModalProps) {
   const [loading, setLoading] = useState(false);
   
@@ -71,6 +83,10 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
     }
   }, [open, editCoupon]);
   
+=======
+export function AddCouponModal({ open, onOpenChange, onSuccess }: AddCouponModalProps) {
+  const [loading, setLoading] = useState(false);
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -146,7 +162,11 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
 
     setLoading(true);
     try {
+<<<<<<< HEAD
       const couponData = {
+=======
+      await createCoupon({
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim(),
         discountType: formData.discountType,
@@ -160,6 +180,7 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
         userSegments: formData.selectedSegments,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: formData.endDate ? new Date(formData.endDate).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+<<<<<<< HEAD
       };
       
       if (editCoupon) {
@@ -174,6 +195,15 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
       onOpenChange(false);
     } catch (error) {
       toast.error(editCoupon ? 'Failed to update coupon' : 'Failed to create coupon');
+=======
+      });
+
+      toast.success(`Coupon "${formData.code}" created successfully`);
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      toast.error('Failed to create coupon');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -188,8 +218,13 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
               <Ticket className="text-purple-600" size={20} />
             </div>
             <div>
+<<<<<<< HEAD
               <DialogTitle>{editCoupon ? 'Edit Coupon Code' : 'Create Coupon Code'}</DialogTitle>
               <DialogDescription>{editCoupon ? 'Update coupon details' : 'Generate a new discount coupon for customers'}</DialogDescription>
+=======
+              <DialogTitle>Create Coupon Code</DialogTitle>
+              <DialogDescription>Generate a new discount coupon for customers</DialogDescription>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
         </DialogHeader>
@@ -199,13 +234,20 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
           <div className="space-y-2">
             <Label htmlFor="coupon-code">Coupon Code *</Label>
             <div className="flex gap-2">
+<<<<<<< HEAD
                 <Input
+=======
+              <Input
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 id="coupon-code"
                 placeholder="e.g., SUMMER25"
                 value={formData.code}
                 onChange={(e) => handleChange('code', e.target.value.toUpperCase())}
                 className="flex-1 font-mono"
+<<<<<<< HEAD
                 disabled={!!editCoupon}
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               />
               <Button 
                 type="button" 
@@ -438,7 +480,11 @@ export function AddCouponModal({ open, onOpenChange, onSuccess, editCoupon }: Ad
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading} className="bg-purple-600 hover:bg-purple-700">
+<<<<<<< HEAD
             {loading ? (editCoupon ? 'Updating...' : 'Creating...') : (editCoupon ? 'Update Coupon' : 'Create Coupon')}
+=======
+            {loading ? 'Creating...' : 'Create Coupon'}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </Button>
         </div>
       </DialogContent>

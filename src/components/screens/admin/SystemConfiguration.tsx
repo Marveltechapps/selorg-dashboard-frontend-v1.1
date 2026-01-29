@@ -32,7 +32,10 @@ import {
   updateGeneralSettings,
   updateDeliverySettings,
   updatePaymentGateway,
+<<<<<<< HEAD
   updateNotificationSettings,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   updateTaxSettings,
   toggleFeatureFlag,
   updateIntegration,
@@ -113,6 +116,7 @@ export function SystemConfiguration() {
       setFeatureFlags(features);
       setIntegrations(integs);
       setAdvancedSettings(advanced);
+<<<<<<< HEAD
     } catch (error: any) {
       console.error('Failed to load system configuration:', error);
       // Load each section individually so at least mock data shows
@@ -129,6 +133,10 @@ export function SystemConfiguration() {
       await safeSet(fetchFeatureFlags, setFeatureFlags);
       await safeSet(fetchIntegrations, setIntegrations);
       await safeSet(fetchAdvancedSettings, setAdvancedSettings);
+=======
+    } catch (error) {
+      toast.error('Failed to load system configuration');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -214,14 +222,21 @@ export function SystemConfiguration() {
   const handleToggleMaintenance = async () => {
     if (!advancedSettings) return;
     try {
+<<<<<<< HEAD
       const updated = await updateAdvancedSettings({ maintenanceMode: !advancedSettings.maintenanceMode });
       setAdvancedSettings(updated);
       toast.success(`Maintenance mode ${!advancedSettings.maintenanceMode ? 'enabled' : 'disabled'}`);
+=======
+      await updateAdvancedSettings({ maintenanceMode: !advancedSettings.maintenanceMode });
+      toast.success(`Maintenance mode ${!advancedSettings.maintenanceMode ? 'enabled' : 'disabled'}`);
+      loadData();
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } catch (error) {
       toast.error('Failed to toggle maintenance mode');
     }
   };
 
+<<<<<<< HEAD
   const handleToggleDebugMode = async () => {
     if (!advancedSettings) return;
     try {
@@ -245,6 +260,8 @@ export function SystemConfiguration() {
     }
   };
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -331,11 +348,15 @@ export function SystemConfiguration() {
             </div>
 
             <div className="p-6 space-y-6">
+<<<<<<< HEAD
               {!generalSettings ? (
                 <div className="p-12 text-center text-[#71717a]">
                   <p>Loading general settings...</p>
                 </div>
               ) : generalSettings && (
+=======
+              {generalSettings && (
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <>
                   {/* Platform Identity */}
                   <div className="grid grid-cols-2 gap-6">
@@ -692,21 +713,33 @@ export function SystemConfiguration() {
                           <p className="font-medium text-[#18181b]">Email Notifications</p>
                           <p className="text-xs text-[#71717a]">{notificationSettings.emailProvider}</p>
                         </div>
+<<<<<<< HEAD
                         <Switch checked={notificationSettings.emailEnabled} onCheckedChange={() => handleToggleNotificationChannel('emailEnabled')} />
+=======
+                        <Switch checked={notificationSettings.emailEnabled} disabled />
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       </div>
                       <div className="flex items-center justify-between p-4 bg-[#f4f4f5] rounded-lg">
                         <div>
                           <p className="font-medium text-[#18181b]">SMS Notifications</p>
                           <p className="text-xs text-[#71717a]">{notificationSettings.smsProvider}</p>
                         </div>
+<<<<<<< HEAD
                         <Switch checked={notificationSettings.smsEnabled} onCheckedChange={() => handleToggleNotificationChannel('smsEnabled')} />
+=======
+                        <Switch checked={notificationSettings.smsEnabled} disabled />
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       </div>
                       <div className="flex items-center justify-between p-4 bg-[#f4f4f5] rounded-lg">
                         <div>
                           <p className="font-medium text-[#18181b]">Push Notifications</p>
                           <p className="text-xs text-[#71717a]">FCM</p>
                         </div>
+<<<<<<< HEAD
                         <Switch checked={notificationSettings.pushEnabled} onCheckedChange={() => handleToggleNotificationChannel('pushEnabled')} />
+=======
+                        <Switch checked={notificationSettings.pushEnabled} disabled />
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       </div>
                     </div>
                   </div>
@@ -1000,7 +1033,11 @@ export function SystemConfiguration() {
                           <p className="font-medium text-[#18181b]">Debug Mode</p>
                           <p className="text-xs text-[#71717a]">Enable detailed logging</p>
                         </div>
+<<<<<<< HEAD
                         <Switch checked={advancedSettings.debugMode} onCheckedChange={handleToggleDebugMode} />
+=======
+                        <Switch checked={advancedSettings.debugMode} disabled />
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       </div>
                     </div>
                   </div>

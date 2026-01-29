@@ -47,6 +47,7 @@ function getLoginEndpoint(role?: string): string {
  * Authenticate user with email and password
  */
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+<<<<<<< HEAD
   try {
     const endpoint = getLoginEndpoint(credentials.role);
     const response = await fetch(`${API_CONFIG.baseURL}${endpoint}`, {
@@ -125,6 +126,37 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
     // If no fallback allowed and credentials don't match, throw error
     throw new Error('Invalid credentials. Please check your email and password.');
   }
+=======
+  const endpoint = getLoginEndpoint(credentials.role);
+  const response = await fetch(`${API_CONFIG.baseURL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: credentials.email,
+      password: credentials.password,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Login failed' }));
+    throw new Error(error.message || 'Invalid credentials');
+  }
+
+  const data = await response.json();
+  
+  // Store token in localStorage
+  if (data.token) {
+    localStorage.setItem('authToken', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    if (credentials.role) {
+      localStorage.setItem('userRole', credentials.role);
+    }
+  }
+
+  return data;
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 /**

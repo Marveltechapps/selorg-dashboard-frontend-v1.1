@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import { Database, Plus, Search, Filter, MoreHorizontal, User, Shield, Key, Edit, Trash2, Eye } from 'lucide-react';
 import { AddStoreModal } from './modals/AddStoreModal';
@@ -77,6 +78,12 @@ export function MasterData() {
     }
   };
 
+=======
+import React from 'react';
+import { Database, Plus, Search, Filter, MoreHorizontal, User, Shield, Key } from 'lucide-react';
+
+export function MasterData() {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -92,8 +99,12 @@ export function MasterData() {
               {['Cities', 'Zones', 'Stores', 'Warehouses', 'Riders', 'Employees', 'Vehicle Types', 'SKU Units'].map((tab, i) => (
                   <button 
                     key={tab} 
+<<<<<<< HEAD
                     onClick={() => setActiveTab(i)}
                     className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${i === activeTab ? 'border-[#e11d48] text-[#e11d48] bg-rose-50/50' : 'border-transparent text-[#71717a] hover:text-[#18181b] hover:bg-[#fcfcfc]'}`}
+=======
+                    className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${i === 2 ? 'border-[#e11d48] text-[#e11d48] bg-rose-50/50' : 'border-transparent text-[#71717a] hover:text-[#18181b] hover:bg-[#fcfcfc]'}`}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   >
                       {tab}
                   </button>
@@ -108,6 +119,7 @@ export function MasterData() {
                       <input 
                         type="text" 
                         placeholder="Search stores..." 
+<<<<<<< HEAD
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="h-9 pl-9 pr-4 rounded-lg bg-white border border-[#e4e4e7] text-sm focus:ring-2 focus:ring-[#e11d48] focus:border-transparent w-64 shadow-sm"
@@ -127,6 +139,16 @@ export function MasterData() {
                 onClick={handleAddStore}
                 className="h-9 px-4 bg-[#18181b] text-white text-sm font-medium rounded-lg hover:bg-[#27272a] flex items-center gap-2 shadow-lg shadow-zinc-500/20"
               >
+=======
+                        className="h-9 pl-9 pr-4 rounded-lg bg-white border border-[#e4e4e7] text-sm focus:ring-2 focus:ring-[#e11d48] focus:border-transparent w-64 shadow-sm"
+                      />
+                  </div>
+                  <button className="h-9 px-3 bg-white border border-[#e4e4e7] rounded-lg text-sm text-[#71717a] hover:text-[#18181b] flex items-center gap-2 shadow-sm">
+                      <Filter size={14} /> Filters
+                  </button>
+              </div>
+              <button className="h-9 px-4 bg-[#18181b] text-white text-sm font-medium rounded-lg hover:bg-[#27272a] flex items-center gap-2 shadow-lg shadow-zinc-500/20">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <Plus size={14} /> Add New Store
               </button>
           </div>
@@ -146,6 +168,7 @@ export function MasterData() {
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e4e4e7]">
+<<<<<<< HEAD
                       {filteredStores.length === 0 ? (
                           <tr>
                               <td colSpan={7} className="px-6 py-8 text-center text-[#71717a]">
@@ -168,6 +191,23 @@ export function MasterData() {
                               </td>
                               <td className="px-6 py-4">
                                   {store.status === 'offline' ? (
+=======
+                      {[1,2,3,4,5,6,7,8].map((i) => (
+                          <tr key={i} className="hover:bg-[#fcfcfc] group">
+                              <td className="px-6 py-4 font-mono text-[#71717a]">ST-10{i}</td>
+                              <td className="px-6 py-4">
+                                  <div className="font-medium text-[#18181b]">Indiranagar Central {i}</div>
+                                  <div className="text-xs text-[#71717a]">12th Main Road</div>
+                              </td>
+                              <td className="px-6 py-4 text-[#52525b]">Bangalore • Zone 5</td>
+                              <td className="px-6 py-4">
+                                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                      Dark Store
+                                  </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                  {i === 2 ? (
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                                       <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
                                           <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Offline
                                       </span>
@@ -180,6 +220,7 @@ export function MasterData() {
                               <td className="px-6 py-4 text-[#52525b]">
                                   <div className="flex items-center gap-2">
                                       <div className="w-6 h-6 rounded-full bg-[#f4f4f5] border border-[#e4e4e7] flex items-center justify-center text-[10px]">VM</div>
+<<<<<<< HEAD
                                       {store.manager}
                                   </div>
                               </td>
@@ -212,10 +253,23 @@ export function MasterData() {
                               </td>
                           </tr>
                       )))}
+=======
+                                      Vikram M.
+                                  </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                  <button className="p-1.5 text-[#a1a1aa] hover:text-[#18181b] hover:bg-[#f4f4f5] rounded transition-colors">
+                                      <MoreHorizontal size={16} />
+                                  </button>
+                              </td>
+                          </tr>
+                      ))}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   </tbody>
               </table>
           </div>
       </div>
+<<<<<<< HEAD
 
       {/* Add Store Modal */}
       <AddStoreModal
@@ -227,6 +281,8 @@ export function MasterData() {
         onSuccess={handleStoreSuccess}
         editStore={editStore}
       />
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

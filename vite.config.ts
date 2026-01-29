@@ -57,6 +57,7 @@
     server: {
       port: 3000,
       open: true,
+<<<<<<< HEAD
       proxy: {
         '/api': {
           target: 'http://localhost:5001',
@@ -64,5 +65,7 @@
           secure: false,
         },
       },
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     },
   });

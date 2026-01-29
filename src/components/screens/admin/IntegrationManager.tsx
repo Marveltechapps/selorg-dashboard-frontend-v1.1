@@ -11,7 +11,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+<<<<<<< HEAD
 import { Label } from '@/components/ui/label';
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import {
   Select,
   SelectContent,
@@ -34,7 +37,10 @@ import {
   fetchIntegrationLogs,
   fetchIntegrationStats,
   toggleIntegration,
+<<<<<<< HEAD
   updateIntegration,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   testConnection,
   createWebhook,
   generateApiKey,
@@ -70,7 +76,10 @@ import {
   Download,
   Filter,
   Search,
+<<<<<<< HEAD
   Edit,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 } from 'lucide-react';
 
 export function IntegrationManager() {
@@ -85,7 +94,10 @@ export function IntegrationManager() {
   const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+<<<<<<< HEAD
   const [showEditModal, setShowEditModal] = useState(false);
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
 
@@ -107,10 +119,13 @@ export function IntegrationManager() {
   // Visibility states
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
+<<<<<<< HEAD
   // Filter and search states
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   useEffect(() => {
     loadData();
   }, []);
@@ -166,6 +181,7 @@ export function IntegrationManager() {
   };
 
   const handleCreateWebhook = async () => {
+<<<<<<< HEAD
     if (!webhookForm.integrationId || !webhookForm.event || !webhookForm.url) {
       toast.error('Please fill in all required fields');
       return;
@@ -181,11 +197,21 @@ export function IntegrationManager() {
       await loadData();
     } catch (error) {
       console.error('Create webhook error:', error);
+=======
+    try {
+      await createWebhook(webhookForm);
+      toast.success('Webhook created successfully');
+      setShowWebhookModal(false);
+      setWebhookForm({ integrationId: '', integrationName: '', event: '', url: '' });
+      loadData();
+    } catch (error) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to create webhook');
     }
   };
 
   const handleGenerateKey = async () => {
+<<<<<<< HEAD
     if (!keyForm.integrationId || !keyForm.name) {
       toast.error('Please select integration and enter key name');
       return;
@@ -203,6 +229,20 @@ export function IntegrationManager() {
       await loadData();
     } catch (error) {
       console.error('Generate key error:', error);
+=======
+    try {
+      const newKey = await generateApiKey(keyForm);
+      toast.success('API key generated successfully');
+      setShowKeyModal(false);
+      setKeyForm({ integrationId: '', integrationName: '', name: '', environment: 'production' });
+      loadData();
+      
+      // Show the new key briefly
+      setTimeout(() => {
+        toast.info(`New key: ${newKey.key}`, { duration: 10000 });
+      }, 500);
+    } catch (error) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to generate API key');
     }
   };
@@ -227,6 +267,7 @@ export function IntegrationManager() {
     }
   };
 
+<<<<<<< HEAD
   const handleExportLogs = () => {
     try {
       const csv = [
@@ -260,6 +301,8 @@ export function IntegrationManager() {
     }
   };
 
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const toggleKeyVisibility = (keyId: string) => {
     setVisibleKeys(prev => {
       const newSet = new Set(prev);
@@ -344,6 +387,7 @@ export function IntegrationManager() {
           <p className="text-[#71717a] text-sm">Manage third-party APIs and service connections</p>
         </div>
         <div className="flex gap-2">
+<<<<<<< HEAD
           <Button 
             size="sm" 
             onClick={async () => {
@@ -359,6 +403,12 @@ export function IntegrationManager() {
             variant="outline"
             onClick={handleExportLogs}
           >
+=======
+          <Button size="sm" onClick={loadData} variant="outline">
+            <RefreshCw size={14} className="mr-1.5" /> Refresh
+          </Button>
+          <Button size="sm" variant="outline">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Download size={14} className="mr-1.5" /> Export Logs
           </Button>
         </div>
@@ -552,6 +602,7 @@ export function IntegrationManager() {
                     <Button
                       size="sm"
                       variant="outline"
+<<<<<<< HEAD
                       onClick={() => {
                         setSelectedIntegration(integration);
                         setShowEditModal(true);
@@ -563,6 +614,8 @@ export function IntegrationManager() {
                     <Button
                       size="sm"
                       variant="outline"
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       onClick={() => handleTestConnection(integration.id, integration.name)}
                       disabled={testingConnection === integration.id}
                     >
@@ -774,6 +827,7 @@ export function IntegrationManager() {
                 <p className="text-xs text-[#71717a] mt-1">Real-time API activity monitoring</p>
               </div>
               <div className="flex gap-2">
+<<<<<<< HEAD
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[120px]">
                     <Filter size={14} className="mr-1.5" />
@@ -791,6 +845,14 @@ export function IntegrationManager() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-[200px]"
                 />
+=======
+                <Button size="sm" variant="outline">
+                  <Filter size={14} className="mr-1.5" /> Filter
+                </Button>
+                <Button size="sm" variant="outline">
+                  <Search size={14} className="mr-1.5" /> Search
+                </Button>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </div>
             </div>
 
@@ -807,6 +869,7 @@ export function IntegrationManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+<<<<<<< HEAD
                 {logs
                   .filter(log => {
                     if (statusFilter !== 'all') {
@@ -824,6 +887,9 @@ export function IntegrationManager() {
                     return true;
                   })
                   .map((log) => (
+=======
+                {logs.map((log) => (
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <TableRow key={log.id}>
                     <TableCell className="text-xs text-[#71717a]">
                       {new Date(log.timestamp).toLocaleTimeString()}
@@ -1114,6 +1180,7 @@ export function IntegrationManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+<<<<<<< HEAD
 
       {/* Edit Integration Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
@@ -1184,6 +1251,8 @@ export function IntegrationManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

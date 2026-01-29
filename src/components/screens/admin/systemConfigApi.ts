@@ -304,7 +304,27 @@ export async function fetchGeneralSettings(): Promise<GeneralSettings> {
     };
   } catch (error) {
     console.error('Failed to fetch general settings:', error);
+<<<<<<< HEAD
     return MOCK_GENERAL_SETTINGS;
+=======
+    return {
+      platformName: 'QuickCommerce',
+      tagline: 'Fast Delivery Platform',
+      logoUrl: '',
+      faviconUrl: '',
+      timezone: 'Asia/Kolkata',
+      currency: 'INR',
+      currencySymbol: '₹',
+      defaultLanguage: 'en',
+      supportedLanguages: ['en', 'hi'],
+      dateFormat: 'DD/MM/YYYY',
+      timeFormat: '24h',
+      primaryColor: '#0891b2',
+      secondaryColor: '#06b6d4',
+      contactEmail: 'support@quickcommerce.com',
+      supportPhone: '+91-1800-123-4567',
+    };
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
@@ -314,6 +334,7 @@ export async function updateGeneralSettings(data: Partial<GeneralSettings>): Pro
 }
 
 export async function fetchDeliverySettings(): Promise<DeliverySettings> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: DeliverySettings }>('/admin/system/delivery');
     if (response?.data) return response.data;
@@ -321,6 +342,21 @@ export async function fetchDeliverySettings(): Promise<DeliverySettings> {
     console.error('Failed to fetch delivery settings:', error);
   }
   return MOCK_DELIVERY_SETTINGS;
+=======
+  // TODO: Implement backend endpoint for delivery settings
+  return {
+    minOrderValue: 149,
+    maxOrderValue: 50000,
+    baseDeliveryFee: 39,
+    freeDeliveryAbove: 499,
+    deliveryFeePerKm: 5,
+    maxDeliveryRadius: 10,
+    avgDeliveryTime: 30,
+    expressDeliveryFee: 59,
+    slots: [],
+    partners: [],
+  };
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function updateDeliverySettings(data: Partial<DeliverySettings>): Promise<DeliverySettings> {
@@ -329,6 +365,7 @@ export async function updateDeliverySettings(data: Partial<DeliverySettings>): P
 }
 
 export async function fetchPaymentGateways(): Promise<PaymentGateway[]> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: PaymentGateway[] }>('/admin/system/payment-gateways');
     if (response.data && response.data.length > 0) {
@@ -526,5 +563,101 @@ export async function testIntegration(id: string): Promise<{ success: boolean; m
   return {
     success: true,
     message: integration ? `Connection to ${integration.name} verified successfully` : 'Integration test completed',
+=======
+  // TODO: Implement backend endpoint for payment gateways
+  return [];
+}
+
+export async function updatePaymentGateway(id: string, data: Partial<PaymentGateway>): Promise<PaymentGateway> {
+  // TODO: Implement backend endpoint for payment gateways
+  throw new Error('Not implemented');
+}
+
+export async function fetchNotificationSettings(): Promise<NotificationSettings> {
+  // TODO: Implement backend endpoint for notification settings
+  return {
+    emailEnabled: true,
+    smsEnabled: true,
+    pushEnabled: true,
+    emailProvider: 'sendgrid',
+    smsProvider: 'twilio',
+    emailApiKey: '',
+    smsApiKey: '',
+    fcmServerKey: '',
+    templates: [],
+  };
+}
+
+export async function updateNotificationSettings(data: Partial<NotificationSettings>): Promise<NotificationSettings> {
+  // TODO: Implement backend endpoint for notification settings
+  return await fetchNotificationSettings();
+}
+
+export async function fetchTaxSettings(): Promise<TaxSettings> {
+  // TODO: Implement backend endpoint for tax settings
+  return {
+    gstEnabled: true,
+    cgstRate: 9,
+    sgstRate: 9,
+    igstRate: 18,
+    tdsEnabled: false,
+    tdsRate: 0,
+    taxDisplayType: 'inclusive',
+    gstNumber: '',
+    panNumber: '',
+  };
+}
+
+export async function updateTaxSettings(data: Partial<TaxSettings>): Promise<TaxSettings> {
+  // TODO: Implement backend endpoint for tax settings
+  return await fetchTaxSettings();
+}
+
+export async function fetchFeatureFlags(): Promise<FeatureFlag[]> {
+  // TODO: Implement backend endpoint for feature flags
+  return [];
+}
+
+export async function toggleFeatureFlag(id: string): Promise<FeatureFlag> {
+  // TODO: Implement backend endpoint for feature flags
+  throw new Error('Not implemented');
+}
+
+export async function fetchIntegrations(): Promise<Integration[]> {
+  // TODO: Implement backend endpoint for integrations
+  return [];
+}
+
+export async function updateIntegration(id: string, data: Partial<Integration>): Promise<Integration> {
+  // TODO: Implement backend endpoint for integrations
+  throw new Error('Not implemented');
+}
+
+export async function fetchAdvancedSettings(): Promise<AdvancedSettings> {
+  // TODO: Implement backend endpoint for advanced settings
+  return {
+    apiRateLimit: 1000,
+    sessionTimeout: 3600,
+    maxUploadSize: 10,
+    enableCaching: true,
+    cacheTTL: 300,
+    enableLogging: true,
+    logLevel: 'info',
+    enableMetrics: true,
+    enableAnalytics: true,
+  };
+}
+
+export async function updateAdvancedSettings(data: Partial<AdvancedSettings>): Promise<AdvancedSettings> {
+  // TODO: Implement backend endpoint for advanced settings
+  return await fetchAdvancedSettings();
+}
+
+export async function testIntegration(id: string): Promise<{ success: boolean; message: string }> {
+  // TODO: Implement backend endpoint for testing integrations
+  return {
+    success: false,
+    message: 'Integration testing not implemented',
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   };
 }

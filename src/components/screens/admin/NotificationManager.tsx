@@ -49,12 +49,18 @@ import {
   fetchChannelPerformance,
   fetchTimeSeriesMetrics,
   createTemplate,
+<<<<<<< HEAD
   updateTemplate,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   createCampaign,
   updateCampaignStatus,
   deleteTemplate,
   toggleAutomation,
+<<<<<<< HEAD
   createAutomationRule,
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   NotificationTemplate,
   Campaign,
   ScheduledNotification,
@@ -64,7 +70,10 @@ import {
   ChannelPerformance,
   TimeSeriesMetrics,
 } from './notificationsApi';
+<<<<<<< HEAD
 import { AddAutomationRuleModal } from './modals/AddAutomationRuleModal';
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { toast } from 'sonner@2.0.3';
 import {
   Bell,
@@ -100,6 +109,7 @@ export function NotificationManager() {
   const [automation, setAutomation] = useState<AutomationRule[]>([]);
   const [analytics, setAnalytics] = useState<NotificationAnalytics | null>(null);
   const [history, setHistory] = useState<NotificationHistory[]>([]);
+<<<<<<< HEAD
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [historyFilter, setHistoryFilter] = useState<string>('all');
   const [filteredHistory, setFilteredHistory] = useState<NotificationHistory[]>([]);
@@ -121,6 +131,8 @@ export function NotificationManager() {
     }
     setFilteredHistory(filtered);
   }, [history, historySearchQuery, historyFilter]);
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [channelPerformance, setChannelPerformance] = useState<ChannelPerformance[]>([]);
   const [timeSeriesMetrics, setTimeSeriesMetrics] = useState<TimeSeriesMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +140,10 @@ export function NotificationManager() {
   // Modal states
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
+<<<<<<< HEAD
   const [showAutomationModal, setShowAutomationModal] = useState(false);
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(null);
   const [selectedCampaign, setCampaign] = useState<Campaign | null>(null);
@@ -185,7 +200,10 @@ export function NotificationManager() {
       setAutomation(automationData);
       setAnalytics(analyticsData);
       setHistory(historyData);
+<<<<<<< HEAD
       // Filtered history will be set by useEffect
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       setChannelPerformance(channelData);
       setTimeSeriesMetrics(timeSeriesData);
     } catch (error) {
@@ -196,6 +214,7 @@ export function NotificationManager() {
   };
 
   const handleCreateTemplate = async () => {
+<<<<<<< HEAD
     if (!templateForm.name.trim() || !templateForm.title.trim() || !templateForm.body.trim()) {
       toast.error('Please fill in all required fields');
       return;
@@ -204,6 +223,10 @@ export function NotificationManager() {
       const newTemplate = await createTemplate(templateForm);
       // Add to local state immediately for instant UI update
       setTemplates([...templates, newTemplate]);
+=======
+    try {
+      await createTemplate(templateForm);
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.success('Template created successfully');
       setShowTemplateModal(false);
       setTemplateForm({
@@ -214,6 +237,7 @@ export function NotificationManager() {
         channels: ['push'],
         priority: 'medium',
       });
+<<<<<<< HEAD
       // Reload to ensure sync with backend
       await loadData();
     } catch (error) {
@@ -276,6 +300,21 @@ export function NotificationManager() {
       });
       // Add to local state immediately
       setCampaigns([...campaigns, newCampaign]);
+=======
+      loadData();
+    } catch (error) {
+      toast.error('Failed to create template');
+    }
+  };
+
+  const handleCreateCampaign = async () => {
+    try {
+      const template = templates.find(t => t.id === campaignForm.templateId);
+      await createCampaign({
+        ...campaignForm,
+        templateName: template?.name || '',
+      });
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.success('Campaign created successfully');
       setShowCampaignModal(false);
       setCampaignForm({
@@ -286,10 +325,15 @@ export function NotificationManager() {
         scheduleType: 'immediate',
         scheduledAt: '',
       });
+<<<<<<< HEAD
       // Reload to ensure sync
       await loadData();
     } catch (error) {
       console.error('Create campaign error:', error);
+=======
+      loadData();
+    } catch (error) {
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to create campaign');
     }
   };
@@ -317,6 +361,7 @@ export function NotificationManager() {
   const handleDeleteTemplate = async (templateId: string) => {
     try {
       await deleteTemplate(templateId);
+<<<<<<< HEAD
       // Remove from local state immediately
       setTemplates(templates.filter(t => t.id !== templateId));
       toast.success('Template deleted');
@@ -361,6 +406,12 @@ export function NotificationManager() {
     } catch (error: any) {
       console.error('Export failed:', error);
       toast.error(`Failed to export notifications: ${error?.message || 'Unknown error'}`);
+=======
+      toast.success('Template deleted');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to delete template');
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     }
   };
 
@@ -448,6 +499,7 @@ export function NotificationManager() {
           <p className="text-[#71717a] text-sm">Create, schedule, and manage customer notifications</p>
         </div>
         <div className="flex gap-2">
+<<<<<<< HEAD
           <Button 
             size="sm" 
             onClick={async () => {
@@ -459,6 +511,12 @@ export function NotificationManager() {
             <RefreshCw size={14} className="mr-1.5" /> Refresh
           </Button>
           <Button size="sm" variant="outline" onClick={handleExportNotifications}>
+=======
+          <Button size="sm" onClick={loadData} variant="outline">
+            <RefreshCw size={14} className="mr-1.5" /> Refresh
+          </Button>
+          <Button size="sm" variant="outline">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Download size={14} className="mr-1.5" /> Export
           </Button>
           <Button size="sm" onClick={() => setShowCampaignModal(true)}>
@@ -677,6 +735,7 @@ export function NotificationManager() {
                       >
                         <Eye size={14} />
                       </Button>
+<<<<<<< HEAD
                       <Button 
                         size="sm" 
                         variant="ghost"
@@ -694,16 +753,23 @@ export function NotificationManager() {
                         }}
                         title="Edit template"
                       >
+=======
+                      <Button size="sm" variant="ghost">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                         <Edit size={14} />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
+<<<<<<< HEAD
                         onClick={() => {
                           if (confirm(`Are you sure you want to delete template "${template.name}"?`)) {
                             handleDeleteTemplate(template.id);
                           }
                         }}
+=======
+                        onClick={() => handleDeleteTemplate(template.id)}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       >
                         <Trash2 size={14} />
                       </Button>
@@ -823,10 +889,14 @@ export function NotificationManager() {
                 <h3 className="font-bold text-[#18181b]">Automation Rules</h3>
                 <p className="text-xs text-[#71717a] mt-1">Trigger-based automatic notifications</p>
               </div>
+<<<<<<< HEAD
               <Button 
                 size="sm"
                 onClick={() => setShowAutomationModal(true)}
               >
+=======
+              <Button size="sm">
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> New Rule
               </Button>
             </div>
@@ -1003,6 +1073,7 @@ export function NotificationManager() {
                 <p className="text-xs text-[#71717a] mt-1">Complete log of all sent notifications</p>
               </div>
               <div className="flex gap-2">
+<<<<<<< HEAD
                 <Input 
                   placeholder="Search by user, template, or title..." 
                   className="w-64"
@@ -1022,6 +1093,12 @@ export function NotificationManager() {
                     <SelectItem value="failed">Failed</SelectItem>
                   </SelectContent>
                 </Select>
+=======
+                <Input placeholder="Search..." className="w-64" />
+                <Button size="sm" variant="outline">
+                  <Filter size={14} className="mr-1.5" /> Filter
+                </Button>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </div>
             </div>
 
@@ -1041,7 +1118,11 @@ export function NotificationManager() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+<<<<<<< HEAD
                   {(historySearchQuery || historyFilter !== 'all' ? filteredHistory : history).map((item) => (
+=======
+                  {history.map((item) => (
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>
@@ -1081,6 +1162,7 @@ export function NotificationManager() {
         </TabsContent>
       </Tabs>
 
+<<<<<<< HEAD
       {/* Create/Edit Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={(open) => {
         setShowTemplateModal(open);
@@ -1101,6 +1183,15 @@ export function NotificationManager() {
             <DialogTitle>{selectedTemplate ? 'Edit Notification Template' : 'Create Notification Template'}</DialogTitle>
             <DialogDescription>
               {selectedTemplate ? 'Update template details' : 'Design a reusable notification template with dynamic variables'}
+=======
+      {/* Create Template Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create Notification Template</DialogTitle>
+            <DialogDescription>
+              Design a reusable notification template with dynamic variables
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </DialogDescription>
           </DialogHeader>
 
@@ -1180,9 +1271,13 @@ export function NotificationManager() {
             <Button variant="outline" onClick={() => setShowTemplateModal(false)}>
               Cancel
             </Button>
+<<<<<<< HEAD
             <Button onClick={selectedTemplate ? handleUpdateTemplate : handleCreateTemplate}>
               {selectedTemplate ? 'Update Template' : 'Create Template'}
             </Button>
+=======
+            <Button onClick={handleCreateTemplate}>Create Template</Button>
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1210,6 +1305,7 @@ export function NotificationManager() {
             <div>
               <label className="text-sm font-medium text-[#18181b] mb-1 block">Select Template</label>
               <Select
+<<<<<<< HEAD
                 value={campaignForm.templateId || ''}
                 onValueChange={(value) => setCampaignForm({ ...campaignForm, templateId: value })}
               >
@@ -1228,6 +1324,22 @@ export function NotificationManager() {
                         </SelectItem>
                       ))
                   )}
+=======
+                value={campaignForm.templateId}
+                onValueChange={(value) => setCampaignForm({ ...campaignForm, templateId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates
+                    .filter((t) => t.status === 'active')
+                    .map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 </SelectContent>
               </Select>
             </div>
@@ -1348,6 +1460,7 @@ export function NotificationManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+<<<<<<< HEAD
 
       {/* Automation Rule Modal */}
       <AddAutomationRuleModal
@@ -1357,6 +1470,8 @@ export function NotificationManager() {
           loadData();
         }}
       />
+=======
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

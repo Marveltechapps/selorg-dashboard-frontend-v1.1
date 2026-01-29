@@ -264,6 +264,7 @@ const MOCK_PAYMENT_METHODS: PaymentMethodAnalytics[] = [
 // --- API Functions ---
 
 export async function fetchRealtimeMetrics(): Promise<RealtimeMetrics> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: RealtimeMetrics }>('/admin/analytics/realtime');
     return response.data || MOCK_REALTIME_METRICS;
@@ -381,4 +382,86 @@ export async function fetchPaymentMethods(): Promise<PaymentMethodAnalytics[]> {
     console.error('Failed to fetch payment methods:', error);
     return MOCK_PAYMENT_METHODS;
   }
+=======
+  // TODO: Implement backend endpoint for realtime metrics
+  return {
+    totalRevenue: 0,
+    totalOrders: 0,
+    activeUsers: 0,
+    conversionRate: 0,
+    averageOrderValue: 0,
+    revenueGrowth: 0,
+    ordersGrowth: 0,
+    usersGrowth: 0,
+  };
+}
+
+export async function fetchTimeSeriesData(range: string = '24h'): Promise<TimeSeriesData[]> {
+  // TODO: Implement backend endpoint for time series data
+  return [];
+}
+
+export async function fetchProductPerformance(): Promise<ProductPerformance[]> {
+  // TODO: Implement backend endpoint for product performance
+  return [];
+}
+
+export async function fetchCategoryAnalytics(): Promise<CategoryAnalytics[]> {
+  // TODO: Implement backend endpoint for category analytics
+  return [];
+}
+
+export async function fetchRegionalPerformance(): Promise<RegionalPerformance[]> {
+  // TODO: Implement backend endpoint for regional performance
+  return [];
+}
+
+export async function fetchCustomerMetrics(): Promise<CustomerMetrics> {
+  // TODO: Implement backend endpoint for customer metrics
+  return {
+    totalCustomers: 0,
+    newCustomers: 0,
+    activeCustomers: 0,
+    churnRate: 0,
+    avgLifetimeValue: 0,
+    avgOrderFrequency: 0,
+  };
+}
+
+export async function fetchOperationalMetrics(): Promise<OperationalMetrics> {
+  // TODO: Implement backend endpoint for operational metrics
+  return {
+    avgDeliveryTime: 0,
+    onTimeDeliveryRate: 0,
+    orderAccuracy: 0,
+    customerSatisfaction: 0,
+    riderUtilization: 0,
+    storeUtilization: 0,
+  };
+}
+
+export async function fetchRevenueBreakdown(): Promise<RevenueBreakdown[]> {
+  // TODO: Implement backend endpoint for revenue breakdown
+  return [];
+}
+
+export async function fetchGrowthTrends(): Promise<GrowthTrend[]> {
+  // TODO: Implement backend endpoint for growth trends
+  return [];
+}
+
+export async function fetchPeakHours(): Promise<PeakHourData[]> {
+  // TODO: Implement backend endpoint for peak hours
+  return [];
+}
+
+export async function fetchConversionFunnel(): Promise<ConversionFunnel[]> {
+  // TODO: Implement backend endpoint for conversion funnel
+  return [];
+}
+
+export async function fetchPaymentMethods(): Promise<PaymentMethodAnalytics[]> {
+  // TODO: Implement backend endpoint for payment methods analytics
+  return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

@@ -157,6 +157,7 @@ export function getStockStatus(product: Product): StockStatus {
 export async function fetchProducts(): Promise<Product[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: Product[] }>('/merch/catalog/skus');
+<<<<<<< HEAD
     if (response.data && response.data.length > 0) {
       return response.data;
     }
@@ -164,12 +165,19 @@ export async function fetchProducts(): Promise<Product[]> {
   } catch (error) {
     console.error('Failed to fetch products:', error);
     return MOCK_PRODUCTS;
+=======
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to fetch products:', error);
+    return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchCategories(): Promise<Category[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: Category[] }>('/merch/catalog/collections');
+<<<<<<< HEAD
     if (response && response.data && response.data.length > 0) {
       return response.data;
     }
@@ -178,10 +186,17 @@ export async function fetchCategories(): Promise<Category[]> {
   } catch (error) {
     console.error('Failed to fetch categories:', error);
     return CATEGORIES;
+=======
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to fetch categories:', error);
+    return [];
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchAttributes(): Promise<ProductAttribute[]> {
+<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: ProductAttribute[] }>('/merch/catalog/attributes');
     if (response && response.data && response.data.length > 0) {
@@ -342,6 +357,40 @@ export async function createCategory(data: Partial<Category>): Promise<Category>
     CATEGORIES.push(mockCategory);
     return mockCategory;
   }
+=======
+  // TODO: Implement backend endpoint for product attributes
+  return [];
+}
+
+export async function createProduct(data: Partial<Product>): Promise<Product> {
+  const response = await apiRequest<{ success: boolean; data: Product }>('/merch/catalog/skus', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return response.data;
+}
+
+export async function updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+  const response = await apiRequest<{ success: boolean; data: Product }>(`/merch/catalog/skus/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return response.data;
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await apiRequest(`/merch/catalog/skus/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function createCategory(data: Partial<Category>): Promise<Category> {
+  const response = await apiRequest<{ success: boolean; data: Category }>('/merch/catalog/collections', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return response.data;
+>>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function bulkUpdateProducts(ids: string[], updates: Partial<Product>): Promise<number> {
