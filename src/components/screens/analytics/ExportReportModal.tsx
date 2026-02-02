@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Download } from "lucide-react";
 import { exportReport } from "@/api/analytics/analyticsApi";
 import { toast } from "sonner";
+import { exportToPDF } from "@/utils/pdfExport";
+import { exportToCSVForExcel } from "@/utils/csvExport";
 
 interface ExportReportModalProps {
   isOpen: boolean;
@@ -18,32 +20,58 @@ export function ExportReportModal({ isOpen, onClose }: ExportReportModalProps) {
   const [metric, setMetric] = useState("rider");
   const [format, setFormat] = useState("pdf");
 
+  const doClientSideExport = (fmt: string) => {
+    const name = `RiderFleet_Report_${metric}_${new Date().toISOString().slice(0, 10)}`;
+    if (fmt === "pdf") {
+      const content = `<h2>Analytics Report – ${metric}</h2><p>Generated on ${new Date().toLocaleString()}</p><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Report Type</td><td>${metric}</td></tr><tr><td>Date Range</td><td>Last 7 days</td></tr></table>`;
+      exportToPDF(content, name);
+      toast.success("PDF generated. Use Print dialog to save as PDF.");
+    } else {
+      const rows: (string | number)[][] = [["Metric", "Value"], ["Report Type", metric], ["Generated", new Date().toLocaleString()]];
+      exportToCSVForExcel(rows, name);
+      toast.success("Report downloaded. Open in Excel or Sheets.");
+    }
+  };
+
   const handleExport = async () => {
     setLoading(true);
     try {
-      const now = new Date();
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const result = await exportReport({ 
-        metric: metric as 'rider' | 'sla' | 'fleet',
-        format: format as 'pdf' | 'excel' | 'csv',
-        dateRange: {
-          from: sevenDaysAgo.toISOString(),
-          to: now.toISOString(),
-        },
-        includeCharts: true,
-        includeSummary: true,
-      });
-      
-      toast.success("Report exported successfully", {
-        description: result.message || "Your download will start shortly.",
-      });
+      const apiFormat = format === "xlsx" ? "excel" : (format as "pdf" | "csv");
+      let didDownload = false;
+      try {
+        const now = new Date();
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const result = await exportReport({
+          metric: metric as "rider" | "sla" | "fleet",
+          format: apiFormat,
+          dateRange: { from: sevenDaysAgo.toISOString(), to: now.toISOString() },
+          includeCharts: true,
+          includeSummary: true,
+        });
+        if (result?.reportUrl) {
+          const res = await fetch(result.reportUrl, { mode: "cors" });
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = (result.reportId || "report") + (format === "pdf" ? ".pdf" : format === "xlsx" ? ".xlsx" : ".csv");
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          didDownload = true;
+        }
+      } catch (_) {}
+      if (!didDownload) {
+        doClientSideExport(format);
+      } else {
+        toast.success("Report downloaded.");
+      }
       onClose();
-    } catch (e: any) {
-      toast.error("Export failed", {
-        description: e.message || "Please try again later.",
-      });
+    } catch (e: unknown) {
+      doClientSideExport(format);
+      onClose();
     } finally {
       setLoading(false);
     }

@@ -11,10 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-<<<<<<< HEAD
 import { Label } from '@/components/ui/label';
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -50,7 +47,7 @@ import {
   ComplianceMetrics,
   ViolationAlert,
 } from './complianceApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   FileCheck,
   RefreshCw,
@@ -88,7 +85,6 @@ export function ComplianceCenter() {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [showDocDetailsModal, setShowDocDetailsModal] = useState(false);
   const [showCertDetailsModal, setShowCertDetailsModal] = useState(false);
-<<<<<<< HEAD
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<ComplianceDocument | null>(null);
   const [selectedCert, setSelectedCert] = useState<Certification | null>(null);
@@ -111,17 +107,6 @@ export function ComplianceCenter() {
     category: 'legal',
     description: '',
     file: null,
-=======
-  const [selectedDoc, setSelectedDoc] = useState<ComplianceDocument | null>(null);
-  const [selectedCert, setSelectedCert] = useState<Certification | null>(null);
-
-  // Form states
-  const [uploadForm, setUploadForm] = useState({
-    name: '',
-    type: 'policy' as ComplianceDocument['type'],
-    category: 'legal' as ComplianceDocument['category'],
-    description: '',
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   });
 
   const [auditForm, setAuditForm] = useState({
@@ -148,10 +133,7 @@ export function ComplianceCenter() {
       ]);
 
       setDocuments(docsData);
-<<<<<<< HEAD
       setFilteredDocuments(docsData);
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       setCertifications(certsData);
       setAudits(auditsData);
       setPolicies(policiesData);
@@ -165,7 +147,6 @@ export function ComplianceCenter() {
   };
 
   const handleUploadDocument = async () => {
-<<<<<<< HEAD
     if (!uploadForm.file) {
       toast.error('Please select a file to upload');
       return;
@@ -182,15 +163,6 @@ export function ComplianceCenter() {
       loadData();
     } catch (error) {
       console.error('Upload error:', error);
-=======
-    try {
-      await uploadDocument(uploadForm);
-      toast.success('Document uploaded successfully');
-      setShowUploadModal(false);
-      setUploadForm({ name: '', type: 'policy', category: 'legal', description: '' });
-      loadData();
-    } catch (error) {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to upload document');
     }
   };
@@ -220,7 +192,6 @@ export function ComplianceCenter() {
   const handleGenerateReport = async () => {
     try {
       const result = await generateComplianceReport();
-<<<<<<< HEAD
       
       // Create and download the report
       const reportData = {
@@ -249,10 +220,6 @@ export function ComplianceCenter() {
       window.URL.revokeObjectURL(url);
       
       toast.success('Compliance report generated and downloaded successfully');
-=======
-      toast.success('Compliance report generated successfully');
-      // In a real app, would download or open the report
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } catch (error) {
       toast.error('Failed to generate report');
     }
@@ -513,7 +480,6 @@ export function ComplianceCenter() {
                 <p className="text-xs text-[#71717a] mt-1">All regulatory and legal documents</p>
               </div>
               <div className="flex gap-2">
-<<<<<<< HEAD
                 <Input 
                   placeholder="Search documents..." 
                   className="w-64"
@@ -613,14 +579,6 @@ export function ComplianceCenter() {
                 >
                   <Filter size={14} className="mr-1.5" /> Filter
                 </Button>
-=======
-                <Button size="sm" variant="outline">
-                  <Filter size={14} className="mr-1.5" /> Filter
-                </Button>
-                <Button size="sm" variant="outline">
-                  <Search size={14} className="mr-1.5" /> Search
-                </Button>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </div>
             </div>
 
@@ -638,11 +596,7 @@ export function ComplianceCenter() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-<<<<<<< HEAD
                 {(docSearchQuery || docTypeFilter !== 'all' || docCategoryFilter !== 'all' ? filteredDocuments : documents).map((doc) => (
-=======
-                {documents.map((doc) => (
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <TableRow key={doc.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -683,10 +637,7 @@ export function ComplianceCenter() {
                         <Button
                           size="sm"
                           variant="outline"
-<<<<<<< HEAD
                           type="button"
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                           onClick={() => {
                             setSelectedDoc(doc);
                             setShowDocDetailsModal(true);
@@ -694,7 +645,6 @@ export function ComplianceCenter() {
                         >
                           <Eye size={14} />
                         </Button>
-<<<<<<< HEAD
                         <Button 
                           size="sm" 
                           variant="outline"
@@ -720,9 +670,6 @@ export function ComplianceCenter() {
                             toast.success(`${doc.name} downloaded`);
                           }}
                         >
-=======
-                        <Button size="sm" variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                           <Download size={14} />
                         </Button>
                       </div>
@@ -860,7 +807,6 @@ export function ComplianceCenter() {
                     >
                       <Eye size={14} className="mr-1" /> View Details
                     </Button>
-<<<<<<< HEAD
                     <Button 
                       size="sm" 
                       variant="outline"
@@ -879,9 +825,6 @@ export function ComplianceCenter() {
                         toast.success(`${cert.name} downloaded`);
                       }}
                     >
-=======
-                    <Button size="sm" variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                       <Download size={14} />
                     </Button>
                   </div>
@@ -1087,7 +1030,6 @@ export function ComplianceCenter() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-<<<<<<< HEAD
                         <Button 
                           size="sm" 
                           variant="outline"
@@ -1096,16 +1038,12 @@ export function ComplianceCenter() {
                             setShowPolicyModal(true);
                           }}
                         >
-=======
-                        <Button size="sm" variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                           <Eye size={14} />
                         </Button>
                         {policy.requiresAcknowledgment && policy.acknowledgmentRate < 100 && (
                           <Button
                             size="sm"
                             variant="outline"
-<<<<<<< HEAD
                             onClick={async () => {
                               try {
                                 await handleAcknowledgePolicy(policy.id);
@@ -1115,9 +1053,6 @@ export function ComplianceCenter() {
                                 toast.error('Failed to acknowledge policy');
                               }
                             }}
-=======
-                            onClick={() => handleAcknowledgePolicy(policy.id)}
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                           >
                             Acknowledge
                           </Button>
@@ -1203,7 +1138,6 @@ export function ComplianceCenter() {
             </div>
 
             <div className="bg-[#f4f4f5] rounded-lg p-4 border-2 border-dashed border-[#d4d4d8] text-center">
-<<<<<<< HEAD
               <input
                 type="file"
                 id="document-upload"
@@ -1232,11 +1166,6 @@ export function ComplianceCenter() {
                   <p className="text-xs text-[#71717a]">Size: {(uploadForm.file.size / 1024).toFixed(2)} KB</p>
                 </div>
               )}
-=======
-              <Upload className="mx-auto mb-2 text-[#71717a]" size={32} />
-              <p className="text-sm text-[#71717a]">Drop file here or click to upload</p>
-              <p className="text-xs text-[#a1a1aa] mt-1">PDF, DOC, DOCX (Max 10MB)</p>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
 
@@ -1388,7 +1317,6 @@ export function ComplianceCenter() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDocDetailsModal(false)}>
-<<<<<<< HEAD
               Cancel
             </Button>
             <Button
@@ -1409,11 +1337,6 @@ export function ComplianceCenter() {
                 toast.success(`${selectedDoc.name} downloaded`);
               }}
             >
-=======
-              Close
-            </Button>
-            <Button>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Download size={14} className="mr-1.5" /> Download
             </Button>
           </DialogFooter>
@@ -1494,7 +1417,6 @@ export function ComplianceCenter() {
             <Button variant="outline" onClick={() => setShowCertDetailsModal(false)}>
               Close
             </Button>
-<<<<<<< HEAD
             <Button onClick={() => {
               if (selectedCert) {
                 const link = document.createElement('a');
@@ -1506,15 +1428,11 @@ export function ComplianceCenter() {
                 }, 500);
               }
             }}>
-=======
-            <Button>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Download size={14} className="mr-1.5" /> Download Certificate
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-<<<<<<< HEAD
 
       {/* Policy View Modal */}
       <Dialog open={showPolicyModal} onOpenChange={setShowPolicyModal}>
@@ -1595,8 +1513,6 @@ export function ComplianceCenter() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

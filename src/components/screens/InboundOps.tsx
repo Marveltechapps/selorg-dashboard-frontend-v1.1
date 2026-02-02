@@ -222,10 +222,11 @@ function GRNTab() {
         limit: 50 
       });
       if (isMountedRef.current) {
-        if (response && response.success && response.grn_orders) {
-          setGrnList(response.grn_orders);
-        } else if (response && response.grn_orders) {
-          setGrnList(response.grn_orders);
+        const list = response?.grn_orders ?? response?.grn_list ?? response?.grns;
+        if (response && (response.success !== false) && Array.isArray(list) && list.length > 0) {
+          setGrnList(list);
+        } else if (response && Array.isArray(list)) {
+          setGrnList(list);
         } else {
           setGrnList([]);
         }
@@ -245,18 +246,19 @@ function GRNTab() {
     try {
       setDetailsLoading(true);
       const response = await getGRNDetails(grnId);
-      if (response && (response.success !== false)) {
-        setGrnDetails(response);
-      } else if (response && response.grn) {
-        setGrnDetails(response);
-      } else {
-        setGrnDetails(null);
+      if (isMountedRef.current && response && response.grn) {
+        const grn = response.grn;
+        const items = Array.isArray(grn.items) ? grn.items : [];
+        setGrnDetails({ ...response, grn: { ...grn, items } });
       }
     } catch (error: any) {
       console.error('Failed to load GRN details:', error);
-      setGrnDetails(null);
+      if (isMountedRef.current) {
+        const fallback = await getGRNDetails(grnId);
+        if (fallback && fallback.grn) setGrnDetails(fallback);
+      }
     } finally {
-      setDetailsLoading(false);
+      if (isMountedRef.current) setDetailsLoading(false);
     }
   };
 
@@ -684,10 +686,17 @@ function TransfersTab() {
       if (!silent) setLoading(true);
       const response = await getInterStoreTransfers({ storeId, status: 'all', page: 1, limit: 50 });
       if (isMountedRef.current) {
-        if (response && response.transfers) {
-          setTransfers(response.transfers);
-          if (response.transfers.length > 0 && !selectedTransfer) setSelectedTransfer(response.transfers.find((t: any) => t.status === 'pending' || t.status === 'in_transit') || response.transfers[0]);
-        } else setTransfers([]);
+        let list = (response && response.transfers) ? response.transfers : [];
+        const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+        const receivedIds = darkstorePersistence.receivedTransferIds();
+        list = list.map((t: any) => receivedIds.includes(t.transfer_id) ? { ...t, status: 'received', actual_arrival: t.actual_arrival || new Date().toISOString() } : t);
+        setTransfers(list);
+        if (list.length > 0) {
+          setSelectedTransfer((prev: any) => {
+            const inList = prev ? list.find((t: any) => t.transfer_id === prev.transfer_id) : null;
+            return inList ? inList : (list.find((t: any) => t.status === 'pending' || t.status === 'in_transit') || list[0]);
+          });
+        }
         if (!silent) toast.success("Transfers refreshed");
       }
     } catch (error: any) {
@@ -723,7 +732,11 @@ function TransfersTab() {
     setActionLoading(prev => new Set(prev).add(transferId));
     try {
       const response = await receiveInterStoreTransfer(transferId, { auto_create_putaway: true });
-      if (isMountedRef.current) { toast.success(response.putaway_tasks_created ? `Transfer received. ${response.putaway_tasks_created} putaway tasks created` : 'Transfer received successfully'); loadTransfers(true); }
+      if (isMountedRef.current) {
+        toast.success(response.putaway_tasks_created ? `Transfer received. ${response.putaway_tasks_created} putaway tasks created` : 'Transfer received successfully');
+        const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+        darkstorePersistence.setReceivedTransfer(transferId);
+      }
     } catch (error: any) {
       console.error('Failed to receive transfer:', error);
       if (isMountedRef.current && currentTransfer) { setTransfers(prev => prev.map(t => t.transfer_id === transferId ? currentTransfer : t)); if (selectedTransfer?.transfer_id === transferId) setSelectedTransfer(currentTransfer); }

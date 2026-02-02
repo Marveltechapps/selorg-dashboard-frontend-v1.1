@@ -11,7 +11,9 @@ import { downloadPerformanceReport } from '../../api/staff-shifts/staff.api';
 import { ActionHistoryViewer } from '../ui/action-history-viewer';
 import * as qcApi from '../../api/qc-compliance/qc.api';
 
-export function ReportsDashboard() {
+type ReportsDashboardProps = { onNavigateToAudit?: () => void };
+
+export function ReportsDashboard({ onNavigateToAudit }: ReportsDashboardProps = {}) {
   const [activeTab, setActiveTab] = useState<'inventory' | 'staff' | 'qc'>('inventory');
   const [timeRange, setTimeRange] = useState('Today');
   const [loading, setLoading] = useState(false);
@@ -20,8 +22,11 @@ export function ReportsDashboard() {
     setLoading(true);
     try {
       const res = await qcApi.getComplianceLogs({ limit: 1000 });
-      if (res.success && res.logs.length > 0) {
-        exportToCSV(res.logs, `compliance-report-${new Date().toISOString().split('T')[0]}.csv`);
+      const logs = res?.logs ?? (Array.isArray(res) ? res : []);
+      if (logs.length > 0) {
+        const keys = Object.keys(logs[0]);
+        const rows: (string | number)[][] = [keys, ...logs.map((log: any) => keys.map((k) => log[k] != null ? String(log[k]) : ''))];
+        exportToCSV(rows, `compliance-report-${new Date().toISOString().split('T')[0]}`);
         toast.success('Report exported successfully');
       } else {
         toast.error('No data available to export');
@@ -73,9 +78,9 @@ export function ReportsDashboard() {
       </div>
 
       <div className="min-h-[500px]">
-        {activeTab === 'inventory' && <InventoryKPIs onViewLog={() => setActiveTab('qc')} />}
-        {activeTab === 'staff' && <StaffAnalytics />}
-        {activeTab === 'qc' && <ComplianceLogs />}
+        {activeTab === 'inventory' && <InventoryKPIs onViewLog={() => setActiveTab('qc')} timeRange={timeRange} />}
+        {activeTab === 'staff' && <StaffAnalytics timeRange={timeRange} />}
+        {activeTab === 'qc' && <ComplianceLogs onViewLog={onNavigateToAudit} timeRange={timeRange} />}
       </div>
     </div>
   );
@@ -100,14 +105,14 @@ function TabButton({ id, label, icon: Icon, active, onClick }: any) {
 
 // --- Inventory Tab ---
 
-function InventoryKPIs({ onViewLog }: { onViewLog: () => void }) {
+function InventoryKPIs({ onViewLog, timeRange }: { onViewLog: () => void; timeRange?: string }) {
    const [showHistory, setShowHistory] = useState(false);
    const [adjustments, setAdjustments] = useState<any[]>([]);
    const [loading, setLoading] = useState(true);
 
    useEffect(() => {
      loadAdjustments();
-   }, []);
+   }, [timeRange]);
 
    const loadAdjustments = async () => {
      setLoading(true);
@@ -130,6 +135,7 @@ function InventoryKPIs({ onViewLog }: { onViewLog: () => void }) {
 
    return (
       <div className="space-y-6">
+         {timeRange && <p className="text-sm text-[#757575] font-medium">Period: <span className="text-[#212121]">{timeRange}</span></p>}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <div className="bg-white p-5 rounded-xl border border-[#E0E0E0] shadow-sm flex flex-col justify-between h-40">
                 <div className="flex justify-between items-start">
@@ -246,9 +252,10 @@ function InventoryKPIs({ onViewLog }: { onViewLog: () => void }) {
 
 // --- Staff Analytics Tab ---
 
-function StaffAnalytics() {
+function StaffAnalytics({ timeRange }: { timeRange?: string } = {}) {
    return (
       <div className="space-y-6">
+         {timeRange && <p className="text-sm text-[#757575] font-medium">Period: <span className="text-[#212121]">{timeRange}</span></p>}
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              <div className="bg-white p-5 rounded-xl border border-[#E0E0E0] shadow-sm">
                 <h3 className="font-bold text-[#212121] mb-4">Attendance Rate</h3>
@@ -298,7 +305,15 @@ function StaffAnalytics() {
                 <button 
                   onClick={async () => {
                     try {
-                      await downloadPerformanceReport();
+                      const blob = await downloadPerformanceReport();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `staff-performance-${new Date().toISOString().split('T')[0]}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      window.URL.revokeObjectURL(url);
                       toast.success('Report downloaded');
                     } catch (e) {
                       toast.error('Failed to download report');
@@ -314,21 +329,16 @@ function StaffAnalytics() {
    )
 }
 
-function ComplianceLogs() {
+function ComplianceLogs({ onViewLog, timeRange }: { onViewLog?: () => void; timeRange?: string } = {}) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await qcApi.getComplianceLogs();
-      if (res.success) {
-        setLogs(res.logs);
-      }
+      const res = await qcApi.getComplianceLogs({ limit: 100 });
+      setLogs(res?.logs ?? []);
     } catch (error) {
       console.error('Failed to fetch logs:', error);
       toast.error('Failed to load compliance logs');
@@ -337,31 +347,43 @@ function ComplianceLogs() {
     }
   };
 
-  const handleFilter = () => {
-    fetchLogs(); // In a real app, this would open a filter modal or similar
-    toast.info('Refreshing logs...');
+  useEffect(() => {
+    fetchLogs();
+  }, [timeRange]);
+
+  const handleRefresh = () => {
+    fetchLogs();
+    toast.success('Logs refreshed');
   };
+
+  const filteredLogs = categoryFilter === 'all' ? logs : logs.filter((log) => (log.category || '').toLowerCase() === categoryFilter.toLowerCase());
 
   return (
     <div className="bg-white rounded-xl border border-[#E0E0E0] shadow-sm overflow-hidden">
-       <div className="p-4 border-b border-[#E0E0E0] bg-[#FAFAFA] flex justify-between items-center">
+       <div className="p-4 border-b border-[#E0E0E0] bg-[#FAFAFA] flex flex-wrap items-center gap-3 justify-between">
           <h3 className="font-bold text-[#212121]">Recent Compliance Events</h3>
-          <button 
-            onClick={handleFilter}
-            className="text-[#1677FF] text-xs font-bold hover:underline flex items-center gap-1"
-          >
-             <Filter size={14} /> Filter Logs
-          </button>
+          <div className="flex items-center gap-2">
+             <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-1.5 text-xs font-medium border border-[#E0E0E0] rounded-lg bg-white">
+               <option value="all">All categories</option>
+               <option value="temperature">Temperature</option>
+               <option value="food_safety">Food Safety</option>
+               <option value="fssai_docs">FSSAI Docs</option>
+               <option value="storage_conditions">Storage</option>
+             </select>
+             <button onClick={handleRefresh} className="text-[#1677FF] text-xs font-bold hover:underline flex items-center gap-1">
+               <Filter size={14} /> Refresh
+             </button>
+          </div>
        </div>
        <div className="divide-y divide-[#F0F0F0] min-h-[300px]">
           {loading ? (
             <div className="flex items-center justify-center p-20">
               <Loader2 className="w-8 h-8 animate-spin text-[#1677FF]" />
             </div>
-          ) : logs.length === 0 ? (
+          ) : filteredLogs.length === 0 ? (
             <div className="p-20 text-center text-[#757575]">No logs found</div>
           ) : (
-            logs.map((log, i) => (
+            filteredLogs.map((log, i) => (
                <div key={i} className="p-4 hover:bg-[#F9FAFB] flex items-center justify-between">
                   <div className="flex items-center gap-4">
                      <div className={cn(
@@ -383,7 +405,9 @@ function ComplianceLogs() {
        </div>
        <div className="p-4 bg-[#FAFAFA] border-t border-[#E0E0E0] text-center">
           <button 
-            onClick={() => toast.info('Navigating to full audit trail...')}
+            onClick={() => {
+              onViewLog?.();
+            }}
             className="text-[#1677FF] text-sm font-bold hover:underline"
           >
             View Full Audit Trail

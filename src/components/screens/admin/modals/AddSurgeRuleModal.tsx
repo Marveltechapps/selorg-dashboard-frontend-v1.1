@@ -18,30 +18,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-<<<<<<< HEAD
 import { createSurgeRule, updateSurgeRule, type SurgeRule } from '../pricingApi';
-=======
-import { createSurgeRule } from '../pricingApi';
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { TrendingUp, Clock, MapPin, Calendar } from 'lucide-react';
 
 interface AddSurgeRuleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-<<<<<<< HEAD
   editRule?: SurgeRule | null;
   duplicateRule?: SurgeRule | null;
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 const CATEGORIES = ['Fresh Produce', 'Dairy & Eggs', 'Beverages', 'Snacks', 'Personal Care', 'Household'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const ZONES = ['Downtown', 'Business District', 'Tech Park', 'Residential North', 'Residential South', 'Suburbs'];
 
-<<<<<<< HEAD
 const defaultFormData = {
   name: '',
   description: '',
@@ -99,24 +91,6 @@ export function AddSurgeRuleModal({ open, onOpenChange, onSuccess, editRule, dup
       setFormData(defaultFormData);
     }
   }, [open, editRule, duplicateRule]);
-=======
-export function AddSurgeRuleModal({ open, onOpenChange, onSuccess }: AddSurgeRuleModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    type: 'time_based' as 'time_based' | 'demand_based' | 'zone_based' | 'event_based',
-    multiplier: '1.2',
-    startTime: '18:00',
-    endTime: '21:00',
-    selectedDays: [] as string[],
-    selectedZones: [] as string[],
-    selectedCategories: [] as string[],
-    priority: '5',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
-  });
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -185,18 +159,13 @@ export function AddSurgeRuleModal({ open, onOpenChange, onSuccess }: AddSurgeRul
         conditions.zones = formData.selectedZones;
       }
 
-<<<<<<< HEAD
       const payload = {
-=======
-      await createSurgeRule({
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
         name: formData.name.trim(),
         description: formData.description.trim(),
         type: formData.type,
         multiplier,
         conditions,
         applicableCategories: formData.selectedCategories.length > 0 ? formData.selectedCategories : ['All'],
-<<<<<<< HEAD
         applicableProducts: [] as string[],
         priority: parseInt(formData.priority),
         status: 'active' as const,
@@ -217,20 +186,6 @@ export function AddSurgeRuleModal({ open, onOpenChange, onSuccess }: AddSurgeRul
       setFormData(defaultFormData);
     } catch (error) {
       toast.error(editRule ? 'Failed to update surge rule' : 'Failed to create surge rule');
-=======
-        applicableProducts: [],
-        priority: parseInt(formData.priority),
-        status: 'active',
-        startDate: new Date(formData.startDate).toISOString(),
-        endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
-      });
-
-      toast.success(`Surge rule "${formData.name}" created successfully`);
-      onSuccess();
-      onOpenChange(false);
-    } catch (error) {
-      toast.error('Failed to create surge rule');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -245,13 +200,8 @@ export function AddSurgeRuleModal({ open, onOpenChange, onSuccess }: AddSurgeRul
               <TrendingUp className="text-amber-600" size={20} />
             </div>
             <div>
-<<<<<<< HEAD
             <DialogTitle>{editRule ? 'Edit Surge Pricing Rule' : duplicateRule ? 'Duplicate Surge Rule' : 'Create Surge Pricing Rule'}</DialogTitle>
             <DialogDescription>{editRule ? 'Update the surge rule' : 'Set up dynamic pricing based on time, demand, or zones'}</DialogDescription>
-=======
-              <DialogTitle>Create Surge Pricing Rule</DialogTitle>
-              <DialogDescription>Set up dynamic pricing based on time, demand, or zones</DialogDescription>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
         </DialogHeader>
@@ -462,11 +412,7 @@ export function AddSurgeRuleModal({ open, onOpenChange, onSuccess }: AddSurgeRul
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading} className="bg-amber-600 hover:bg-amber-700">
-<<<<<<< HEAD
             {loading ? (editRule ? 'Updating...' : 'Creating...') : (editRule ? 'Update Rule' : 'Create Surge Rule')}
-=======
-            {loading ? 'Creating...' : 'Create Surge Rule'}
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </Button>
         </div>
       </DialogContent>

@@ -624,7 +624,6 @@ const MOCK_TIME_SERIES: TimeSeriesMetrics[] = [
 // --- API Functions ---
 
 export async function fetchTemplates(): Promise<NotificationTemplate[]> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: NotificationTemplate[] }>('/admin/notifications/templates');
     if (response.data && response.data.length > 0) {
@@ -924,77 +923,4 @@ export async function toggleAutomation(ruleId: string, status: 'active' | 'inact
     console.error('Failed to toggle automation:', error);
     // Silently fail - UI will update optimistically
   }
-=======
-  // TODO: Implement backend endpoint for notification templates
-  return [];
-}
-
-export async function fetchCampaigns(): Promise<Campaign[]> {
-  // TODO: Implement backend endpoint for notification campaigns
-  return [];
-}
-
-export async function fetchScheduled(): Promise<ScheduledNotification[]> {
-  // TODO: Implement backend endpoint for scheduled notifications
-  return [];
-}
-
-export async function fetchAutomation(): Promise<AutomationRule[]> {
-  // TODO: Implement backend endpoint for automation rules
-  return [];
-}
-
-export async function fetchAnalytics(): Promise<NotificationAnalytics> {
-  // TODO: Implement backend endpoint for notification analytics
-  return {
-    totalSent: 0,
-    totalDelivered: 0,
-    totalOpened: 0,
-    totalClicked: 0,
-    deliveryRate: 0,
-    openRate: 0,
-    clickRate: 0,
-    avgDeliveryTime: 0,
-  };
-}
-
-export async function fetchHistory(): Promise<NotificationHistory[]> {
-  // TODO: Implement backend endpoint for notification history
-  return [];
-}
-
-export async function fetchChannelPerformance(): Promise<ChannelPerformance[]> {
-  // TODO: Implement backend endpoint for channel performance
-  return [];
-}
-
-export async function fetchTimeSeriesMetrics(): Promise<TimeSeriesMetrics[]> {
-  // TODO: Implement backend endpoint for time series metrics
-  return [];
-}
-
-export async function createTemplate(template: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
-  // TODO: Implement backend endpoint for creating templates
-  throw new Error('Not implemented');
-}
-
-export async function createCampaign(campaign: Partial<Campaign>): Promise<Campaign> {
-  // TODO: Implement backend endpoint for creating campaigns
-  throw new Error('Not implemented');
-}
-
-export async function updateCampaignStatus(campaignId: string, status: Campaign['status']): Promise<void> {
-  // TODO: Implement backend endpoint for updating campaign status
-  throw new Error('Not implemented');
-}
-
-export async function deleteTemplate(templateId: string): Promise<void> {
-  // TODO: Implement backend endpoint for deleting templates
-  throw new Error('Not implemented');
-}
-
-export async function toggleAutomation(ruleId: string, status: 'active' | 'inactive'): Promise<void> {
-  // TODO: Implement backend endpoint for toggling automation
-  throw new Error('Not implemented');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

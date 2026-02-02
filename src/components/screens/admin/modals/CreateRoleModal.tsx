@@ -22,21 +22,14 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Permission, 
-<<<<<<< HEAD
   Role,
   CreateRolePayload, 
   createRole, 
   updateRole,
   fetchPermissions,
   fetchRoleById
-=======
-  CreateRolePayload, 
-  createRole, 
-  updateRole,
-  fetchPermissions 
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 } from '../userManagementApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface CreateRoleModalProps {
   open: boolean;
@@ -64,7 +57,6 @@ export function CreateRoleModal({
 
   useEffect(() => {
     if (open) {
-<<<<<<< HEAD
       // Always load permissions first
       loadPermissions().then(() => {
         // Then load role data if editing
@@ -148,16 +140,10 @@ export function CreateRoleModal({
     });
     setSearchTerm('');
   };
-=======
-      loadPermissions();
-    }
-  }, [open]);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   const loadPermissions = async () => {
     try {
       const data = await fetchPermissions();
-<<<<<<< HEAD
       console.log('Loaded permissions:', data);
       setPermissions(data);
       return data;
@@ -165,11 +151,6 @@ export function CreateRoleModal({
       console.error('Failed to load permissions:', error);
       toast.error('Failed to load permissions');
       return [];
-=======
-      setPermissions(data);
-    } catch (error) {
-      console.error('Failed to load permissions:', error);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     }
   };
 
@@ -205,23 +186,11 @@ export function CreateRoleModal({
   };
 
   const handleClose = () => {
-<<<<<<< HEAD
     resetForm();
-=======
-    setFormData({
-      name: '',
-      description: '',
-      roleType: 'custom',
-      permissions: [],
-      accessScope: 'global',
-    });
-    setSearchTerm('');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     onClose();
   };
 
   const togglePermission = (permissionId: string) => {
-<<<<<<< HEAD
     console.log('Toggling permission:', permissionId);
     setFormData(prev => {
       const isSelected = prev.permissions.includes(permissionId);
@@ -238,22 +207,10 @@ export function CreateRoleModal({
 
   const toggleModulePermissions = (module: string, select: boolean) => {
     console.log('Toggling module permissions:', module, select);
-=======
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permissionId)
-        ? prev.permissions.filter(id => id !== permissionId)
-        : [...prev.permissions, permissionId]
-    }));
-  };
-
-  const toggleModulePermissions = (module: string, select: boolean) => {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     const modulePermissions = permissions
       .filter(p => p.module === module)
       .map(p => p.id);
     
-<<<<<<< HEAD
     setFormData(prev => {
       const newPermissions = select
         ? [...new Set([...prev.permissions, ...modulePermissions])]
@@ -278,32 +235,11 @@ export function CreateRoleModal({
 
   const deselectAll = () => {
     console.log('Deselecting all permissions');
-=======
-    setFormData(prev => ({
-      ...prev,
-      permissions: select
-        ? [...new Set([...prev.permissions, ...modulePermissions])]
-        : prev.permissions.filter(id => !modulePermissions.includes(id))
-    }));
-  };
-
-  const selectAll = () => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: permissions.map(p => p.id)
-    }));
-  };
-
-  const deselectAll = () => {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     setFormData(prev => ({
       ...prev,
       permissions: []
     }));
-<<<<<<< HEAD
     toast.info('All permissions deselected');
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   };
 
   // Group permissions by module
@@ -439,7 +375,6 @@ export function CreateRoleModal({
                           <div className="flex items-center gap-2">
                             <Checkbox
                               checked={allSelected}
-<<<<<<< HEAD
                               onCheckedChange={(checked) => {
                                 console.log('Module checkbox changed:', module, checked);
                                 toggleModulePermissions(module, !!checked);
@@ -451,11 +386,6 @@ export function CreateRoleModal({
                             >
                               {module}
                             </span>
-=======
-                              onCheckedChange={(checked) => toggleModulePermissions(module, !!checked)}
-                            />
-                            <span className="font-bold text-[#1F2937]">{module}</span>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                           </div>
                           <span className="text-xs text-[#6B7280]">
                             {modulePermissions.filter(p => formData.permissions.includes(p.id)).length} / {modulePermissions.length}
@@ -516,7 +446,6 @@ export function CreateRoleModal({
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-<<<<<<< HEAD
             <Button 
               type="button" 
               variant="outline" 
@@ -529,17 +458,6 @@ export function CreateRoleModal({
                 toast.info('Form reset');
               }}
             >
-=======
-            <Button type="button" variant="outline" onClick={() => {
-              setFormData({
-                name: '',
-                description: '',
-                roleType: 'custom',
-                permissions: [],
-                accessScope: 'global',
-              });
-            }}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               Reset
             </Button>
             <Button type="submit" disabled={loading}>

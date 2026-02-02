@@ -19,7 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import { Incident, fetchIncidentDetails, resolveIncident } from '../citywideControlApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface IncidentDetailModalProps {
   incidentId: string | null;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, 
   Download, 
@@ -9,23 +9,41 @@ import {
   Users
 } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 type ReportType = 'kpi' | 'material' | 'quality' | 'workforce' | 'maintenance' | 'overview' | null;
+type DatePreset = 'week' | 'month' | 'quarter';
 
 interface DateRange {
   start: string;
   end: string;
 }
 
+function getRangeForPreset(preset: DatePreset): DateRange {
+  const end = new Date();
+  const start = new Date();
+  if (preset === 'week') {
+    start.setDate(start.getDate() - 7);
+  } else if (preset === 'month') {
+    start.setMonth(start.getMonth() - 1);
+  } else {
+    start.setMonth(start.getMonth() - 3);
+  }
+  return {
+    start: start.toISOString().split('T')[0],
+    end: end.toISOString().split('T')[0],
+  };
+}
+
 export function ProductionReports() {
   const [selectedReport, setSelectedReport] = useState<ReportType>('overview');
-  const [dateRange, setDateRange] = useState<DateRange>({
-    start: '2024-12-15',
-    end: '2024-12-22',
+  const [datePreset, setDatePreset] = useState<DatePreset>(() => {
+    const stored = getProductionSession<DatePreset | null>(PRODUCTION_KEYS.reportsDateRange, null);
+    return (stored === 'week' || stored === 'month' || stored === 'quarter') ? stored : 'week';
   });
-  const [showDateFilter, setShowDateFilter] = useState(false);
+  const dateRange = useMemo(() => getRangeForPreset(datePreset), [datePreset]);
 
   // Production KPI Data
   const productionData = [
@@ -129,7 +147,7 @@ export function ProductionReports() {
         ['Quality Audit Report', `Period: ${dateRange.start} to ${dateRange.end}`],
         [''],
         ['Date', 'Pass Rate %', 'Total Defects'],
-        ...qualityData.map(q => [q.date, q.passRate, q.defects]),
+        ...effectiveQualityData.map(q => [q.date, q.passRate, q.defects]),
       ];
     } else if (selectedReport === 'workforce') {
       csvData = [
@@ -159,7 +177,7 @@ export function ProductionReports() {
       [''],
       ['=== PRODUCTION KPIs ==='],
       ['Date', 'Output', 'Target', 'Efficiency %'],
-      ...productionData.map(d => [d.date, d.output, d.target, d.efficiency]),
+      ...effectiveProductionData.map(d => [d.date, d.output, d.target, d.efficiency]),
       [''],
       ['=== MATERIAL CONSUMPTION ==='],
       ['Material', 'Allocated', 'Consumed', 'Waste'],
@@ -167,7 +185,7 @@ export function ProductionReports() {
       [''],
       ['=== QUALITY METRICS ==='],
       ['Date', 'Pass Rate %', 'Defects'],
-      ...qualityData.map(q => [q.date, q.passRate, q.defects]),
+      ...effectiveQualityData.map(q => [q.date, q.passRate, q.defects]),
       [''],
       ['=== WORKFORCE PERFORMANCE ==='],
       ['Shift', 'Productivity %', 'Attendance %'],
@@ -186,10 +204,22 @@ export function ProductionReports() {
     window.URL.revokeObjectURL(url);
   };
 
-  const totalOutput = productionData.reduce((sum, d) => sum + d.output, 0);
-  const avgEfficiency = (productionData.reduce((sum, d) => sum + d.efficiency, 0) / productionData.length).toFixed(1);
-  const totalDefects = qualityData.reduce((sum, q) => sum + q.defects, 0);
-  const avgPassRate = (qualityData.reduce((sum, q) => sum + q.passRate, 0) / qualityData.length).toFixed(1);
+  // Slice chart data by date preset so dropdown filters visible data
+  const effectiveProductionData = useMemo(() => {
+    if (datePreset === 'week') return productionData.slice(-7);
+    if (datePreset === 'month') return productionData.slice(-4);
+    return productionData;
+  }, [datePreset]);
+  const effectiveQualityData = useMemo(() => {
+    if (datePreset === 'week') return qualityData.slice(-7);
+    if (datePreset === 'month') return qualityData.slice(-4);
+    return qualityData;
+  }, [datePreset]);
+
+  const totalOutput = effectiveProductionData.reduce((sum, d) => sum + d.output, 0);
+  const avgEfficiency = (effectiveProductionData.reduce((sum, d) => sum + d.efficiency, 0) / (effectiveProductionData.length || 1)).toFixed(1);
+  const totalDefects = effectiveQualityData.reduce((sum, q) => sum + q.defects, 0);
+  const avgPassRate = (effectiveQualityData.reduce((sum, q) => sum + q.passRate, 0) / (effectiveQualityData.length || 1)).toFixed(1);
 
   return (
     <div className="space-y-6">
@@ -199,8 +229,12 @@ export function ProductionReports() {
         actions={
           <>
             <select 
-              value={dateRange} 
-              onChange={(e) => setDateRange(e.target.value)}
+              value={datePreset} 
+              onChange={(e) => {
+                const preset = e.target.value as DatePreset;
+                setDatePreset(preset);
+                setProductionSession(PRODUCTION_KEYS.reportsDateRange, preset);
+              }}
               className="px-4 py-2 bg-white border border-[#E0E0E0] text-[#212121] font-medium rounded-lg hover:bg-[#F5F5F5]"
             >
               <option value="week">This Week</option>
@@ -217,38 +251,6 @@ export function ProductionReports() {
           </>
         }
       />
-
-      {/* Date Range Filter Modal */}
-      {showDateFilter && (
-        <div className="bg-white border border-[#E0E0E0] rounded-xl p-4 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="block text-xs font-medium text-[#757575] mb-1">Start Date</label>
-              <input 
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-                className="px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#16A34A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[#757575] mb-1">End Date</label>
-              <input 
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-                className="px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#16A34A]"
-              />
-            </div>
-            <button 
-              onClick={() => setShowDateFilter(false)}
-              className="mt-5 px-4 py-2 bg-[#16A34A] text-white font-medium rounded-lg hover:bg-[#15803D] text-sm"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -373,7 +375,7 @@ export function ProductionReports() {
               <div>
                 <h3 className="font-bold text-[#212121] mb-4">Production Trend</h3>
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={productionData}>
+                  <LineChart data={effectiveProductionData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -427,7 +429,7 @@ export function ProductionReports() {
             <div>
               <h3 className="font-bold text-[#212121] mb-4">Daily Production vs Target</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={productionData}>
+                <BarChart data={effectiveProductionData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
@@ -552,7 +554,7 @@ export function ProductionReports() {
             <div>
               <h3 className="font-bold text-[#212121] mb-4">Quality Pass Rate Trend</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={qualityData}>
+                <LineChart data={effectiveQualityData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis domain={[95, 100]} />
@@ -590,7 +592,7 @@ export function ProductionReports() {
               <div>
                 <h3 className="font-bold text-[#212121] mb-4">Daily Defects</h3>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={qualityData}>
+                  <BarChart data={effectiveQualityData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />

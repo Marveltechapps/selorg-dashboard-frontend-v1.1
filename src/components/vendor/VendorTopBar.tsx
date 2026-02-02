@@ -107,11 +107,11 @@ export function VendorTopBar() {
 
           {/* Notifications Dropdown */}
           {isNotificationsOpen && (
-            <div className="absolute top-full right-0 mt-2 bg-white border border-[#E0E0E0] shadow-lg rounded-lg w-[400px] z-50">
+            <div className="absolute top-full right-0 mt-2 bg-white border border-[#E0E0E0] shadow-lg rounded-lg min-w-[360px] max-w-[420px] w-[90vw] z-50 overflow-x-hidden">
               {/* Header */}
               <div className="p-4 border-b border-[#E0E0E0] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm text-[#212121]">Notifications</h3>
+                  <h3 className="text-sm text-[#212121] whitespace-nowrap">Notifications</h3>
                   {unreadCount > 0 && (
                     <span className="bg-[#EF4444] text-white text-xs px-2 py-0.5 rounded-full">
                       {unreadCount}
@@ -144,19 +144,19 @@ export function VendorTopBar() {
                         <div className="flex-shrink-0 mt-0.5">
                           {getNotificationIcon(notification.type)}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 overflow-hidden">
                           <div className="flex items-start justify-between gap-2">
-                            <h4 className="text-sm text-[#212121]">
+                            <h4 className="text-sm text-[#212121] break-words overflow-wrap-anywhere flex-1 min-w-0">
                               {notification.title}
                             </h4>
                             {notification.unread && (
                               <span className="w-2 h-2 bg-[#4F46E5] rounded-full flex-shrink-0 mt-1.5"></span>
                             )}
                           </div>
-                          <p className="text-xs text-[#757575] mt-1">
+                          <p className="text-xs text-[#757575] mt-1 break-words overflow-wrap-anywhere">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-[#9E9E9E] mt-1">
+                          <p className="text-xs text-[#9E9E9E] mt-1 whitespace-nowrap">
                             {notification.time}
                           </p>
                         </div>

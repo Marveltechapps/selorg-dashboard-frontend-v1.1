@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RiderSidebar } from './rider/RiderSidebar';
 import { RiderTopBar } from './rider/RiderTopBar';
 import { RiderOverview } from './screens/rider/RiderOverview';
@@ -15,16 +15,17 @@ import { useDashboardNavigation } from '../hooks/useDashboardNavigation';
 
 export function RiderManagement({ onLogout }: { onLogout: () => void }) {
   const { activeTab, setActiveTab } = useDashboardNavigation('overview');
+  const [riderSearchQuery, setRiderSearchQuery] = useState('');
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-[#212121] font-sans">
       <RiderSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
       
       <div className="pl-[220px]">
-        <RiderTopBar />
+        <RiderTopBar searchQuery={riderSearchQuery} onSearchChange={setRiderSearchQuery} />
         
         <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
-            {activeTab === 'overview' && <RiderOverview />}
+            {activeTab === 'overview' && <RiderOverview searchQuery={riderSearchQuery} />}
             {activeTab === 'hr' && <RiderHR />}
             {activeTab === 'dispatch' && <DispatchOps />}
             {activeTab === 'fleet' && <FleetManagement />}

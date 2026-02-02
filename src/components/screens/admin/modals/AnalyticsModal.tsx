@@ -12,10 +12,7 @@ import {
   TrendingUp,
   Download
 } from 'lucide-react';
-<<<<<<< HEAD
-import { toast } from 'sonner@2.0.3';
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
+import { toast } from 'sonner';
 import { 
   AnalyticsData,
   fetchAnalyticsData
@@ -63,7 +60,6 @@ export function AnalyticsModal({ open, onClose }: AnalyticsModalProps) {
     }
   };
 
-<<<<<<< HEAD
   const handleExportReport = () => {
     if (!analytics) return;
     
@@ -109,9 +105,6 @@ export function AnalyticsModal({ open, onClose }: AnalyticsModalProps) {
       toast.error('Failed to export report');
     }
   };
-
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   if (!analytics) return null;
 
   const PIE_COLORS = ['#10b981', '#f59e0b', '#6b7280'];
@@ -130,11 +123,7 @@ export function AnalyticsModal({ open, onClose }: AnalyticsModalProps) {
                 Comprehensive operations insights and performance metrics
               </p>
             </div>
-<<<<<<< HEAD
             <Button variant="outline" size="sm" onClick={handleExportReport}>
-=======
-            <Button variant="outline" size="sm">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Download size={16} className="mr-2" />
               Export Report
             </Button>

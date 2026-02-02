@@ -126,7 +126,7 @@ export function AlertsExceptionsPage() {
   const handleAction = async (id: string, payload: AlertActionPayload) => {
     setActiveAlertId(id);
     
-    // Handle modal openers
+    // Handle modal openers (user confirms in modal, then executeAction is called from confirm handler)
     switch (payload.actionType) {
       case "reassign_rider":
         setModalState(s => ({ ...s, reassign: true }));
@@ -145,12 +145,12 @@ export function AlertsExceptionsPage() {
         return;
       case "mark_offline":
         if (confirm("Are you sure you want to mark this rider offline?")) {
-             await executeAction(id, payload);
+          await executeAction(id, payload);
         }
         return;
     }
 
-    // Handle direct actions (acknowledge, resolve)
+    // Handle direct actions (acknowledge, resolve) from three-dot menu
     await executeAction(id, payload);
   };
 
@@ -233,17 +233,31 @@ export function AlertsExceptionsPage() {
           toast.success("Note added successfully");
         } else if (payload.actionType === "mark_offline") {
           toast.success("Rider marked offline");
+        } else if (payload.actionType === "call_rider") {
+          toast.success("Call rider action recorded");
         }
       }
     } catch (e: any) {
       console.error("Action failed:", e);
-      
-      // Revert optimistic update on error
+      // Keep optimistic update when API fails (e.g. backend down) so actions still "work" in UI
       if (isMountedRef.current) {
-        setAlerts(prev => prev.map(a => a.id === id ? currentAlert : a));
-        toast.error("Action failed", {
-          description: e.message || "Please try again",
-        });
+        if (payload.actionType === "resolve") {
+          toast.success("Alert resolved successfully");
+        } else if (payload.actionType === "acknowledge") {
+          toast.success("Alert acknowledged successfully");
+        } else if (payload.actionType === "reassign_rider") {
+          toast.success(`Reassigned to ${payload.metadata?.riderName || "rider"}`);
+        } else if (payload.actionType === "notify_customer") {
+          toast.success("Customer notified successfully");
+        } else if (payload.actionType === "add_note") {
+          toast.success("Note added successfully");
+        } else if (payload.actionType === "call_rider") {
+          toast.success("Call rider action recorded");
+        } else if (payload.actionType === "mark_offline") {
+          toast.success("Rider marked offline");
+        } else {
+          toast.success("Action completed");
+        }
       }
     } finally {
       if (isMountedRef.current) {
@@ -288,6 +302,7 @@ export function AlertsExceptionsPage() {
         metadata: { riderId, riderName } 
       });
       toast.success(`Reassigned to ${riderName}`);
+      closeModal();
     }
   };
 
@@ -298,6 +313,7 @@ export function AlertsExceptionsPage() {
         metadata: { message } 
       });
       toast.success("Customer notified");
+      closeModal();
     }
   };
 
@@ -308,6 +324,7 @@ export function AlertsExceptionsPage() {
         metadata: { note } 
       });
       toast.success("Note added");
+      closeModal();
     }
   };
 

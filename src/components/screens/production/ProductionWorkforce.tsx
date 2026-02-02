@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, Clock, Download, X, Search, Calendar } from 'lucide-react';
+import { Users, UserPlus, Clock, Download, X, Search, Calendar, Plus } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface Employee {
   id: string;
@@ -48,7 +49,7 @@ export function ProductionStaff() {
   const [showProfileModal, setShowProfileModal] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [employees, setEmployees] = useState<Employee[]>([
+  const DEFAULT_EMPLOYEES: Employee[] = [
     { id: '1', name: 'Michael Chen', employeeId: 'EMP-001', role: 'Lead Operator', department: 'operators', assignedLine: 'Line A', status: 'active', shift: 'morning', shiftTime: '6:00 AM - 2:00 PM', productivity: 96, attendance: 98 },
     { id: '2', name: 'Sarah Johnson', employeeId: 'EMP-002', role: 'Junior Operator', department: 'operators', assignedLine: 'Line A', status: 'active', shift: 'morning', shiftTime: '6:00 AM - 2:00 PM', productivity: 92, attendance: 95 },
     { id: '3', name: 'David Rodriguez', employeeId: 'EMP-003', role: 'Senior Operator', department: 'operators', assignedLine: 'Line B', status: 'on-break', shift: 'morning', shiftTime: '6:00 AM - 2:00 PM', productivity: 94, attendance: 97 },
@@ -57,22 +58,52 @@ export function ProductionStaff() {
     { id: '6', name: 'Lisa Anderson', employeeId: 'EMP-012', role: 'QC Lead', department: 'qc', status: 'active', shift: 'morning', shiftTime: '6:00 AM - 2:00 PM', productivity: 97, attendance: 100 },
     { id: '7', name: 'Robert Taylor', employeeId: 'EMP-021', role: 'Production Supervisor', department: 'supervisors', assignedLine: 'Line A-B', status: 'active', shift: 'morning', shiftTime: '6:00 AM - 2:00 PM', productivity: 93, attendance: 96 },
     { id: '8', name: 'Jennifer Lee', employeeId: 'EMP-022', role: 'Shift Supervisor', department: 'supervisors', assignedLine: 'All Lines', status: 'active', shift: 'afternoon', shiftTime: '2:00 PM - 10:00 PM', productivity: 91, attendance: 94 },
-  ]);
-
-  const [shifts, setShifts] = useState<Shift[]>([
+  ];
+  const DEFAULT_SHIFTS: Shift[] = [
     { id: '1', name: 'Morning Shift', timeRange: '6:00 AM - 2:00 PM', startTime: '06:00', endTime: '14:00', assignedEmployees: 24, requiredEmployees: 26, date: '2024-12-22', department: 'All' },
     { id: '2', name: 'Afternoon Shift', timeRange: '2:00 PM - 10:00 PM', startTime: '14:00', endTime: '22:00', assignedEmployees: 18, requiredEmployees: 20, date: '2024-12-22', department: 'All' },
     { id: '3', name: 'Night Shift', timeRange: '10:00 PM - 6:00 AM', startTime: '22:00', endTime: '06:00', assignedEmployees: 12, requiredEmployees: 15, date: '2024-12-22', department: 'All' },
     { id: '4', name: 'Morning Shift', timeRange: '6:00 AM - 2:00 PM', startTime: '06:00', endTime: '14:00', assignedEmployees: 0, requiredEmployees: 26, date: '2024-12-23', department: 'All' },
-  ]);
-
-  const [attendance, setAttendance] = useState<Attendance[]>([
+  ];
+  const DEFAULT_ATTENDANCE: Attendance[] = [
     { id: '1', employeeId: 'EMP-001', employeeName: 'Michael Chen', date: '2024-12-22', checkIn: '05:55 AM', checkOut: '02:05 PM', status: 'present', hoursWorked: 8.2 },
     { id: '2', employeeId: 'EMP-002', employeeName: 'Sarah Johnson', date: '2024-12-22', checkIn: '06:10 AM', status: 'present', hoursWorked: 0 },
     { id: '3', employeeId: 'EMP-003', employeeName: 'David Rodriguez', date: '2024-12-22', checkIn: '06:20 AM', status: 'late', hoursWorked: 0 },
     { id: '4', employeeId: 'EMP-004', employeeName: 'Emma Wilson', date: '2024-12-22', status: 'absent' },
     { id: '5', employeeId: 'EMP-011', employeeName: 'James Martinez', date: '2024-12-22', checkIn: '05:58 AM', status: 'present', hoursWorked: 0 },
-  ]);
+  ];
+
+  const [employees, setEmployeesState] = useState<Employee[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.workforceStaff, DEFAULT_EMPLOYEES)
+  );
+  const [shifts, setShiftsState] = useState<Shift[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.workforceShifts, DEFAULT_SHIFTS)
+  );
+  const [attendance, setAttendanceState] = useState<Attendance[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.workforceAttendance, DEFAULT_ATTENDANCE)
+  );
+
+  const setEmployees = (next: Employee[] | ((prev: Employee[]) => Employee[])) => {
+    setEmployeesState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.workforceStaff, resolved);
+      return resolved;
+    });
+  };
+  const setShifts = (next: Shift[] | ((prev: Shift[]) => Shift[])) => {
+    setShiftsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.workforceShifts, resolved);
+      return resolved;
+    });
+  };
+  const setAttendance = (next: Attendance[] | ((prev: Attendance[]) => Attendance[])) => {
+    setAttendanceState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.workforceAttendance, resolved);
+      return resolved;
+    });
+  };
 
   const [newEmployee, setNewEmployee] = useState({
     name: '',
@@ -109,7 +140,7 @@ export function ProductionStaff() {
         attendance: 0,
         phoneNumber: newEmployee.phoneNumber || undefined,
       };
-      setEmployees([...employees, emp]);
+      setEmployees(prev => [...prev, emp]);
       setNewEmployee({ name: '', employeeId: '', role: '', department: 'operators', assignedLine: '', shift: 'morning', phoneNumber: '' });
       setShowAddModal(false);
       toast.success('Employee added successfully!');
@@ -129,7 +160,7 @@ export function ProductionStaff() {
         date: newShift.date,
         department: newShift.department,
       };
-      setShifts([...shifts, shift]);
+      setShifts(prev => [...prev, shift]);
       setNewShift({ name: '', startTime: '', endTime: '', requiredEmployees: '', date: '', department: 'All' });
       setShowAddModal(false);
       toast.success('Shift scheduled successfully!');
@@ -137,31 +168,24 @@ export function ProductionStaff() {
   };
 
   const updateEmployeeStatus = (id: string, newStatus: Employee['status']) => {
-    setEmployees(employees.map(e => e.id === id ? { ...e, status: newStatus } : e));
+    setEmployees(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
   };
 
-  const markAttendance = (employeeId: string, status: Attendance['status']) => {
-    const employee = employees.find(e => e.employeeId === employeeId);
+  const markAttendance = (recordId: string, status: Attendance['status']) => {
+    const existingRecord = attendance.find(a => a.id === recordId);
+    if (!existingRecord) return;
+    const employee = employees.find(e => e.employeeId === existingRecord.employeeId);
+    setAttendance(prev => prev.map(a =>
+      a.id === recordId
+        ? {
+            ...a,
+            status,
+            checkIn: status === 'present' ? (a.checkIn || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : undefined,
+          }
+        : a
+    ));
     if (employee) {
-      const existingAttendance = attendance.find(a => a.employeeId === employeeId && a.date === new Date().toISOString().split('T')[0]);
-      if (existingAttendance) {
-        setAttendance(attendance.map(a => 
-          a.id === existingAttendance.id 
-            ? { ...a, status, checkIn: status === 'present' ? new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined }
-            : a
-        ));
-      } else {
-        const newAttendance: Attendance = {
-          id: Date.now().toString(),
-          employeeId: employee.employeeId,
-          employeeName: employee.name,
-          date: new Date().toISOString().split('T')[0],
-          status,
-          checkIn: status === 'present' ? new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined,
-        };
-        setAttendance([newAttendance, ...attendance]);
-      }
-      updateEmployeeStatus(employee.id, status === 'present' ? 'active' : 'absent');
+      setEmployees(prev => prev.map(e => e.id === employee.id ? { ...e, status: status === 'present' ? 'active' : 'absent' } : e));
     }
   };
 
@@ -264,8 +288,8 @@ export function ProductionStaff() {
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-[#16A34A] text-white font-medium rounded-lg hover:bg-[#15803D] flex items-center gap-2"
             >
-              <UserPlus size={16} />
-              Add Staff
+              {subTab === 'shifts' ? <Plus size={16} /> : <UserPlus size={16} />}
+              {subTab === 'shifts' ? 'Schedule Shift' : 'Add Staff'}
             </button>
           </>
         }
@@ -560,7 +584,7 @@ export function ProductionStaff() {
                   <td className="px-6 py-4 text-right">
                     {record.status === 'absent' && (
                       <button 
-                        onClick={() => markAttendance(record.employeeId, 'present')}
+                        onClick={() => markAttendance(record.id, 'present')}
                         className="text-[#16A34A] hover:text-[#15803D] font-medium text-xs"
                       >
                         Mark Present
@@ -685,8 +709,8 @@ export function ProductionStaff() {
         </div>
       )}
 
-      {/* Add Shift Modal */}
-      {showAddModal && (
+      {/* Add Shift Modal - only when on Shift Planning tab */}
+      {showAddModal && subTab === 'shifts' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-[#E0E0E0] flex justify-between items-center">

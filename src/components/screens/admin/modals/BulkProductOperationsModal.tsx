@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Category, bulkUpdateProducts, fetchCategories } from '../catalogApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Zap, AlertTriangle } from 'lucide-react';
 
 interface BulkProductOperationsModalProps {

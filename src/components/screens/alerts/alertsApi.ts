@@ -50,6 +50,11 @@ export interface AlertActionPayload {
 
 // --- API Functions ---
 
+const MOCK_ALERTS: Alert[] = [
+  { id: 'ALT-001', type: 'sla_breach', title: 'SLA breach – delivery delayed', description: 'Order ORD-2001 is 15 min past promised ETA.', priority: 'critical', createdAt: new Date(Date.now() - 10 * 60000).toISOString(), lastUpdatedAt: new Date().toISOString(), source: { orderId: 'ORD-2001', riderId: 'R1', riderName: 'Raj K', zone: 'Brooklyn' }, status: 'open', actionsSuggested: ['notify_customer', 'reassign_rider', 'call_rider'], timeline: [] },
+  { id: 'ALT-002', type: 'rto_return', title: 'RTO risk – customer unreachable', description: 'Order ORD-2002: 2 call attempts failed.', priority: 'high', createdAt: new Date(Date.now() - 30 * 60000).toISOString(), lastUpdatedAt: new Date().toISOString(), source: { orderId: 'ORD-2002', riderId: 'R2', riderName: 'Priya M' }, status: 'acknowledged', actionsSuggested: ['notify_customer', 'add_note'], timeline: [] },
+];
+
 export async function fetchAlerts(statusFilter?: AlertStatus | "all"): Promise<Alert[]> {
   try {
     const params = new URLSearchParams();
@@ -59,10 +64,11 @@ export async function fetchAlerts(statusFilter?: AlertStatus | "all"): Promise<A
     
     const endpoint = `/production/alerts${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await apiRequest<{ success: boolean; alerts: Alert[] }>(endpoint);
-    return response.alerts || [];
+    if (response?.alerts?.length) return response.alerts;
+    return MOCK_ALERTS;
   } catch (error) {
     console.error('Failed to fetch alerts:', error);
-    return [];
+    return MOCK_ALERTS;
   }
 }
 

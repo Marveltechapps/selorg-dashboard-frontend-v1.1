@@ -25,7 +25,7 @@ export function DarkstoreManagement({ onLogout }: { onLogout: () => void }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
       
       <div className="pl-[220px]">
-        <TopBar />
+        <TopBar setActiveTab={setActiveTab} />
         
         <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
             {activeTab === 'overview' && <DashboardHome setActiveTab={setActiveTab} />}
@@ -42,7 +42,7 @@ export function DarkstoreManagement({ onLogout }: { onLogout: () => void }) {
             {activeTab === 'staff' && <StaffShifts />}
             {activeTab === 'health' && <StoreHealth />}
             {activeTab === 'alerts' && <AlertsDashboard />}
-            {activeTab === 'reports' && <ReportsDashboard />}
+            {activeTab === 'reports' && <ReportsDashboard onNavigateToAudit={() => setActiveTab('qc')} />}
             {activeTab === 'hsd' && <HSDManagement />}
             {activeTab === 'qc' && <QualityControl />}
             {activeTab === 'inbound' && <InboundOps />}

@@ -72,10 +72,7 @@ export interface LoginSession {
 
 export interface CreateUserPayload {
   email: string;
-<<<<<<< HEAD
   password?: string; // Optional - will be auto-generated if not provided
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   name: string;
   department: string;
   roleId: string;
@@ -433,7 +430,6 @@ export const fetchUserById = async (id: string): Promise<User | null> => {
 };
 
 export const createUser = async (payload: CreateUserPayload): Promise<User> => {
-<<<<<<< HEAD
   try {
     // Generate a default password if not provided (user will need to reset it)
     const userPayload = {
@@ -498,13 +494,6 @@ export const createUser = async (payload: CreateUserPayload): Promise<User> => {
     MOCK_USERS.push(mockUser);
     return mockUser;
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: User }>('/admin/users', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 };
 
 export const updateUser = async (id: string, payload: UpdateUserPayload): Promise<User> => {
@@ -522,7 +511,6 @@ export const deleteUser = async (id: string): Promise<void> => {
 };
 
 export const fetchRoles = async (): Promise<Role[]> => {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: Role[] }>('/admin/roles');
     if (response && response.data && Array.isArray(response.data)) {
@@ -537,10 +525,6 @@ export const fetchRoles = async (): Promise<Role[]> => {
       id: role.id,
     }));
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: Role[] }>('/admin/roles');
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 };
 
 export const fetchRoleById = async (id: string): Promise<Role | null> => {
@@ -553,7 +537,6 @@ export const fetchRoleById = async (id: string): Promise<Role | null> => {
 };
 
 export const createRole = async (payload: CreateRolePayload): Promise<Role> => {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: Role }>('/admin/roles', {
       method: 'POST',
@@ -576,13 +559,6 @@ export const createRole = async (payload: CreateRolePayload): Promise<Role> => {
     };
     return mockRole;
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: Role }>('/admin/roles', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 };
 
 export const updateRole = async (id: string, payload: Partial<CreateRolePayload>): Promise<Role> => {
@@ -600,7 +576,6 @@ export const deleteRole = async (id: string): Promise<void> => {
 };
 
 export const fetchPermissions = async (): Promise<Permission[]> => {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: Permission[] }>('/admin/permissions');
     if (response && response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -612,10 +587,6 @@ export const fetchPermissions = async (): Promise<Permission[]> => {
     console.warn('Failed to fetch permissions from API, using mock data:', error);
     return MOCK_PERMISSIONS;
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: Permission[] }>('/admin/permissions');
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 };
 
 export const fetchAccessLogs = async (filters?: {

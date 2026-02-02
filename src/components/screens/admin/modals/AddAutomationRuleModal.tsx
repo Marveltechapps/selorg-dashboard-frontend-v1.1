@@ -19,7 +19,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { createAutomationRule, fetchTemplates } from '../notificationsApi';
 import { NotificationTemplate } from '../notificationsApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Zap } from 'lucide-react';
 
 interface AddAutomationRuleModalProps {

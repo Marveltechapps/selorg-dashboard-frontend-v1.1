@@ -19,6 +19,7 @@ interface DispatchDrawerProps {
   unassignedOrders: Order[];
   riders: Rider[];
   onAssign: (orderId: string, riderId: string) => Promise<void>;
+  preselectedOrder?: Order | null;
 }
 
 export function DispatchDrawer({ 
@@ -26,10 +27,19 @@ export function DispatchDrawer({
   onClose, 
   unassignedOrders, 
   riders, 
-  onAssign 
+  onAssign,
+  preselectedOrder 
 }: DispatchDrawerProps) {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [selectedRider, setSelectedRider] = useState<string>('');
+
+  React.useEffect(() => {
+    if (isOpen && preselectedOrder) {
+      setSelectedOrders([preselectedOrder.id]);
+    } else if (isOpen && !preselectedOrder) {
+      setSelectedOrders([]);
+    }
+  }, [isOpen, preselectedOrder?.id]);
 
   const handleOrderToggle = (id: string) => {
     if (selectedOrders.includes(id)) {
@@ -41,13 +51,10 @@ export function DispatchDrawer({
 
   const handleBatchAssign = async () => {
     if (selectedOrders.length === 0 || !selectedRider) return;
-    
-    // Simulate batch processing
     for (const orderId of selectedOrders) {
-        await onAssign(orderId, selectedRider);
+      await onAssign(orderId, selectedRider);
     }
-    
-    toast.success(`Assigned ${selectedOrders.length} orders successfully`);
+    toast.success(selectedOrders.length === 1 ? 'Order assigned successfully' : `Assigned ${selectedOrders.length} orders successfully`);
     setSelectedOrders([]);
     setSelectedRider('');
     onClose();
@@ -124,7 +131,7 @@ export function DispatchDrawer({
                             disabled={selectedOrders.length === 0 || !selectedRider}
                             onClick={handleBatchAssign}
                         >
-                            Assign {selectedOrders.length} Orders
+                            Assign {selectedOrders.length} Order{selectedOrders.length !== 1 ? 's' : ''}
                         </Button>
                     </div>
                 </TabsContent>

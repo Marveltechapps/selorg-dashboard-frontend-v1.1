@@ -4,16 +4,26 @@ import { cn } from "../../lib/utils";
 import { PageHeader } from '../ui/page-header';
 import { toast } from 'sonner';
 
-export function PackStation() {
-  const [activeOrderId, setActiveOrderId] = useState('ORD-9921');
+const DEFAULT_PACK_QUEUE = [
+  { id: 'ORD-9921', picker: 'Sarah C.', sla: '01:45', items: 6, status: 'urgent' as const },
+  { id: 'ORD-9922', picker: 'Mike R.', sla: '04:20', items: 5, status: 'warning' as const },
+  { id: 'ORD-9923', picker: 'John D.', sla: '08:15', items: 12, status: 'normal' as const },
+  { id: 'ORD-9924', picker: 'Rachel Z.', sla: '12:00', items: 4, status: 'normal' as const },
+  { id: 'ORD-9925', picker: 'Alex M.', sla: '14:30', items: 15, status: 'normal' as const },
+];
 
-  const packQueue = [
-    { id: 'ORD-9921', picker: 'Sarah C.', sla: '01:45', items: 6, status: 'urgent' },
-    { id: 'ORD-9922', picker: 'Mike R.', sla: '04:20', items: 5, status: 'warning' },
-    { id: 'ORD-9923', picker: 'John D.', sla: '08:15', items: 12, status: 'normal' },
-    { id: 'ORD-9924', picker: 'Rachel Z.', sla: '12:00', items: 4, status: 'normal' },
-    { id: 'ORD-9925', picker: 'Alex M.', sla: '14:30', items: 15, status: 'normal' },
-  ];
+export function PackStation() {
+  const [packQueue, setPackQueue] = useState(DEFAULT_PACK_QUEUE);
+  const [activeOrderId, setActiveOrderId] = useState(DEFAULT_PACK_QUEUE[0]?.id ?? '');
+
+  const handleCompleteOrder = () => {
+    const idx = packQueue.findIndex((o) => o.id === activeOrderId);
+    if (idx === -1) return;
+    const next = packQueue.filter((o) => o.id !== activeOrderId);
+    setPackQueue(next);
+    setActiveOrderId(next.length ? next[0].id : '');
+    toast.success(`Order ${activeOrderId} completed and moved to dispatch`);
+  };
 
   return (
     <div className="space-y-6">
@@ -47,7 +57,9 @@ export function PackStation() {
             <span className="bg-[#E6F7FF] text-[#1677FF] text-xs font-bold px-2 py-0.5 rounded-full">{packQueue.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {packQueue.map((order) => (
+            {packQueue.length === 0 ? (
+              <p className="text-sm text-[#757575] p-4 text-center">Queue empty. New orders will appear here.</p>
+            ) : packQueue.map((order) => (
               <div 
                 key={order.id}
                 onClick={() => setActiveOrderId(order.id)}
@@ -195,7 +207,11 @@ export function PackStation() {
                 Damaged
               </button>
             </div>
-            <button className="w-full mt-1 bg-[#1677FF] text-white py-3 rounded-lg font-bold hover:bg-[#1668E3] transition-colors flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-200">
+            <button
+              onClick={handleCompleteOrder}
+              disabled={!activeOrderId}
+              className="w-full mt-1 bg-[#1677FF] text-white py-3 rounded-lg font-bold hover:bg-[#1668E3] transition-colors flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Complete Order <ArrowRight size={16} />
             </button>
           </div>

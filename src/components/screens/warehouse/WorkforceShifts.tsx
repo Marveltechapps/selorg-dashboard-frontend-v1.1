@@ -5,10 +5,12 @@ import { EmptyState, LoadingState } from '../../ui/ux-components';
 import { toast } from 'sonner';
 import { 
   fetchStaff, 
+  addStaff as apiAddStaff,
   fetchSchedules, 
   createShiftSchedule as apiCreateSchedule, 
   assignStaffToShift as apiAssignStaff,
   fetchTrainings,
+  addTraining as apiAddTraining,
   logStaffAttendance,
   fetchAttendance,
   fetchPerformance,
@@ -134,8 +136,12 @@ export function WorkforceShifts() {
 
   const logAttendance = async () => {
     if (newAttendance.staffId && newAttendance.date) {
+      const staffName = staff.find(s => s.id === newAttendance.staffId)?.name ?? '';
       try {
-        await logStaffAttendance(newAttendance);
+        await logStaffAttendance({
+          ...newAttendance,
+          staffName: staffName || newAttendance.staffId,
+        });
         toast.success('Attendance logged');
         setNewAttendance({ staffId: '', date: '', checkIn: '', checkOut: '' });
         setShowAttendanceModal(false);
@@ -147,16 +153,39 @@ export function WorkforceShifts() {
   };
 
   const addStaff = async () => {
-    // Note: Assuming addStaff api helper exists or we can mock/implement it
-    toast.success('Staff member added (Simulated)');
-    setShowRosterModal(false);
-    setNewStaff({ name: '', email: '', phone: '', role: '', shift: 'morning', hourlyRate: '' });
-    loadData();
+    if (!newStaff.name?.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    try {
+      await apiAddStaff({
+        name: newStaff.name.trim(),
+        email: newStaff.email || undefined,
+        phone: newStaff.phone || undefined,
+        role: newStaff.role || 'Picker',
+        shift: newStaff.shift,
+        hourlyRate: newStaff.hourlyRate ? parseFloat(newStaff.hourlyRate) : undefined,
+      });
+      toast.success('Staff member added');
+      setShowRosterModal(false);
+      setNewStaff({ name: '', email: '', phone: '', role: '', shift: 'morning', hourlyRate: '' });
+      loadData();
+    } catch (error) {
+      toast.error('Failed to add staff');
+    }
   };
 
   const createLeaveRequest = async () => {
+    const staffName = staff.find(s => s.id === newLeave.staffId)?.name ?? '';
+    const days = newLeave.startDate && newLeave.endDate
+      ? Math.max(1, Math.ceil((new Date(newLeave.endDate).getTime() - new Date(newLeave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : 1;
     try {
-      await apiCreateLeaveRequest(newLeave);
+      await apiCreateLeaveRequest({
+        ...newLeave,
+        staffName: staffName || newLeave.staffId,
+        days,
+      });
       toast.success('Leave request submitted');
       setShowLeaveModal(false);
       setNewLeave({ staffId: '', leaveType: 'casual', startDate: '', endDate: '', reason: '' });
@@ -177,10 +206,26 @@ export function WorkforceShifts() {
   };
 
   const createTraining = async () => {
-    toast.success('Training program created (Simulated)');
-    setShowTrainingModal(false);
-    setNewTraining({ title: '', type: '', date: '', duration: '', instructor: '', capacity: '' });
-    loadData();
+    if (!newTraining.title?.trim() || !newTraining.date) {
+      toast.error('Title and date are required');
+      return;
+    }
+    try {
+      await apiAddTraining({
+        title: newTraining.title.trim(),
+        type: newTraining.type || 'Mandatory',
+        date: newTraining.date,
+        duration: newTraining.duration || '1h',
+        instructor: newTraining.instructor || 'TBD',
+        capacity: newTraining.capacity ? parseInt(newTraining.capacity, 10) : 20,
+      });
+      toast.success('Training program created');
+      setShowTrainingModal(false);
+      setNewTraining({ title: '', type: '', date: '', duration: '', instructor: '', capacity: '' });
+      loadData();
+    } catch (error) {
+      toast.error('Failed to create training');
+    }
   };
 
   const exportData = () => {
@@ -655,7 +700,7 @@ export function WorkforceShifts() {
               <tbody className="divide-y divide-[#E2E8F0]">
                 {filteredAttendance.map(record => (
                   <tr key={record.id} className="hover:bg-[#F8FAFC]">
-                    <td className="px-6 py-4 font-medium text-[#1E293B]">{record.staffName}</td>
+                    <td className="px-6 py-4 font-medium text-[#1E293B]">{record.staffName || staff.find(s => s.id === record.staffId)?.name || record.staffId || '—'}</td>
                     <td className="px-6 py-4 text-[#64748B]">{record.date}</td>
                     <td className="px-6 py-4 text-[#64748B]">{record.checkIn}</td>
                     <td className="px-6 py-4 text-[#64748B]">{record.checkOut}</td>
@@ -777,7 +822,7 @@ export function WorkforceShifts() {
               <tbody className="divide-y divide-[#E2E8F0]">
                 {filteredLeaves.map(leave => (
                   <tr key={leave.id} className="hover:bg-[#F8FAFC]">
-                    <td className="px-6 py-4 font-medium text-[#1E293B]">{leave.staffName}</td>
+                    <td className="px-6 py-4 font-medium text-[#1E293B]">{leave.staffName || staff.find(s => s.id === leave.staffId)?.name || leave.staffId || '—'}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         leave.leaveType === 'sick' ? 'bg-red-100 text-red-700' :

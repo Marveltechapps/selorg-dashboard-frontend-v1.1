@@ -4,14 +4,13 @@ import {
   Bell, 
   X, 
   CheckCircle, 
-  Clock, 
-  Filter,
   Info,
   AlertCircle,
   Search
 } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface Alert {
   id: string;
@@ -46,88 +45,40 @@ export function ProductionAlerts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [showFilters, setShowFilters] = useState(false);
 
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { 
-      id: '1', 
-      title: 'Critical: Line C Stopped', 
-      description: 'Emergency stop triggered at Station 4. Maintenance required immediately.', 
-      severity: 'critical', 
-      category: 'equipment', 
-      timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(), 
-      status: 'active',
-      location: 'Line C - Station 4'
-    },
-    { 
-      id: '2', 
-      title: 'Material Shortage Warning', 
-      description: 'Packaging Film for Line B is running low. Estimated depletion in 2 hours.', 
-      severity: 'warning', 
-      category: 'material', 
-      timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), 
-      status: 'active',
-      location: 'Line B - Material Storage'
-    },
-    { 
-      id: '3', 
-      title: 'Shift Change Reminder', 
-      description: 'Morning shift ending in 30 minutes. Prepare for handover.', 
-      severity: 'info', 
-      category: 'shift', 
-      timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(), 
-      status: 'active'
-    },
-    { 
-      id: '4', 
-      title: 'Quality Check Failed', 
-      description: 'Batch #9921 failed visual inspection. 12 units rejected.', 
-      severity: 'warning', 
-      category: 'quality', 
-      timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), 
-      status: 'acknowledged',
-      location: 'QC Station 2',
-      assignedTo: 'Sarah Johnson'
-    },
-    { 
-      id: '5', 
-      title: 'Temperature Threshold Exceeded', 
-      description: 'Industrial Oven IO-1 temperature above safe limit (215°C).', 
-      severity: 'critical', 
-      category: 'safety', 
-      timestamp: new Date(Date.now() - 90 * 60 * 1000).toISOString(), 
-      status: 'resolved',
-      location: 'Baking Area',
-      assignedTo: 'Mike Davis',
-      resolvedBy: 'Mike Davis',
-      resolvedAt: new Date(Date.now() - 75 * 60 * 1000).toISOString()
-    },
-  ]);
+  const DEFAULT_ALERTS: Alert[] = [
+    { id: '1', title: 'Critical: Line C Stopped', description: 'Emergency stop triggered at Station 4. Maintenance required immediately.', severity: 'critical', category: 'equipment', timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(), status: 'active', location: 'Line C - Station 4' },
+    { id: '2', title: 'Material Shortage Warning', description: 'Packaging Film for Line B is running low. Estimated depletion in 2 hours.', severity: 'warning', category: 'material', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), status: 'active', location: 'Line B - Material Storage' },
+    { id: '3', title: 'Shift Change Reminder', description: 'Morning shift ending in 30 minutes. Prepare for handover.', severity: 'info', category: 'shift', timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(), status: 'active' },
+    { id: '4', title: 'Quality Check Failed', description: 'Batch #9921 failed visual inspection. 12 units rejected.', severity: 'warning', category: 'quality', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), status: 'acknowledged', location: 'QC Station 2', assignedTo: 'Sarah Johnson' },
+    { id: '5', title: 'Temperature Threshold Exceeded', description: 'Industrial Oven IO-1 temperature above safe limit (215°C).', severity: 'critical', category: 'safety', timestamp: new Date(Date.now() - 90 * 60 * 1000).toISOString(), status: 'resolved', location: 'Baking Area', assignedTo: 'Mike Davis', resolvedBy: 'Mike Davis', resolvedAt: new Date(Date.now() - 75 * 60 * 1000).toISOString() },
+  ];
+  const DEFAULT_INCIDENTS: Incident[] = [
+    { id: '1', title: 'Equipment Malfunction', description: 'Mixer M-200 making unusual noise and vibrating excessively.', severity: 'high', category: 'Equipment', reportedBy: 'John Smith', location: 'Processing Area', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), status: 'investigating' },
+    { id: '2', title: 'Near Miss - Safety', description: 'Operator nearly slipped on wet floor near Line A. No injury.', severity: 'medium', category: 'Safety', reportedBy: 'Emma Wilson', location: 'Line A', timestamp: new Date(Date.now() - 120 * 60 * 1000).toISOString(), status: 'resolved' },
+  ];
 
-  const [incidents, setIncidents] = useState<Incident[]>([
-    { 
-      id: '1', 
-      title: 'Equipment Malfunction', 
-      description: 'Mixer M-200 making unusual noise and vibrating excessively.', 
-      severity: 'high', 
-      category: 'Equipment', 
-      reportedBy: 'John Smith', 
-      location: 'Processing Area', 
-      timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), 
-      status: 'investigating' 
-    },
-    { 
-      id: '2', 
-      title: 'Near Miss - Safety', 
-      description: 'Operator nearly slipped on wet floor near Line A. No injury.', 
-      severity: 'medium', 
-      category: 'Safety', 
-      reportedBy: 'Emma Wilson', 
-      location: 'Line A', 
-      timestamp: new Date(Date.now() - 120 * 60 * 1000).toISOString(), 
-      status: 'resolved' 
-    },
-  ]);
+  const [alerts, setAlertsState] = useState<Alert[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.alerts, DEFAULT_ALERTS)
+  );
+  const [incidents, setIncidentsState] = useState<Incident[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.incidents, DEFAULT_INCIDENTS)
+  );
+
+  const setAlerts = (next: Alert[] | ((prev: Alert[]) => Alert[])) => {
+    setAlertsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.alerts, resolved);
+      return resolved;
+    });
+  };
+  const setIncidents = (next: Incident[] | ((prev: Incident[]) => Incident[])) => {
+    setIncidentsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.incidents, resolved);
+      return resolved;
+    });
+  };
 
   const [newIncident, setNewIncident] = useState({
     title: '',
@@ -151,14 +102,14 @@ export function ProductionAlerts() {
         timestamp: new Date().toISOString(),
         status: 'open',
       };
-      setIncidents([incident, ...incidents]);
+      setIncidents(prev => [incident, ...prev]);
       setNewIncident({ title: '', description: '', severity: 'medium', category: '', location: '', reportedBy: '' });
       setShowIncidentModal(false);
     }
   };
 
   const updateAlertStatus = (id: string, newStatus: Alert['status']) => {
-    setAlerts(alerts.map(a => {
+    setAlerts(prev => prev.map(a => {
       if (a.id === id) {
         const updates: Partial<Alert> = { status: newStatus };
         if (newStatus === 'acknowledged' && !a.assignedTo) {
@@ -176,27 +127,26 @@ export function ProductionAlerts() {
   };
 
   const updateIncidentStatus = (id: string, newStatus: Incident['status']) => {
-    setIncidents(incidents.map(i => i.id === id ? { ...i, status: newStatus } : i));
+    setIncidents(prev => prev.map(i => i.id === id ? { ...i, status: newStatus } : i));
   };
 
   const deleteAlert = (id: string) => {
     if (confirm('Are you sure you want to delete this alert?')) {
-      setAlerts(alerts.filter(a => a.id !== id));
+      setAlerts(prev => prev.filter(a => a.id !== id));
     }
   };
 
   const clearAll = () => {
     if (confirm('Are you sure you want to clear all active alerts?')) {
-      setAlerts(alerts.map(a => a.status === 'active' ? { ...a, status: 'dismissed' as const } : a));
+      setAlerts(prev => prev.map(a => a.status === 'active' ? { ...a, status: 'dismissed' as const } : a));
     }
   };
 
   const dispatchMaintenance = (alertId: string) => {
     const assignee = prompt('Assign maintenance to (enter name):');
     if (assignee) {
-      updateAlertStatus(alertId, 'acknowledged');
-      setAlerts(alerts.map(a => a.id === alertId ? { ...a, assignedTo: assignee } : a));
-      alert(`Maintenance dispatched and assigned to ${assignee}`);
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'acknowledged' as const, assignedTo: assignee } : a));
+      toast.success(`Maintenance dispatched to ${assignee}`);
     }
   };
 
@@ -302,15 +252,6 @@ export function ProductionAlerts() {
       <PageHeader
         title="Production Alerts"
         subtitle="Real-time notifications and critical issues"
-        actions={
-          <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-white border border-[#E0E0E0] text-[#212121] font-medium rounded-lg hover:bg-[#F5F5F5] flex items-center gap-2"
-          >
-            <Filter size={16} />
-            Filters
-          </button>
-        }
       />
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Filter, MoreHorizontal, Clock, Package, Bike, User, AlertCircle, ArrowRight, Search, CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
@@ -50,6 +51,16 @@ export function LiveOrders() {
   const storeId = 'DS-Brooklyn-04';
 
   const [orders, setOrders] = useState<any[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Sync search from URL or sessionStorage (from TopBar search)
+  useEffect(() => {
+    const q = searchParams.get('q') || sessionStorage.getItem('darkstore_order_search') || '';
+    if (q) {
+      setSearchQuery(q);
+      try { sessionStorage.removeItem('darkstore_order_search'); } catch (_) {}
+    }
+  }, [searchParams]);
 
   // Load orders on mount and when filters change
   useEffect(() => {

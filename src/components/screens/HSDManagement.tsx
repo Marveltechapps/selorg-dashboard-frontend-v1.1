@@ -961,6 +961,8 @@ function DeviceActionsLog({ deviceId }: { deviceId: string }) {
 
 function IssueTracker() {
    const [issues, setIssues] = useState<any[]>([]);
+   const [showManageModal, setShowManageModal] = useState(false);
+   const [selectedIssue, setSelectedIssue] = useState<any>(null);
    const [loading, setLoading] = useState(true);
    const [showReportModal, setShowReportModal] = useState(false);
    const [controlLoading, setControlLoading] = useState<string | null>(null);
@@ -1077,7 +1079,14 @@ function IssueTracker() {
                                     {ticket.status}
                                  </span>
                               </td>
-                              <td className="px-4 py-3 text-[#1677FF] text-xs font-bold cursor-pointer hover:underline">Manage</td>
+                              <td className="px-4 py-3">
+                                 <button
+                                    onClick={() => { setSelectedIssue(ticket); setShowManageModal(true); }}
+                                    className="text-[#1677FF] text-xs font-bold cursor-pointer hover:underline"
+                                  >
+                                    Manage
+                                 </button>
+                              </td>
                            </tr>
                         ))}
                      </tbody>
@@ -1085,6 +1094,29 @@ function IssueTracker() {
                )}
             </div>
          </div>
+
+         {showManageModal && selectedIssue && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md m-4 p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-[#212121]">Manage Issue</h3>
+                  <button onClick={() => { setShowManageModal(false); setSelectedIssue(null); }} className="p-1 text-[#616161] hover:text-[#212121] rounded-lg"><X size={20} /></button>
+                </div>
+                <div className="space-y-2 text-sm mb-6">
+                  <p><span className="font-bold text-[#757575]">Ticket:</span> {selectedIssue.ticketId}</p>
+                  <p><span className="font-bold text-[#757575]">Device:</span> {selectedIssue.deviceId}</p>
+                  <p><span className="font-bold text-[#757575]">Type:</span> {selectedIssue.issueType}</p>
+                  <p><span className="font-bold text-[#757575]">Description:</span> {selectedIssue.description}</p>
+                  <p><span className="font-bold text-[#757575]">Status:</span> {selectedIssue.status}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { toast.success('Action sent to device'); setShowManageModal(false); setSelectedIssue(null); }} className="flex-1 px-3 py-2 bg-[#1677FF] text-white rounded-lg text-xs font-bold">Restart App</button>
+                  <button onClick={() => { toast.success('Cache clear requested'); setShowManageModal(false); setSelectedIssue(null); }} className="flex-1 px-3 py-2 border border-[#E0E0E0] rounded-lg text-xs font-bold">Clear Cache</button>
+                  <button onClick={() => { setShowManageModal(false); setSelectedIssue(null); }} className="px-3 py-2 border border-[#E0E0E0] rounded-lg text-xs font-bold">Close</button>
+                </div>
+              </div>
+            </div>
+         )}
 
          <div className="col-span-12 md:col-span-4 space-y-6">
             <div className="bg-white p-5 rounded-xl border border-[#E0E0E0] shadow-sm">
@@ -1247,6 +1279,7 @@ function HSDLogs() {
    const [logs, setLogs] = useState<any[]>([]);
    const [loading, setLoading] = useState(true);
    const [searchQuery, setSearchQuery] = useState('');
+   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
    const isMounted = useRef(true);
 
    useEffect(() => {
@@ -1258,9 +1291,9 @@ function HSDLogs() {
    const loadLogs = async () => {
       try {
          setLoading(true);
-         const data = await hsdApi.getHSDLogs({ search: searchQuery, storeId: 'DS-Brooklyn-04' });
+         const data = await hsdApi.getHSDLogs({ storeId: 'DS-Brooklyn-04' });
          if (isMounted.current) {
-            setLogs(data.logs);
+            setLogs(data.logs || []);
          }
       } catch (error) {
          console.error('Failed to load logs:', error);
@@ -1269,26 +1302,38 @@ function HSDLogs() {
       }
    };
 
+   const q = (searchQuery || '').toLowerCase();
+   const filteredLogs = logs.filter(log => {
+      const matchSearch = !q || (log.details || '').toLowerCase().includes(q) || (log.deviceId || '').toLowerCase().includes(q) || (log.userName || '').toLowerCase().includes(q) || (log.eventType || '').toLowerCase().includes(q);
+      const matchEvent = eventTypeFilter === 'all' || (log.eventType === eventTypeFilter);
+      return matchSearch && matchEvent;
+   });
+
    return (
       <div className="bg-white rounded-xl border border-[#E0E0E0] shadow-sm flex flex-col overflow-hidden h-[600px]">
-         <div className="p-4 border-b border-[#E0E0E0] bg-[#FAFAFA] flex items-center gap-4">
+         <div className="p-4 border-b border-[#E0E0E0] bg-[#FAFAFA] flex flex-wrap items-center gap-2">
             <h3 className="font-bold text-[#212121]">System & Activity Logs</h3>
-            <div className="flex gap-2 ml-auto">
-               <form onSubmit={(e) => { e.preventDefault(); loadLogs(); }} className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9E9E9E]" size={14} />
-                  <input 
-                     type="text" 
-                     placeholder="Search logs..." 
-                     className="pl-8 pr-3 py-1.5 text-xs border border-[#E0E0E0] rounded focus:outline-none" 
-                     value={searchQuery}
-                     onChange={e => setSearchQuery(e.target.value)}
-                  />
-               </form>
+            <div className="flex gap-2 ml-auto flex-wrap">
+               <input
+                  type="text"
+                  placeholder="Search logs..."
+                  className="pl-3 pr-3 py-1.5 text-xs border border-[#E0E0E0] rounded focus:outline-none w-40"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+               />
+               <select
+                  value={eventTypeFilter}
+                  onChange={e => setEventTypeFilter(e.target.value)}
+                  className="px-3 py-1.5 text-xs border border-[#E0E0E0] rounded bg-white"
+               >
+                  <option value="all">All events</option>
+                  <option value="scan_sku">Scan SKU</option>
+                  <option value="qc_check">QC Check</option>
+                  <option value="system">System</option>
+                  <option value="error">Error</option>
+               </select>
                <button onClick={loadLogs} className="p-1.5 border border-[#E0E0E0] rounded hover:bg-[#F5F5F5] text-[#616161]">
                   <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-               </button>
-               <button className="p-1.5 border border-[#E0E0E0] rounded hover:bg-[#F5F5F5] text-[#616161]">
-                  <Filter size={16} />
                </button>
             </div>
          </div>
@@ -1298,7 +1343,7 @@ function HSDLogs() {
                   <Loader2 className="animate-spin mb-2" size={24} />
                   <p className="text-xs">Loading logs...</p>
                </div>
-            ) : logs.length === 0 ? (
+            ) : filteredLogs.length === 0 ? (
                <div className="p-20 text-center text-[#9E9E9E]">
                   <p className="text-xs">No logs found</p>
                </div>
@@ -1314,7 +1359,7 @@ function HSDLogs() {
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F0F0F0]">
-                     {logs.map((log, i) => (
+                     {filteredLogs.map((log, i) => (
                         <tr key={i} className="hover:bg-[#F9FAFB]">
                            <td className="px-6 py-3 text-[#616161] font-mono text-xs">
                               {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}

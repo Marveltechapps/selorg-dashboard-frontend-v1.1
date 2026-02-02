@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert } from './types';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
 
 interface StockAllocationModalProps {

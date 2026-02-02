@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Product, Category, createProduct, updateProduct, fetchCategories } from '../catalogApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { X, Upload, Plus, Package } from 'lucide-react';
 
 interface AddProductModalProps {
@@ -207,7 +207,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
     }
   };
 
-<<<<<<< HEAD
   const topLevelCategories = categories.filter(c => !c.parentId && c.status === 'active');
   const selectedCategory = categories.find(c => c.name === formData.category || c.id === formData.category);
   const subcategories = selectedCategory 
@@ -218,15 +217,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[95vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#e4e4e7] flex-shrink-0">
-=======
-  const topLevelCategories = categories.filter(c => c.parentId === null && c.status === 'active');
-  const subcategories = categories.filter(c => c.parentId && categories.find(cat => cat.id === c.parentId)?.name === formData.category);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#e4e4e7]">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[#e11d48]/10 flex items-center justify-center">
               <Package className="text-[#e11d48]" size={20} />
@@ -242,13 +232,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
           </div>
         </DialogHeader>
 
-<<<<<<< HEAD
         <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-2 flex-shrink-0">
-=======
-        <Tabs defaultValue="basic" className="flex-1">
-          <div className="px-6 pt-2">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic">Basic Info</TabsTrigger>
               <TabsTrigger value="pricing">Pricing & Stock</TabsTrigger>
@@ -256,13 +241,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
             </TabsList>
           </div>
 
-<<<<<<< HEAD
           <ScrollArea className="flex-1 px-6 min-h-0 overflow-y-auto max-h-[60vh]">
             <TabsContent value="basic" className="space-y-4 mt-4 pb-4">
-=======
-          <ScrollArea className="h-[400px] px-6">
-            <TabsContent value="basic" className="space-y-4 mt-4">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               {/* Product Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
@@ -350,7 +330,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-<<<<<<< HEAD
               {/* Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="imageUpload">Product Image</Label>
@@ -384,19 +363,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                       input.click();
                     }}
                   >
-=======
-              {/* Image URL */}
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl">Image URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="imageUrl"
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.imageUrl}
-                    onChange={(e) => handleChange('imageUrl', e.target.value)}
-                  />
-                  <Button variant="outline" size="icon">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     <Upload size={16} />
                   </Button>
                 </div>
@@ -412,7 +378,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 <Label>Tags</Label>
                 <div className="flex gap-2">
                   <Input
-<<<<<<< HEAD
                     placeholder="Add tag and press Enter..."
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
@@ -430,20 +395,11 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                     onClick={addTag}
                     disabled={!tagInput.trim()}
                   >
-=======
-                    placeholder="Add tag..."
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                  />
-                  <Button variant="outline" size="icon" onClick={addTag}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     <Plus size={16} />
                   </Button>
                 </div>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-<<<<<<< HEAD
                     {tags.map((tag, idx) => (
                       <Badge key={idx} variant="secondary" className="flex items-center gap-1">
                         {tag}
@@ -460,8 +416,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 )}
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     {tags.map(tag => (
                       <Badge key={tag} variant="secondary" className="gap-1">
                         {tag}
@@ -473,11 +427,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
               </div>
             </TabsContent>
 
-<<<<<<< HEAD
             <TabsContent value="pricing" className="space-y-4 mt-4 pb-6">
-=======
-            <TabsContent value="pricing" className="space-y-4 mt-4">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               {/* Price */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -575,11 +525,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
               </div>
             </TabsContent>
 
-<<<<<<< HEAD
             <TabsContent value="attributes" className="space-y-4 mt-4 pb-4">
-=======
-            <TabsContent value="attributes" className="space-y-4 mt-4">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               {/* Weight */}
               <div className="space-y-2">
                 <Label htmlFor="weight">Weight / Pack Size</Label>
@@ -654,11 +600,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
         </Tabs>
 
         {/* Footer */}
-<<<<<<< HEAD
         <div className="px-6 py-4 border-t border-[#e4e4e7] flex justify-end gap-3 flex-shrink-0">
-=======
-        <div className="px-6 py-4 border-t border-[#e4e4e7] flex justify-end gap-3">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>

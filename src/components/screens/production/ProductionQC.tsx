@@ -13,6 +13,7 @@ import {
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
 import { cn } from '../../../lib/utils';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface Inspection {
   id: string;
@@ -45,19 +46,40 @@ export function ProductionQC() {
   const [showDetailsModal, setShowDetailsModal] = useState<Inspection | LabTest | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [inspections, setInspections] = useState<Inspection[]>([
+  const DEFAULT_INSPECTIONS: Inspection[] = [
     { id: '1', time: '10:45 AM', batch: 'Batch #9921', checkType: 'Weight Check', result: 'pass', inspector: 'Sarah J.', date: '2024-12-22', notes: 'Within acceptable range' },
     { id: '2', time: '10:30 AM', batch: 'Batch #9921', checkType: 'Visual Inspection', result: 'fail', inspector: 'Sarah J.', date: '2024-12-22', notes: 'Color deviation detected' },
     { id: '3', time: '10:15 AM', batch: 'Batch #9920', checkType: 'Temperature Check', result: 'pass', inspector: 'Mike D.', date: '2024-12-22' },
     { id: '4', time: '09:45 AM', batch: 'Batch #9919', checkType: 'Seal Integrity', result: 'pass', inspector: 'Emma K.', date: '2024-12-22' },
-  ]);
-
-  const [labTests, setLabTests] = useState<LabTest[]>([
+  ];
+  const DEFAULT_LAB_TESTS: LabTest[] = [
     { id: '1', sampleId: 'LAB-23-882', product: 'Raw Milk Tank B', source: 'Tank B', testType: 'Microbiology (Bacteria)', status: 'in-progress', priority: 'high', receivedDate: '2024-12-22' },
     { id: '2', sampleId: 'LAB-23-885', product: 'Finished Granola', source: 'Batch #9920', testType: 'Moisture Content', status: 'completed', priority: 'normal', receivedDate: '2024-12-22', completedDate: '2024-12-22', result: '3.2% - Within Spec' },
     { id: '3', sampleId: 'LAB-23-880', product: 'Protein Powder', source: 'Supplier Lot #441', testType: 'Heavy Metals', status: 'pending', priority: 'high', receivedDate: '2024-12-21' },
     { id: '4', sampleId: 'LAB-23-878', product: 'Almond Extract', source: 'Incoming Shipment', testType: 'Allergen Testing', status: 'completed', priority: 'high', receivedDate: '2024-12-21', completedDate: '2024-12-22', result: 'No cross-contamination detected' },
-  ]);
+  ];
+
+  const [inspections, setInspectionsState] = useState<Inspection[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.qcInspections, DEFAULT_INSPECTIONS)
+  );
+  const [labTests, setLabTestsState] = useState<LabTest[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.qcLabTests, DEFAULT_LAB_TESTS)
+  );
+
+  const setInspections = (next: Inspection[] | ((prev: Inspection[]) => Inspection[])) => {
+    setInspectionsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.qcInspections, resolved);
+      return resolved;
+    });
+  };
+  const setLabTests = (next: LabTest[] | ((prev: LabTest[]) => LabTest[])) => {
+    setLabTestsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.qcLabTests, resolved);
+      return resolved;
+    });
+  };
 
   const [newInspection, setNewInspection] = useState({
     batch: '',
@@ -86,7 +108,7 @@ export function ProductionQC() {
         notes: newInspection.notes,
         date: new Date().toISOString().split('T')[0],
       };
-      setInspections([inspection, ...inspections]);
+      setInspections(prev => [inspection, ...prev]);
       setNewInspection({ batch: '', checkType: '', result: 'pass', inspector: '', notes: '' });
       setShowInspectionModal(false);
     }
@@ -104,14 +126,14 @@ export function ProductionQC() {
         priority: newLabTest.priority,
         receivedDate: new Date().toISOString().split('T')[0],
       };
-      setLabTests([test, ...labTests]);
+      setLabTests(prev => [test, ...prev]);
       setNewLabTest({ product: '', source: '', testType: '', priority: 'normal' });
       setShowLabTestModal(false);
     }
   };
 
   const updateTestStatus = (id: string, newStatus: LabTest['status']) => {
-    setLabTests(labTests.map(t => {
+    setLabTests(prev => prev.map(t => {
       if (t.id === id) {
         const updates: Partial<LabTest> = { status: newStatus };
         if (newStatus === 'completed') {
@@ -126,7 +148,7 @@ export function ProductionQC() {
   const updateTestResult = (id: string) => {
     const result = prompt('Enter test result:');
     if (result) {
-      setLabTests(labTests.map(t => 
+      setLabTests(prev => prev.map(t => 
         t.id === id ? { ...t, result, status: 'completed' as const, completedDate: new Date().toISOString().split('T')[0] } : t
       ));
     }

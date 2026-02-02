@@ -29,6 +29,8 @@ export interface Order {
 export interface DashboardSummary {
   activeRiders: number;
   maxRiders: number;
+  busyRiders?: number;
+  idleRiders?: number;
   activeRiderUtilizationPercent: number;
   ordersInTransit: number;
   ordersInTransitChangePercent: number;

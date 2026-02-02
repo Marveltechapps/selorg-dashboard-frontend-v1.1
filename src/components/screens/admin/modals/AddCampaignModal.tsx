@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { createDiscount } from '../pricingApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Tag } from 'lucide-react';
 
 interface AddCampaignModalProps {

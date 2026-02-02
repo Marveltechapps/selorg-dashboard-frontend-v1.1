@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 // Types
 type POStatus = 'Pending Approval' | 'Sent' | 'Partially Received' | 'Fully Received' | 'Cancelled' | 'On Hold';

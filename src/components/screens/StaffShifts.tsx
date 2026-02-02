@@ -220,9 +220,11 @@ function RosterTab() {
   };
 
   const filteredStaff = staffList.filter(staff => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return staff.name?.toLowerCase().includes(query) || staff.staff_id?.toLowerCase().includes(query);
+    const query = (searchQuery || '').toLowerCase();
+    const matchSearch = !query || (staff.name?.toLowerCase().includes(query) || staff.staff_id?.toLowerCase().includes(query));
+    const matchRole = roleFilter === 'all' || (staff.role || '').toLowerCase() === roleFilter.toLowerCase();
+    const matchStatus = statusFilter === 'all' || (staff.status || '').toLowerCase() === statusFilter.toLowerCase();
+    return matchSearch && matchRole && matchStatus;
   });
 
   return (
@@ -756,8 +758,19 @@ function PerformanceTab() {
         sort_by: sortBy
       });
       if (isMountedRef.current) {
-        if (response.success) {
-          setPerformance(response);
+        if (response && (response.success || response.staff_performance)) {
+          const data = response.staff_performance ? response : { ...response, staff_performance: response.metrics || [] };
+          const sorted = data.staff_performance && Array.isArray(data.staff_performance)
+            ? [...data.staff_performance].sort((a, b) => {
+                if (sortBy === 'productivity') return (b.productivity || 0) - (a.productivity || 0);
+                if (sortBy === 'accuracy') return (b.accuracy || 0) - (a.accuracy || 0);
+                if (sortBy === 'attendance') return (b.attendance || 0) - (a.attendance || 0);
+                if (sortBy === 'error_rate') return parseFloat(String(a.error_rate || '0').replace('%', '')) - parseFloat(String(b.error_rate || '0').replace('%', ''));
+                if (sortBy === 'sla_impact') return parseFloat(String(a.sla_impact || '0').replace('%', '')) - parseFloat(String(b.sla_impact || '0').replace('%', ''));
+                return 0;
+              })
+            : data.staff_performance;
+          setPerformance({ ...data, staff_performance: sorted });
         }
       }
     } catch (error: any) {

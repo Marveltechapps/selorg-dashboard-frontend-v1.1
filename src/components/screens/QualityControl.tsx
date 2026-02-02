@@ -124,11 +124,17 @@ function QCDashboard({ summary, loadSummary }: { summary: any, loadSummary: () =
     setLoading(true);
     try {
       const [watchlist, failureList] = await Promise.all([
-getWatchlist(),
-getRecentFailures()
+        getWatchlist(),
+        getRecentFailures(),
       ]);
       setWatchItems(watchlist.watchlist || []);
-      setFailures(failureList.failures || []);
+      let list = failureList.failures || [];
+      const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+      const resolvedIds = darkstorePersistence.resolvedFailureIds();
+      if (resolvedIds.length > 0) {
+        list = list.filter((f: any) => !resolvedIds.includes(f.failure_id || f.order_id || ''));
+      }
+      setFailures(list);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -155,8 +161,9 @@ getRecentFailures()
     try {
       await resolveQCFailure(failureId, { resolution_notes: 'Product replaced', action_taken: 'Replaced' });
       toast.success('Failure resolved');
-      // Remove failure from UI immediately
       setFailures(prev => prev.filter(f => (f.failure_id || f.order_id) !== failureId));
+      const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+      darkstorePersistence.setResolvedFailure(failureId);
       loadSummary();
     } catch (error) {
       toast.error('Failed to resolve');

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DarkstoreManagement } from './components/DarkstoreManagement';
 import { ProductionManagement } from './components/ProductionManagement';
 import { MerchManagement } from './components/MerchManagement';
@@ -12,7 +12,17 @@ import { LoginScreen } from './components/LoginScreen';
 import { SuperAdminToolbar } from './components/SuperAdminToolbar';
 import { Toaster } from "./components/ui/sonner";
 import { isAuthenticated, getCurrentUser } from './api/authApi';
- 
+
+const VALID_DASHBOARDS = ['darkstore', 'production', 'merch', 'rider', 'finance', 'vendor', 'warehouse', 'admin'] as const;
+
+// Redirect /dashboard to the dashboard that matches the user's role (prevents redirect loop).
+function DashboardRedirect() {
+  const user = getCurrentUser();
+  const role = user?.role?.toLowerCase();
+  const target = role && VALID_DASHBOARDS.includes(role as any) ? role : 'darkstore';
+  return <Navigate to={`/dashboard/${target}`} replace />;
+}
+
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) {
@@ -80,12 +90,12 @@ function App() {
           } 
         />
         
-        {/* Dashboard Routes */}
+        {/* Dashboard Routes - redirect to role-specific dashboard to avoid loop */}
         <Route 
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <Navigate to="/dashboard/darkstore" replace />
+              <DashboardRedirect />
             </ProtectedRoute>
           } 
         />

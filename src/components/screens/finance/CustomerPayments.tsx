@@ -10,7 +10,7 @@ import {
     fetchCustomerPaymentDetails,
     retryCustomerPayment
 } from './customerPaymentsApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function CustomerPayments() {
   // Filters State

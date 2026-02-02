@@ -49,7 +49,7 @@ import {
   Chargeback,
   FraudMetrics,
 } from './fraudRiskApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   ShieldAlert,
   RefreshCw,
@@ -232,7 +232,6 @@ export function FraudRiskHub() {
           <h1 className="text-2xl font-bold text-[#18181b]">Fraud & Risk Hub</h1>
           <p className="text-[#71717a] text-sm">Real-time fraud detection and risk monitoring</p>
         </div>
-<<<<<<< HEAD
         <Button 
           size="sm" 
           onClick={async () => {
@@ -241,9 +240,6 @@ export function FraudRiskHub() {
           }} 
           variant="outline"
         >
-=======
-        <Button size="sm" onClick={loadData} variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <RefreshCw size={14} className="mr-1.5" /> Refresh
         </Button>
       </div>

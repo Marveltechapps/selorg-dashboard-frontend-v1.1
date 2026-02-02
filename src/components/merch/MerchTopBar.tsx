@@ -150,16 +150,16 @@ export function MerchTopBar({
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 p-0">
+          <DropdownMenuContent align="end" className="min-w-[360px] max-w-[420px] w-[90vw] p-0 overflow-x-hidden">
             <DropdownMenuLabel className="p-4 border-b">
               <div className="flex items-center justify-between">
-                <span>Notifications</span>
+                <span className="whitespace-nowrap">Notifications</span>
                 {unreadCount > 0 && (
                   <span className="text-[10px] bg-[#F3E8FF] text-[#7C3AED] px-2 py-0.5 rounded-full font-bold uppercase">{unreadCount} New</span>
                 )}
               </div>
             </DropdownMenuLabel>
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
               {notifications.length === 0 ? (
                 <div className="p-8 text-center text-[#9E9E9E] text-sm">No notifications</div>
               ) : (
@@ -167,7 +167,7 @@ export function MerchTopBar({
                   <DropdownMenuItem 
                     key={notif.id} 
                     className={cn(
-                      "p-4 focus:bg-gray-50 cursor-pointer border-b last:border-0",
+                      "p-4 focus:bg-gray-50 cursor-pointer border-b last:border-0 min-w-0",
                       notif.unread ? "bg-purple-50/30" : ""
                     )}
                     onClick={() => {
@@ -175,14 +175,14 @@ export function MerchTopBar({
                       if (notif.target) onNavigate?.(notif.target);
                     }}
                   >
-                    <div className="flex gap-3">
-                      <div className="mt-1">{notif.icon}</div>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={cn("text-sm text-[#212121]", notif.unread ? "font-bold" : "font-medium")}>{notif.title}</span>
-                          <span className="text-[10px] text-[#9E9E9E]">{notif.time}</span>
+                    <div className="flex gap-3 min-w-0 w-full">
+                      <div className="mt-1 flex-shrink-0">{notif.icon}</div>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={cn("text-sm text-[#212121] break-words overflow-wrap-anywhere", notif.unread ? "font-bold" : "font-medium")}>{notif.title}</span>
+                          <span className="text-[10px] text-[#9E9E9E] whitespace-nowrap flex-shrink-0">{notif.time}</span>
                         </div>
-                        <p className="text-xs text-[#616161] leading-relaxed">{notif.message}</p>
+                        <p className="text-xs text-[#616161] leading-relaxed break-words overflow-wrap-anywhere">{notif.message}</p>
                       </div>
                     </div>
                   </DropdownMenuItem>

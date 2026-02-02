@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Database, 
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface UploadHistory {
   id: string;
@@ -77,14 +78,53 @@ export function ProductionUtilities() {
     shift: 'morning',
   });
 
-  const [systemSettings, setSystemSettings] = useState({
+  const DEFAULT_SETTINGS = {
     autoSync: true,
     syncInterval: '15',
     autoBackup: true,
     backupInterval: 'daily',
     emailNotifications: true,
     alertThreshold: 'medium',
-  });
+  };
+  const [systemSettings, setSystemSettingsState] = useState(() =>
+    getProductionSession(PRODUCTION_KEYS.utilitiesSettings, DEFAULT_SETTINGS)
+  );
+  const setSystemSettings = (next: typeof DEFAULT_SETTINGS | ((prev: typeof DEFAULT_SETTINGS) => typeof DEFAULT_SETTINGS)) => {
+    setSystemSettingsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.utilitiesSettings, resolved);
+      return resolved;
+    });
+  };
+
+  interface AuditLogEntry {
+    id: string;
+    action: string;
+    user: string;
+    timestamp: string;
+    details?: string;
+  }
+  const DEFAULT_AUDIT_LOGS: AuditLogEntry[] = [
+    { id: '1', action: 'Settings updated', user: 'Admin', timestamp: new Date(Date.now() - 86400000).toLocaleString(), details: 'Sync interval changed to 15 min' },
+    { id: '2', action: 'Bulk upload', user: 'Admin', timestamp: new Date(Date.now() - 172800000).toLocaleString(), details: 'work_orders_dec22.csv - 45 records' },
+    { id: '3', action: 'HSD sync', user: 'System', timestamp: new Date(Date.now() - 3600000).toLocaleString(), details: '45 devices synced' },
+  ];
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(DEFAULT_AUDIT_LOGS);
+  useEffect(() => {
+    const stored = getProductionSession<AuditLogEntry[] | null>(PRODUCTION_KEYS.auditLogs, null);
+    if (Array.isArray(stored) && stored.length > 0) {
+      setAuditLogs(stored);
+    }
+  }, []);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const persistAuditLog = (entry: Omit<AuditLogEntry, 'id'>) => {
+    const newEntry: AuditLogEntry = { ...entry, id: Date.now().toString() };
+    setAuditLogs(prev => {
+      const next = [newEntry, ...prev];
+      setProductionSession(PRODUCTION_KEYS.auditLogs, next);
+      return next;
+    });
+  };
 
   const handleFileUpload = () => {
     if (uploadFile) {
@@ -311,7 +351,7 @@ export function ProductionUtilities() {
           </div>
           <p className="text-sm text-[#757575] mb-4">View system activity logs and user actions.</p>
           <button 
-            onClick={() => alert('Audit logs feature - View system activity and user actions')}
+            onClick={() => setShowAuditModal(true)}
             className="w-full py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700"
           >
             View Logs
@@ -781,6 +821,45 @@ export function ProductionUtilities() {
               >
                 Save Settings
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Logs Modal */}
+      {showAuditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-[#E0E0E0] flex justify-between items-center">
+              <h3 className="font-bold text-lg text-[#212121]">Audit Logs</h3>
+              <button onClick={() => setShowAuditModal(false)} className="text-[#757575] hover:text-[#212121]">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto flex-1">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-[#F5F7FA] text-[#757575] font-medium border-b border-[#E0E0E0] sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3">Time</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E0E0E0]">
+                  {auditLogs.map(log => (
+                    <tr key={log.id} className="hover:bg-[#FAFAFA]">
+                      <td className="px-4 py-3 text-[#616161]">{log.timestamp}</td>
+                      <td className="px-4 py-3 font-medium text-[#212121]">{log.action}</td>
+                      <td className="px-4 py-3 text-[#616161]">{log.user}</td>
+                      <td className="px-4 py-3 text-[#616161]">{log.details || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {auditLogs.length === 0 && (
+                <p className="text-center text-[#757575] py-8">No audit log entries yet.</p>
+              )}
             </div>
           </div>
         </div>

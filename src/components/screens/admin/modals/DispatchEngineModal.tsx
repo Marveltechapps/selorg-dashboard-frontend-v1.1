@@ -28,7 +28,7 @@ import {
   resumeDispatchEngine,
   updateDispatchConfig
 } from '../citywideControlApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface DispatchEngineModalProps {
   open: boolean;

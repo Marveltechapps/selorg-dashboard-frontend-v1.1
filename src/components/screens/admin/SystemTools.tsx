@@ -63,7 +63,7 @@ import {
   PerformanceMetric,
   Migration,
 } from './systemToolsApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   Cpu,
   RefreshCw,
@@ -118,14 +118,13 @@ export function SystemTools() {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [showMasked, setShowMasked] = useState<Record<string, boolean>>({});
 
-  // Filter
-  const [logFilter, setLogFilter] = useState('');
+  // Filter ('' or 'all' = show all; 'error'|'warn'|'info'|'debug' = filter by level)
+  const [logFilter, setLogFilter] = useState('all');
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
-<<<<<<< HEAD
   // When Logs or Performance tab is opened, ensure data is loaded (e.g. if initial load failed)
   useEffect(() => {
     if (activeTab === 'logs' && logs.length === 0) {
@@ -141,8 +140,6 @@ export function SystemTools() {
     }
   }, [activeTab]);
 
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const loadInitialData = async () => {
     setLoading(true);
     try {
@@ -163,24 +160,16 @@ export function SystemTools() {
       setCacheStats(cache);
       setDatabaseInfo(db);
       setLogs(logsData);
-<<<<<<< HEAD
       setFilteredLogs(logsData);
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       setCronJobs(jobs);
       setEnvVariables(env);
       setMaintenanceMode(maintenance);
       setApiEndpoints(endpoints);
-<<<<<<< HEAD
       setPerformanceMetrics(metrics && metrics.length > 0 ? metrics : await fetchPerformanceMetrics());
-=======
-      setPerformanceMetrics(metrics);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       setMigrations(migs);
       setMaintenanceMessage(maintenance.message);
     } catch (error) {
       toast.error('Failed to load system data');
-<<<<<<< HEAD
       // Still load logs and performance so those tabs show data
       try {
         const logsData = await fetchLogs();
@@ -191,8 +180,6 @@ export function SystemTools() {
         const metrics = await fetchPerformanceMetrics();
         setPerformanceMetrics(metrics && metrics.length > 0 ? metrics : []);
       } catch (_) {}
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -306,11 +293,10 @@ export function SystemTools() {
     }
   };
 
-<<<<<<< HEAD
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
-    if (logFilter) {
+    if (logFilter && logFilter !== 'all') {
       setFilteredLogs(logs.filter(log => log.level === logFilter));
     } else {
       setFilteredLogs(logs);
@@ -319,17 +305,13 @@ export function SystemTools() {
   
   // Ensure filteredLogs is initialized
   useEffect(() => {
-    if (logs.length > 0 && filteredLogs.length === 0 && !logFilter) {
+    if (logs.length > 0 && filteredLogs.length === 0 && (!logFilter || logFilter === 'all')) {
       setFilteredLogs(logs);
     }
   }, [logs]);
 
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
-  const handleFilterLogs = async (level: string) => {
+  const handleFilterLogs = (level: string) => {
     setLogFilter(level);
-    const logsData = await fetchLogs(level);
-    setLogs(logsData);
   };
 
   const getStatusColor = (status: string) => {
@@ -360,17 +342,7 @@ export function SystemTools() {
     return <Icon size={16} />;
   };
 
-<<<<<<< HEAD
   // Don't block rendering - show content as data loads
-=======
-  if (loading && !systemHealth) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-[#71717a]">Loading system tools...</div>
-      </div>
-    );
-  }
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   return (
     <div className="space-y-6">
@@ -633,27 +605,18 @@ export function SystemTools() {
             <div className="p-4 border-b border-[#e4e4e7] flex justify-between items-center">
               <h3 className="font-bold text-[#18181b]">System Logs</h3>
               <div className="flex gap-2">
-<<<<<<< HEAD
                 <Select value={logFilter || 'all'} onValueChange={handleFilterLogs}>
-=======
-                <Select value={logFilter} onValueChange={handleFilterLogs}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="All levels" />
                   </SelectTrigger>
                   <SelectContent>
-<<<<<<< HEAD
                     <SelectItem value="all">All levels</SelectItem>
-=======
-                    <SelectItem value="">All levels</SelectItem>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                     <SelectItem value="error">Error</SelectItem>
                     <SelectItem value="warn">Warning</SelectItem>
                     <SelectItem value="info">Info</SelectItem>
                     <SelectItem value="debug">Debug</SelectItem>
                   </SelectContent>
                 </Select>
-<<<<<<< HEAD
                 <Button 
                   size="sm" 
                   variant="outline"
@@ -682,9 +645,6 @@ export function SystemTools() {
                     toast.success(`Exported ${logs.length} log entries`);
                   }}
                 >
-=======
-                <Button size="sm" variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <Download size={14} className="mr-1.5" /> Export
                 </Button>
               </div>
@@ -700,7 +660,6 @@ export function SystemTools() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-<<<<<<< HEAD
                 {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-12 text-[#71717a]">
@@ -709,9 +668,6 @@ export function SystemTools() {
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
-=======
-                {logs.map((log) => (
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <TableRow key={log.id}>
                     <TableCell className="font-mono text-xs text-[#71717a]">
                       {new Date(log.timestamp).toLocaleString()}
@@ -734,12 +690,8 @@ export function SystemTools() {
                       )}
                     </TableCell>
                   </TableRow>
-<<<<<<< HEAD
                   ))
                 )}
-=======
-                ))}
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               </TableBody>
             </Table>
           </div>
@@ -968,7 +920,6 @@ export function SystemTools() {
           <div className="bg-white border border-[#e4e4e7] rounded-xl p-6 shadow-sm">
             <h3 className="font-bold text-[#18181b] mb-4">Real-Time Performance Metrics</h3>
             
-<<<<<<< HEAD
             {performanceMetrics.length === 0 ? (
               <div className="text-center py-12 text-[#71717a]">
                 <TrendingUp size={48} className="mx-auto mb-4 opacity-20" />
@@ -1066,77 +1017,6 @@ export function SystemTools() {
                 </div>
               </div>
             )}
-=======
-            <div className="grid grid-cols-2 gap-6">
-              {/* CPU & Memory Chart */}
-              <div>
-                <p className="text-xs text-[#71717a] mb-3">CPU & Memory Usage</p>
-                <div className="h-48 flex items-end gap-2">
-                  {performanceMetrics.map((metric, idx) => (
-                    <div key={idx} className="flex-1 flex flex-col gap-1">
-                      <div className="relative flex-1 bg-[#f4f4f5] rounded-t">
-                        <div
-                          className="absolute bottom-0 w-full bg-blue-500 rounded-t"
-                          style={{ height: `${metric.cpu}%` }}
-                        ></div>
-                      </div>
-                      <div className="relative flex-1 bg-[#f4f4f5] rounded-t">
-                        <div
-                          className="absolute bottom-0 w-full bg-purple-500 rounded-t"
-                          style={{ height: `${metric.memory}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-[9px] text-[#71717a] text-center font-mono">{metric.timestamp}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-4 mt-3 justify-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                    <span className="text-xs text-[#71717a]">CPU</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                    <span className="text-xs text-[#71717a]">Memory</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Request & Response Time Chart */}
-              <div>
-                <p className="text-xs text-[#71717a] mb-3">Requests & Response Time</p>
-                <div className="h-48 flex items-end gap-2">
-                  {performanceMetrics.map((metric, idx) => (
-                    <div key={idx} className="flex-1 flex flex-col gap-1">
-                      <div className="relative flex-1 bg-[#f4f4f5] rounded-t">
-                        <div
-                          className="absolute bottom-0 w-full bg-emerald-500 rounded-t"
-                          style={{ height: `${(metric.requests / 20)}%` }}
-                        ></div>
-                      </div>
-                      <div className="relative flex-1 bg-[#f4f4f5] rounded-t">
-                        <div
-                          className="absolute bottom-0 w-full bg-amber-500 rounded-t"
-                          style={{ height: `${(metric.responseTime / 2)}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-[9px] text-[#71717a] text-center font-mono">{metric.timestamp}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-4 mt-3 justify-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-emerald-500 rounded"></div>
-                    <span className="text-xs text-[#71717a]">Requests</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-amber-500 rounded"></div>
-                    <span className="text-xs text-[#71717a]">Response Time</span>
-                  </div>
-                </div>
-              </div>
-            </div>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           </div>
         </TabsContent>
       </Tabs>

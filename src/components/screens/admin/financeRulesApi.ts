@@ -97,15 +97,12 @@ export interface FinancialYear {
 }
 
 // --- Mock Data ---
-<<<<<<< HEAD
 let MOCK_FINANCIAL_YEAR: FinancialYear = {
   startMonth: 4,
   startDay: 1,
   currentYear: '2024-2025',
   lockPreviousYears: true,
 };
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
 // --- API Functions ---
 
@@ -170,7 +167,6 @@ export async function updateRefundPolicy(id: string, data: Partial<RefundPolicy>
 }
 
 export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: InvoiceSettings }>('/finance/invoice-settings');
     return response.data;
@@ -204,23 +200,6 @@ export async function updateInvoiceSettings(data: Partial<InvoiceSettings>): Pro
     const current = await fetchInvoiceSettings();
     return { ...current, ...data };
   }
-=======
-  // TODO: Implement backend endpoint for invoice settings
-  return {
-    invoicePrefix: 'INV',
-    invoiceNumberFormat: 'INV-{year}-{number}',
-    defaultPaymentTerms: 30,
-    autoSend: false,
-    reminderDays: [7, 3, 1],
-    footerText: '',
-    logoUrl: '',
-  };
-}
-
-export async function updateInvoiceSettings(data: Partial<InvoiceSettings>): Promise<InvoiceSettings> {
-  // TODO: Implement backend endpoint for invoice settings
-  return await fetchInvoiceSettings();
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function fetchPaymentTerms(): Promise<PaymentTerm[]> {

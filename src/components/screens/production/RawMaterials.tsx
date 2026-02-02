@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Package, Plus, AlertTriangle, TrendingUp, Download, X, Search } from 'lucide-react';
+import { Package, Plus, AlertTriangle, TrendingUp, Download, X, Search, CheckCircle } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface RawMaterial {
   id: string;
@@ -13,6 +14,7 @@ interface RawMaterial {
   supplier: string;
   lastOrderDate?: string;
   category: string;
+  orderStatus?: 'none' | 'ordered';
 }
 
 interface InboundReceipt {
@@ -41,25 +43,55 @@ export function RawMaterials() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'inventory' | 'receipts' | 'requisitions'>('inventory');
 
-  const [materials, setMaterials] = useState<RawMaterial[]>([
+  const DEFAULT_MATERIALS: RawMaterial[] = [
     { id: '1', name: 'Organic Oats', currentStock: 2500, unit: 'kg', safetyStock: 500, reorderPoint: 800, supplier: 'Grain Co.', category: 'Grains', lastOrderDate: '2024-12-20' },
     { id: '2', name: 'Sugar (Refined)', currentStock: 120, unit: 'kg', safetyStock: 300, reorderPoint: 500, supplier: 'Sweet Suppliers', category: 'Sweeteners', lastOrderDate: '2024-12-18' },
     { id: '3', name: 'Packaging Film 2mm', currentStock: 2, unit: 'Rolls', safetyStock: 10, reorderPoint: 15, supplier: 'PackMaster Inc', category: 'Packaging', lastOrderDate: '2024-12-15' },
     { id: '4', name: 'Almond Extract', currentStock: 850, unit: 'L', safetyStock: 200, reorderPoint: 300, supplier: 'Flavor House', category: 'Ingredients' },
     { id: '5', name: 'Protein Powder', currentStock: 1800, unit: 'kg', safetyStock: 500, reorderPoint: 700, supplier: 'Nutrition Plus', category: 'Ingredients', lastOrderDate: '2024-12-21' },
-  ]);
-
-  const [receipts, setReceipts] = useState<InboundReceipt[]>([
+  ];
+  const DEFAULT_RECEIPTS: InboundReceipt[] = [
     { id: '1', poNumber: 'PO-9921', supplier: 'Supplier A', expectedDate: '2024-12-22', status: 'pending', items: 'Organic Oats (500kg)' },
     { id: '2', poNumber: 'PO-9924', supplier: 'Supplier B', expectedDate: '2024-12-22', status: 'docking', items: 'Sugar (400kg)' },
     { id: '3', poNumber: 'PO-9920', supplier: 'Grain Co.', expectedDate: '2024-12-23', status: 'pending', items: 'Wheat Flour (800kg)' },
-  ]);
-
-  const [requisitions, setRequisitions] = useState<Requisition[]>([
+  ];
+  const DEFAULT_REQUISITIONS: Requisition[] = [
     { id: '1', reqNumber: 'REQ-1001', material: 'Organic Oats', quantity: 250, requestedBy: 'John Smith', line: 'Line A', status: 'approved', date: '2024-12-22' },
     { id: '2', reqNumber: 'REQ-1002', material: 'Sugar', quantity: 100, requestedBy: 'Sarah Johnson', line: 'Line B', status: 'pending', date: '2024-12-22' },
     { id: '3', reqNumber: 'REQ-1003', material: 'Protein Powder', quantity: 300, requestedBy: 'Mike Davis', line: 'Line D', status: 'issued', date: '2024-12-21' },
-  ]);
+  ];
+
+  const [materials, setMaterialsState] = useState<RawMaterial[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.rawMaterials, DEFAULT_MATERIALS)
+  );
+  const [receipts, setReceiptsState] = useState<InboundReceipt[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.rawReceipts, DEFAULT_RECEIPTS)
+  );
+  const [requisitions, setRequisitionsState] = useState<Requisition[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.rawRequisitions, DEFAULT_REQUISITIONS)
+  );
+
+  const setMaterials = (next: RawMaterial[] | ((prev: RawMaterial[]) => RawMaterial[])) => {
+    setMaterialsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.rawMaterials, resolved);
+      return resolved;
+    });
+  };
+  const setReceipts = (next: InboundReceipt[] | ((prev: InboundReceipt[]) => InboundReceipt[])) => {
+    setReceiptsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.rawReceipts, resolved);
+      return resolved;
+    });
+  };
+  const setRequisitions = (next: Requisition[] | ((prev: Requisition[]) => Requisition[])) => {
+    setRequisitionsState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.rawRequisitions, resolved);
+      return resolved;
+    });
+  };
 
   const [newRequisition, setNewRequisition] = useState({
     material: '',
@@ -90,7 +122,7 @@ export function RawMaterials() {
         status: 'pending',
         date: new Date().toISOString().split('T')[0],
       };
-      setRequisitions([req, ...requisitions]);
+      setRequisitions(prev => [req, ...prev]);
       setNewRequisition({ material: '', quantity: '', line: '', requestedBy: '' });
       setShowAddModal(false);
     }
@@ -108,29 +140,26 @@ export function RawMaterials() {
         supplier: newMaterial.supplier,
         category: newMaterial.category,
       };
-      setMaterials([...materials, material]);
+      setMaterials(prev => [...prev, material]);
       setNewMaterial({ name: '', currentStock: '', unit: '', safetyStock: '', reorderPoint: '', supplier: '', category: '' });
       setShowAddModal(false);
     }
   };
 
   const updateRequisitionStatus = (id: string, newStatus: Requisition['status']) => {
-    setRequisitions(requisitions.map(r => r.id === id ? { ...r, status: newStatus } : r));
-    if (newStatus === 'issued') {
-      const req = requisitions.find(r => r.id === id);
-      if (req) {
-        const material = materials.find(m => m.name.toLowerCase().includes(req.material.toLowerCase()));
-        if (material) {
-          setMaterials(materials.map(m => 
-            m.id === material.id ? { ...m, currentStock: m.currentStock - req.quantity } : m
-          ));
-        }
-      }
+    const req = requisitions.find(r => r.id === id);
+    setRequisitions(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+    if (newStatus === 'issued' && req) {
+      setMaterials(prev => {
+        const mat = prev.find(m => m.name.toLowerCase().includes(req.material.toLowerCase()));
+        if (!mat) return prev;
+        return prev.map(m => m.id === mat.id ? { ...m, currentStock: m.currentStock - req.quantity } : m);
+      });
     }
   };
 
   const receiveShipment = (id: string) => {
-    setReceipts(receipts.map(r => r.id === id ? { ...r, status: 'received' as const } : r));
+    setReceipts(prev => prev.map(r => r.id === id ? { ...r, status: 'received' as const } : r));
     setShowReceiptModal(null);
   };
 
@@ -138,8 +167,14 @@ export function RawMaterials() {
     const material = materials.find(m => m.id === materialId);
     if (material) {
       const orderQty = prompt(`Enter order quantity for ${material.name} (${material.unit}):`, material.reorderPoint.toString());
-      if (orderQty) {
-        alert(`Purchase Order created for ${orderQty} ${material.unit} of ${material.name}`);
+      if (orderQty != null && orderQty !== '') {
+        const today = new Date().toISOString().split('T')[0];
+        setMaterials(materials.map(m =>
+          m.id === materialId
+            ? { ...m, orderStatus: 'ordered' as const, lastOrderDate: today }
+            : m
+        ));
+        toast.success(`Purchase order created for ${orderQty} ${material.unit} of ${material.name}`);
       }
     }
   };
@@ -344,7 +379,11 @@ export function RawMaterials() {
                         <td className="px-6 py-4 text-[#616161]">{material.reorderPoint} {material.unit}</td>
                         <td className="px-6 py-4 text-[#616161]">{material.supplier}</td>
                         <td className="px-6 py-4">
-                          {isCritical ? (
+                          {material.orderStatus === 'ordered' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#DBEAFE] text-[#1E40AF]">
+                              Ordered
+                            </span>
+                          ) : isCritical ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEE2E2] text-[#991B1B]">
                               Critical
                             </span>

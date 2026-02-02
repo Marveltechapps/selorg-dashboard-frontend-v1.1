@@ -47,19 +47,13 @@ export function LoginScreen() {
         role: selectedRole 
       });
       
-<<<<<<< HEAD
       // Verify role matches (admin can access any dashboard)
       if (result.user.role !== selectedRole && result.user.role !== 'admin' && selectedRole !== 'admin') {
-=======
-      // Verify role matches
-      if (result.user.role !== selectedRole && result.user.role !== 'admin') {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
         toast.error('You do not have access to this dashboard');
         setIsLoading(false);
         return;
       }
       
-<<<<<<< HEAD
       // For admin role, allow access to any dashboard
       const finalRole = result.user.role === 'admin' ? selectedRole : result.user.role;
       
@@ -67,11 +61,6 @@ export function LoginScreen() {
       navigate(`/dashboard/${finalRole}`);
     } catch (error: any) {
       console.error('Login error:', error);
-=======
-      toast.success(`Welcome to ${ROLE_CONFIG[selectedRole as keyof typeof ROLE_CONFIG]?.name || selectedRole}`);
-      navigate(`/dashboard/${selectedRole}`);
-    } catch (error: any) {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error(error.message || 'Login failed. Please check your credentials.');
       setIsLoading(false);
     }

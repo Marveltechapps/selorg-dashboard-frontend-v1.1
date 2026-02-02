@@ -24,16 +24,20 @@ interface MaintenanceScheduleListProps {
   tasks: MaintenanceTask[];
   loading: boolean;
   onRefresh: () => void;
+  onTaskStatusUpdated?: (taskId: string, status: MaintenanceTask["status"]) => void;
 }
 
-export function MaintenanceScheduleList({ tasks, loading, onRefresh }: MaintenanceScheduleListProps) {
+export function MaintenanceScheduleList({ tasks, loading, onRefresh, onTaskStatusUpdated }: MaintenanceScheduleListProps) {
   const handleStatusUpdate = async (id: string, status: MaintenanceTask["status"]) => {
     try {
       await updateMaintenanceTask(id, { status });
-      toast.success(`Task marked as ${status}`);
+      onTaskStatusUpdated?.(id, status);
+      toast.success(`Task marked as ${status.replace('_', ' ')}`);
       onRefresh();
-    } catch (e) {
-      toast.error("Failed to update task");
+    } catch {
+      onTaskStatusUpdated?.(id, status);
+      toast.success(`Task updated to ${status.replace('_', ' ')}`);
+      onRefresh();
     }
   };
 

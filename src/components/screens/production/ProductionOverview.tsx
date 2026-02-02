@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, AlertTriangle, CheckCircle2, Clock, PauseCircle, Package, Download, X, StopCircle } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface MetricCardProps {
   label: string;
@@ -44,21 +45,44 @@ interface ProductionLine {
   efficiency: number;
 }
 
-export function ProductionOverview() {
+const DEFAULT_LINES: ProductionLine[] = [
+  { id: '1', name: 'Line A (Assembly)', currentJob: 'Job #4421 - Organic Oats', status: 'running', output: 4200, target: 5000, efficiency: 96 },
+  { id: '2', name: 'Line B (Packaging)', currentJob: 'Job #4420 - Almond Milk', status: 'running', output: 3150, target: 3200, efficiency: 98 },
+  { id: '3', name: 'Line C (Bottling)', status: 'changeover', output: 0, target: 4000, efficiency: 0 },
+  { id: '4', name: 'Line D (Processing)', currentJob: 'Job #4419 - Protein Bars', status: 'running', output: 2800, target: 3500, efficiency: 88 },
+];
+
+export function ProductionOverview({ showDowntimeModal = false, onCloseDowntimeModal }: { showDowntimeModal?: boolean; onCloseDowntimeModal?: () => void } = {}) {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState<ProductionLine | null>(null);
-  const [lines, setLines] = useState<ProductionLine[]>([
-    { id: '1', name: 'Line A (Assembly)', currentJob: 'Job #4421 - Organic Oats', status: 'running', output: 4200, target: 5000, efficiency: 96 },
-    { id: '2', name: 'Line B (Packaging)', currentJob: 'Job #4420 - Almond Milk', status: 'running', output: 3150, target: 3200, efficiency: 98 },
-    { id: '3', name: 'Line C (Bottling)', status: 'changeover', output: 0, target: 4000, efficiency: 0 },
-    { id: '4', name: 'Line D (Processing)', currentJob: 'Job #4419 - Protein Bars', status: 'running', output: 2800, target: 3500, efficiency: 88 },
-  ]);
+  const [showDowntimeModalLocal, setShowDowntimeModalLocal] = useState(false);
+  const showDowntime = showDowntimeModal || showDowntimeModalLocal;
+  const setShowDowntimeModal = (v: boolean) => {
+    setShowDowntimeModalLocal(v);
+    if (!v) onCloseDowntimeModal?.();
+  };
+  const [lines, setLinesState] = useState<ProductionLine[]>(() =>
+    getProductionSession<ProductionLine[]>(PRODUCTION_KEYS.overviewLines, DEFAULT_LINES)
+  );
+
+  const setLines = (updater: ProductionLine[] | ((prev: ProductionLine[]) => ProductionLine[])) => {
+    setLinesState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      setProductionSession(PRODUCTION_KEYS.overviewLines, next);
+      return next;
+    });
+  };
 
   const [newBatch, setNewBatch] = useState({
     line: '',
     product: '',
     target: '',
   });
+
+  useEffect(() => {
+    const saved = getProductionSession<ProductionLine[]>(PRODUCTION_KEYS.overviewLines, []);
+    if (saved.length > 0) setLinesState(saved);
+  }, []);
 
   const startBatch = () => {
     if (newBatch.line && newBatch.product && newBatch.target) {
@@ -70,26 +94,37 @@ export function ProductionOverview() {
       ));
       setNewBatch({ line: '', product: '', target: '' });
       setShowBatchModal(false);
+      toast.success('Batch started successfully');
+    } else {
+      toast.error('Please fill line, product, and target');
     }
   };
 
   const pauseLine = (id: string) => {
-    setLines(lines.map(line => 
-      line.id === id ? { ...line, status: 'idle' as const } : line
-    ));
+    const line = lines.find(l => l.id === id);
+    if (!line) return;
+    const pausedLine = { ...line, status: 'idle' as const };
+    setLines(lines.map(l => (l.id === id ? pausedLine : l)));
+    setShowManageModal(pausedLine);
   };
 
   const resumeLine = (id: string) => {
     setLines(lines.map(line => 
       line.id === id ? { ...line, status: 'running' as const } : line
     ));
+    setShowManageModal(null);
   };
 
   const stopLine = (id: string) => {
-    setLines(lines.map(line => 
-      line.id === id ? { ...line, status: 'idle' as const, currentJob: undefined, output: 0 } : line
+    setLines(lines.map(line =>
+      line.id === id
+        ? { ...line, status: 'idle' as const, currentJob: undefined, output: 0, efficiency: 0 }
+        : line
     ));
+    setShowManageModal(null);
   };
+
+  const downtimeLines = lines.filter(l => l.status !== 'running');
 
   const exportReport = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -134,6 +169,9 @@ export function ProductionOverview() {
   const totalTarget = lines.reduce((sum, line) => sum + line.target, 0);
   const avgEfficiency = lines.length > 0 ? Math.round(lines.reduce((sum, line) => sum + line.efficiency, 0) / lines.length) : 0;
   const activeDowntime = lines.filter(l => l.status !== 'running').length * 15;
+
+  const openDowntimeModal = () => setShowDowntimeModal(true);
+  const closeDowntimeModal = () => setShowDowntimeModal(false);
 
   return (
     <div className="space-y-6">
@@ -185,14 +223,16 @@ export function ProductionOverview() {
           icon={<AlertTriangle size={18} />}
           color="yellow"
         />
-        <MetricCard 
-          label="Active Downtime" 
-          value={`${activeDowntime}m`}
-          trend={`${lines.filter(l => l.status !== 'running').length} lines affected`}
-          trendUp={false}
-          icon={<Clock size={18} />}
-          color="red"
-        />
+        <button type="button" onClick={openDowntimeModal} className="text-left">
+          <MetricCard 
+            label="Active Downtime" 
+            value={`${activeDowntime}m`}
+            trend={`${lines.filter(l => l.status !== 'running').length} lines affected`}
+            trendUp={false}
+            icon={<Clock size={18} />}
+            color="red"
+          />
+        </button>
       </div>
 
       {/* Production Lines Status */}
@@ -271,8 +311,8 @@ export function ProductionOverview() {
                   className="w-full px-4 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16A34A]"
                 >
                   <option value="">Select line</option>
-                  {lines.filter(l => l.status !== 'running').map(line => (
-                    <option key={line.id} value={line.id}>{line.name}</option>
+                  {lines.map(line => (
+                    <option key={line.id} value={line.id}>{line.name}{line.status === 'running' ? ' (running)' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -310,6 +350,47 @@ export function ProductionOverview() {
               >
                 Start Batch
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Downtime Modal */}
+      {showDowntime && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-[#E0E0E0] flex justify-between items-center">
+              <h3 className="font-bold text-lg text-[#212121]">Active Downtime</h3>
+              <button onClick={closeDowntimeModal} className="text-[#757575] hover:text-[#212121]">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {downtimeLines.length === 0 ? (
+                <p className="text-[#757575] text-center py-8">No lines in downtime. All lines are running.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {downtimeLines.map(line => (
+                    <li key={line.id} className="p-4 bg-[#FAFAFA] rounded-lg border border-[#E0E0E0] flex justify-between items-center">
+                      <div>
+                        <p className="font-medium text-[#212121]">{line.name}</p>
+                        <p className="text-sm text-[#757575] capitalize">{line.status}</p>
+                        {line.currentJob && <p className="text-xs text-[#616161] mt-1">{line.currentJob}</p>}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeDowntimeModal();
+                          setShowManageModal(line);
+                        }}
+                        className="px-3 py-1.5 bg-[#16A34A] text-white text-sm font-medium rounded-lg hover:bg-[#15803D]"
+                      >
+                        Manage
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
@@ -356,10 +437,7 @@ export function ProductionOverview() {
                 {showManageModal.status === 'running' && (
                   <>
                     <button 
-                      onClick={() => {
-                        pauseLine(showManageModal.id);
-                        setShowManageModal(null);
-                      }}
+                      onClick={() => pauseLine(showManageModal.id)}
                       className="flex-1 px-4 py-2 bg-[#F59E0B] text-white font-medium rounded-lg hover:bg-[#D97706] flex items-center justify-center gap-2"
                     >
                       <PauseCircle size={16} />
@@ -377,7 +455,7 @@ export function ProductionOverview() {
                     </button>
                   </>
                 )}
-                {showManageModal.status === 'idle' && (
+                {showManageModal.status === 'idle' && showManageModal.currentJob && (
                   <button 
                     onClick={() => {
                       resumeLine(showManageModal.id);
@@ -388,6 +466,9 @@ export function ProductionOverview() {
                     <Play size={16} />
                     Resume
                   </button>
+                )}
+                {showManageModal.status === 'idle' && !showManageModal.currentJob && (
+                  <p className="text-sm text-[#757575]">Line stopped. Start a new batch from the overview.</p>
                 )}
               </div>
             </div>

@@ -20,8 +20,6 @@ export function Exceptions() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -79,12 +77,12 @@ export function Exceptions() {
   const createException = async () => {
     if (newException.title && newException.description) {
       try {
-        await reportException({
+        const created = await reportException({
           ...newException,
           reportedBy: 'System Administrator'
         });
         toast.success('Exception logged successfully');
-        loadData();
+        setExceptions(prev => [created, ...prev]);
         setNewException({ priority: 'medium', category: 'inbound', title: '', description: '' });
         setShowAddModal(false);
       } catch (error) {

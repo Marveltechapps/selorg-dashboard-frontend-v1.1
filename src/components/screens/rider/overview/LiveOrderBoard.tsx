@@ -40,22 +40,29 @@ interface LiveOrderBoardProps {
   autoAssignEnabled: boolean;
   onToggleAutoAssign: (enabled: boolean) => void;
   refreshData: () => void;
+  initialSearchQuery?: string;
 }
 
-export function LiveOrderBoard({ 
-  orders, 
+export function LiveOrderBoard({
+  orders,
   riders,
-  loading, 
-  onTrackOrder, 
-  onAlertOrder, 
+  loading,
+  onTrackOrder,
+  onAlertOrder,
   onAssignOrder,
   autoAssignEnabled,
   onToggleAutoAssign,
-  refreshData
+  refreshData,
+  initialSearchQuery = '',
 }: LiveOrderBoardProps) {
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Order, direction: 'asc' | 'desc' } | null>(null);
+
+  // Sync top bar search into board when it changes
+  React.useEffect(() => {
+    setSearchQuery(initialSearchQuery);
+  }, [initialSearchQuery]);
 
   // Filtering logic
   const filteredOrders = orders.filter(order => {

@@ -550,7 +550,6 @@ import { apiRequest } from '@/api/apiClient';
 export async function fetchZones(): Promise<GeofenceZone[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: GeofenceZone[] }>('/merch/geofence/zones');
-<<<<<<< HEAD
     if (response.data && response.data.length > 0) {
       return response.data;
     }
@@ -560,12 +559,6 @@ export async function fetchZones(): Promise<GeofenceZone[]> {
     console.error('Failed to fetch zones:', error);
     // Return mock data so map works
     return MOCK_ZONES;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch zones:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
@@ -615,7 +608,6 @@ export async function fetchZonePerformance(): Promise<ZonePerformance[]> {
 }
 
 export async function fetchZoneHistory(): Promise<ZoneHistory[]> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: ZoneHistory[] }>('/merch/geofence/history');
     return response.data || MOCK_HISTORY;
@@ -787,47 +779,4 @@ export async function cloneZone(zoneId: string, newName: string): Promise<Geofen
     }
     throw new Error('Zone not found');
   }
-=======
-  // TODO: Implement backend endpoint for zone history
-  return [];
-}
-
-export async function fetchOverlapWarnings(): Promise<OverlapWarning[]> {
-  // TODO: Implement backend endpoint for overlap warnings
-  return [];
-}
-
-export async function createZone(zone: Partial<GeofenceZone>): Promise<GeofenceZone> {
-  const response = await apiRequest<{ success: boolean; data: GeofenceZone }>('/merch/geofence/zones', {
-    method: 'POST',
-    body: JSON.stringify(zone),
-  });
-  return response.data;
-}
-
-export async function updateZone(zoneId: string, updates: Partial<GeofenceZone>): Promise<void> {
-  await apiRequest(`/merch/geofence/zones/${zoneId}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  });
-}
-
-export async function deleteZone(zoneId: string): Promise<void> {
-  await apiRequest(`/merch/geofence/zones/${zoneId}`, {
-    method: 'DELETE',
-  });
-}
-
-export async function toggleZoneStatus(zoneId: string, status: 'active' | 'inactive'): Promise<void> {
-  await apiRequest(`/merch/geofence/zones/${zoneId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ status }),
-  });
-}
-
-export async function cloneZone(zoneId: string, newName: string): Promise<GeofenceZone> {
-  const originalZone = await apiRequest<{ success: boolean; data: GeofenceZone }>(`/merch/geofence/zones/${zoneId}`);
-  const cloned = { ...originalZone.data, name: newName, status: 'testing' as const };
-  return await createZone(cloned);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

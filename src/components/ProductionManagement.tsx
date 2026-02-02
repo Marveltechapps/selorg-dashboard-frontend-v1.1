@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ProductionSidebar } from './production/ProductionSidebar';
 import { ProductionTopBar } from './production/ProductionTopBar';
 import { ProductionOverview } from './screens/production/ProductionOverview';
@@ -15,16 +15,17 @@ import { useDashboardNavigation } from '../hooks/useDashboardNavigation';
 
 export function ProductionManagement({ onLogout }: { onLogout: () => void }) {
   const { activeTab, setActiveTab } = useDashboardNavigation('overview');
+  const [showDowntimeModal, setShowDowntimeModal] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-[#212121] font-sans">
       <ProductionSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
       
       <div className="pl-[220px]">
-        <ProductionTopBar />
+        <ProductionTopBar setActiveTab={setActiveTab} onOpenDowntime={() => { setActiveTab('overview'); setShowDowntimeModal(true); }} />
         
         <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
-            {activeTab === 'overview' && <ProductionOverview />}
+            {activeTab === 'overview' && <ProductionOverview showDowntimeModal={showDowntimeModal} onCloseDowntimeModal={() => setShowDowntimeModal(false)} />}
             {activeTab === 'raw_materials' && <RawMaterials />}
             {activeTab === 'planning' && <ProductionPlanning />}
             {activeTab === 'work_orders' && <WorkOrders />}

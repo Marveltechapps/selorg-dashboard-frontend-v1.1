@@ -12,6 +12,7 @@ import {
   refreshDashboard,
   restockItem,
 } from '../../api/dashboard';
+import { MOCK_STAFF_LOAD, MOCK_STOCK_ALERTS, MOCK_RTO_ALERTS } from '../../api/dashboard/darkstoreMockData';
 import { callCustomer, markRTO } from '../../api/dashboard/orders.api';
 import { getAlertHistory } from '../../api/dashboard';
 
@@ -168,21 +169,15 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps = {}) {
         });
       }
 
-      // Update staff load
-      if (staff) {
-        setStaffLoad({
-          pickers: staff.pickers || { active: 0, total: 0, load_percentage: 0 },
-          packers: staff.packers || { active: 0, total: 0, load_percentage: 0 },
-        });
-      }
+      // Update staff load (always set from API or mock)
+      setStaffLoad({
+        pickers: (staff && staff.pickers) ? staff.pickers : MOCK_STAFF_LOAD.pickers,
+        packers: (staff && staff.packers) ? staff.packers : MOCK_STAFF_LOAD.packers,
+      });
 
-      // Update alerts
-      if (stock) {
-        setStockAlerts(stock.alerts || []);
-      }
-      if (rto) {
-        setRTOAlerts(rto.alerts || []);
-      }
+      // Update alerts (always set from API or mock)
+      setStockAlerts((stock && Array.isArray(stock.alerts)) ? stock.alerts : MOCK_STOCK_ALERTS.alerts);
+      setRTOAlerts((rto && Array.isArray(rto.alerts)) ? rto.alerts : MOCK_RTO_ALERTS.alerts);
       if (orders) {
         // Store orders with sla_deadline for real-time timer updates
         const ordersWithDeadline = (orders.orders || []).map((order: any) => ({

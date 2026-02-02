@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ClipboardList, Plus, Search, Filter, Download, X, Eye } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface WorkOrder {
   id: string;
@@ -15,16 +16,28 @@ interface WorkOrder {
   dueDate: string;
 }
 
+const DEFAULT_ORDERS: WorkOrder[] = [
+  { id: '1', orderNumber: 'WO-4421', product: 'Organic Oats', quantity: 5000, line: 'Line A', operator: 'John Smith', status: 'in-progress', priority: 'high', dueDate: '2024-12-24' },
+  { id: '2', orderNumber: 'WO-4420', product: 'Almond Milk', quantity: 3200, line: 'Line B', operator: 'Sarah Johnson', status: 'in-progress', priority: 'medium', dueDate: '2024-12-25' },
+  { id: '3', orderNumber: 'WO-4422', product: 'Protein Bars', quantity: 4000, line: '', status: 'pending', priority: 'high', dueDate: '2024-12-26' },
+  { id: '4', orderNumber: 'WO-4419', product: 'Cold Brew Coffee', quantity: 2500, line: 'Line D', operator: 'Mike Davis', status: 'completed', priority: 'low', dueDate: '2024-12-22' },
+];
+
 export function WorkOrders() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState<WorkOrder | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [orders, setOrders] = useState<WorkOrder[]>([
-    { id: '1', orderNumber: 'WO-4421', product: 'Organic Oats', quantity: 5000, line: 'Line A', operator: 'John Smith', status: 'in-progress', priority: 'high', dueDate: '2024-12-24' },
-    { id: '2', orderNumber: 'WO-4420', product: 'Almond Milk', quantity: 3200, line: 'Line B', operator: 'Sarah Johnson', status: 'in-progress', priority: 'medium', dueDate: '2024-12-25' },
-    { id: '3', orderNumber: 'WO-4422', product: 'Protein Bars', quantity: 4000, line: '', status: 'pending', priority: 'high', dueDate: '2024-12-26' },
-    { id: '4', orderNumber: 'WO-4419', product: 'Cold Brew Coffee', quantity: 2500, line: 'Line D', operator: 'Mike Davis', status: 'completed', priority: 'low', dueDate: '2024-12-22' },
-  ]);
+  const [orders, setOrdersState] = useState<WorkOrder[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.workOrders, DEFAULT_ORDERS)
+  );
+
+  const setOrders = (next: WorkOrder[] | ((prev: WorkOrder[]) => WorkOrder[])) => {
+    setOrdersState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.workOrders, resolved);
+      return resolved;
+    });
+  };
 
   const [newOrder, setNewOrder] = useState({
     product: '',
@@ -46,20 +59,20 @@ export function WorkOrders() {
         priority: newOrder.priority,
         dueDate: newOrder.dueDate,
       };
-      setOrders([order, ...orders]);
+      setOrders(prev => [order, ...prev]);
       setNewOrder({ product: '', quantity: '', line: '', priority: 'medium', dueDate: '' });
       setShowCreateModal(false);
     }
   };
 
   const updateStatus = (id: string, newStatus: WorkOrder['status']) => {
-    setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
   };
 
   const assignOperator = (id: string) => {
     const operator = prompt('Enter operator name:');
     if (operator) {
-      setOrders(orders.map(o => o.id === id ? { ...o, operator, status: 'in-progress' as const } : o));
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, operator, status: 'in-progress' as const } : o));
     }
   };
 

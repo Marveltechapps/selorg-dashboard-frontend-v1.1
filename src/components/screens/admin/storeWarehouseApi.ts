@@ -432,7 +432,6 @@ let MOCK_ZONES: DeliveryZone[] = [
   { id: 'zone-5', name: 'Jayanagar South', storeId: 'store-5', storeName: 'Jayanagar Quick Stop', radius: 4, areas: ['Jayanagar', 'JP Nagar', 'Banashankari'], isActive: true, avgDeliveryTime: 16, orderVolume: 1540 },
 ];
 
-<<<<<<< HEAD
 const MOCK_STORE_PERFORMANCE: StorePerformance[] = [
   { storeId: 'store-1', storeName: 'Indiranagar Express', ordersToday: 87, ordersWeek: 612, ordersMonth: 2540, revenueToday: 174000, revenueWeek: 1224000, revenueMonth: 5080000, avgRating: 4.6, totalReviews: 4582, onTimeDelivery: 96, capacityUtilization: 73 },
   { storeId: 'store-2', storeName: 'Koramangala Hub', ordersToday: 156, ordersWeek: 1092, ordersMonth: 4520, revenueToday: 312000, revenueWeek: 2184000, revenueMonth: 9040000, avgRating: 4.8, totalReviews: 7845, onTimeDelivery: 98, capacityUtilization: 78 },
@@ -440,15 +439,11 @@ const MOCK_STORE_PERFORMANCE: StorePerformance[] = [
   { storeId: 'store-4', storeName: 'HSR Layout Express', ordersToday: 72, ordersWeek: 504, ordersMonth: 2090, revenueToday: 144000, revenueWeek: 1008000, revenueMonth: 4180000, avgRating: 4.7, totalReviews: 3892, onTimeDelivery: 97, capacityUtilization: 55 },
   { storeId: 'store-5', storeName: 'Jayanagar Quick Stop', ordersToday: 54, ordersWeek: 378, ordersMonth: 1560, revenueToday: 108000, revenueWeek: 756000, revenueMonth: 3120000, avgRating: 4.4, totalReviews: 2945, onTimeDelivery: 95, capacityUtilization: 54 },
 ];
-
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 // --- API Functions ---
 
 export async function fetchStores(): Promise<Store[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: Store[] }>('/admin/stores');
-<<<<<<< HEAD
     if (response && response.data && response.data.length > 0) {
       return response.data;
     }
@@ -457,89 +452,54 @@ export async function fetchStores(): Promise<Store[]> {
   } catch (error) {
     console.error('Failed to fetch stores:', error);
     return MOCK_STORES;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch stores:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchWarehouses(): Promise<Warehouse[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: Warehouse[] }>('/admin/warehouses');
-<<<<<<< HEAD
     if (response?.data?.length) return response.data;
     return MOCK_WAREHOUSES;
   } catch (error) {
     console.error('Failed to fetch warehouses:', error);
     return MOCK_WAREHOUSES;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch warehouses:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchStaff(): Promise<Staff[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: Staff[] }>('/admin/staff');
-<<<<<<< HEAD
     if (response?.data?.length) return response.data;
     return MOCK_STAFF;
   } catch (error) {
     console.error('Failed to fetch staff:', error);
     return MOCK_STAFF;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch staff:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchDeliveryZones(): Promise<DeliveryZone[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: DeliveryZone[] }>('/merch/geofence/zones');
-<<<<<<< HEAD
     if (response?.data?.length) return response.data;
     return MOCK_ZONES;
   } catch (error) {
     console.error('Failed to fetch delivery zones:', error);
     return MOCK_ZONES;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch delivery zones:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function fetchStorePerformance(): Promise<StorePerformance[]> {
   try {
     const response = await apiRequest<{ success: boolean; data: StorePerformance[] }>('/admin/stores/performance');
-<<<<<<< HEAD
     if (response?.data?.length) return response.data;
     return MOCK_STORE_PERFORMANCE;
   } catch (error) {
     console.error('Failed to fetch store performance:', error);
     return MOCK_STORE_PERFORMANCE;
-=======
-    return response.data || [];
-  } catch (error) {
-    console.error('Failed to fetch store performance:', error);
-    return [];
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   }
 }
 
 export async function createStore(data: Partial<Store>): Promise<Store> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: Store }>('/admin/stores', {
       method: 'POST',
@@ -680,35 +640,6 @@ export async function createWarehouse(data: Partial<Warehouse>): Promise<Warehou
     MOCK_WAREHOUSES.push(mockWarehouse);
     return mockWarehouse;
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: Store }>('/admin/stores', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return response.data;
-}
-
-export async function updateStore(id: string, data: Partial<Store>): Promise<Store> {
-  const response = await apiRequest<{ success: boolean; data: Store }>(`/admin/stores/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-  return response.data;
-}
-
-export async function deleteStore(id: string): Promise<void> {
-  await apiRequest(`/admin/stores/${id}`, {
-    method: 'DELETE',
-  });
-}
-
-export async function createWarehouse(data: Partial<Warehouse>): Promise<Warehouse> {
-  const response = await apiRequest<{ success: boolean; data: Warehouse }>('/admin/warehouses', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function bulkUpdateStoreStatus(ids: string[], status: 'active' | 'inactive' | 'maintenance'): Promise<number> {
@@ -724,7 +655,6 @@ export async function bulkUpdateStoreStatus(ids: string[], status: 'active' | 'i
 }
 
 export async function getStoreStats() {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: any }>('/admin/stores/stats');
     if (response && response.data) {
@@ -748,8 +678,4 @@ export async function getStoreStats() {
       avgRating: MOCK_STORES.length ? MOCK_STORES.reduce((a, s) => a + s.rating, 0) / MOCK_STORES.length : 0,
     };
   }
-=======
-  const response = await apiRequest<{ success: boolean; data: any }>('/admin/stores/stats');
-  return response.data;
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

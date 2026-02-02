@@ -24,7 +24,7 @@ import { Loader2 } from "lucide-react";
 interface OnboardRiderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newRider?: { name: string; email: string; phone: string }) => void;
 }
 
 export function OnboardRiderModal({ isOpen, onClose, onSuccess }: OnboardRiderModalProps) {
@@ -47,18 +47,19 @@ export function OnboardRiderModal({ isOpen, onClose, onSuccess }: OnboardRiderMo
     try {
       await onboardRider(formData);
       toast.success("Rider onboarded successfully");
-      onSuccess();
+      onSuccess(formData);
       onClose();
-      // Reset form
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        city: "",
-        vehicleType: "",
-      });
+      setFormData({ name: "", email: "", phone: "", city: "", vehicleType: "" });
     } catch (error) {
-      toast.error("Failed to onboard rider");
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('Backend unavailable') || msg.includes('connect')) {
+        toast.success("Rider added locally. Connect backend to persist.");
+        onSuccess(formData);
+        onClose();
+        setFormData({ name: "", email: "", phone: "", city: "", vehicleType: "" });
+      } else {
+        toast.error("Failed to onboard rider");
+      }
     } finally {
       setLoading(false);
     }

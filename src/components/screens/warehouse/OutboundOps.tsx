@@ -169,15 +169,9 @@ export function OutboundOps() {
   };
 
   const updateOrderStatus = (orderId: string, status: 'pending' | 'assigned' | 'picking' | 'completed', isAuto: boolean = true) => {
-    if (isAuto) {
-      setAutoPicklists(autoPicklists.map(o => 
-        o.id === orderId ? { ...o, status } : o
-      ));
-    } else {
-      setManualPicklists(manualPicklists.map(o => 
-        o.id === orderId ? { ...o, status } : o
-      ));
-    }
+    setPicklists(picklists.map(o =>
+      o.id === orderId ? { ...o, status } : o
+    ));
   };
 
   const startPicking = (orderId: string, isAuto: boolean = true) => {
@@ -429,6 +423,13 @@ export function OutboundOps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredAutoPicklists.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-[#64748B]">
+                      No auto picklist orders. Data will appear when orders are queued or use mock data when backend is unavailable.
+                    </td>
+                  </tr>
+                )}
                 {filteredAutoPicklists.map(order => (
                   <tr key={order.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-mono text-[#475569]">{order.orderId}</td>
@@ -508,6 +509,13 @@ export function OutboundOps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredManualPicklists.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-[#64748B]">
+                      No manual picklist orders. Assign pickers to see orders here.
+                    </td>
+                  </tr>
+                )}
                 {filteredManualPicklists.map(order => (
                   <tr key={order.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-mono text-[#475569]">{order.orderId}</td>
@@ -599,6 +607,13 @@ export function OutboundOps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredBatchOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                      No batches yet. Click &quot;Create Batch&quot; to create a new picking batch.
+                    </td>
+                  </tr>
+                )}
                 {filteredBatchOrders.map(batch => (
                   <tr key={batch.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-mono text-[#475569]">{batch.batchId}</td>
@@ -678,6 +693,13 @@ export function OutboundOps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredMultiOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-[#64748B]">
+                      No multi-order picks. Consolidated picks will appear when orders share locations.
+                    </td>
+                  </tr>
+                )}
                 {filteredMultiOrders.map(pick => (
                   <tr key={pick.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-mono text-[#475569]">{pick.pickId}</td>
@@ -780,6 +802,13 @@ export function OutboundOps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredRoutes.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-[#64748B]">
+                      No active routes. Routes appear when pickers have assigned orders.
+                    </td>
+                  </tr>
+                )}
                 {filteredRoutes.map(route => (
                   <tr key={route.id} className="hover:bg-[#F8FAFC]">
                     <td className="px-6 py-4 font-mono text-[#475569]">{route.routeId}</td>
@@ -843,6 +872,11 @@ export function OutboundOps() {
       {/* Picker Assignment Tab */}
       {activeTab === 'picker-assignment' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredPickers.length === 0 && (
+            <div className="col-span-full text-center py-12 text-[#64748B]">
+              No pickers available. Add staff with Picker role to see assignments.
+            </div>
+          )}
           {filteredPickers.map(picker => (
             <div 
               key={picker.id}
@@ -854,8 +888,8 @@ export function OutboundOps() {
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="font-bold text-[#1E293B]">{picker.pickerName}</h3>
-                  <p className="text-xs text-[#64748B] font-mono">{picker.pickerId}</p>
+                  <h3 className="font-bold text-[#1E293B]">{picker.pickerName ?? picker.name}</h3>
+                  <p className="text-xs text-[#64748B] font-mono">{picker.pickerId ?? picker.id}</p>
                 </div>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   picker.status === 'busy' ? 'bg-blue-100 text-blue-700' :
@@ -873,15 +907,15 @@ export function OutboundOps() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#64748B]">Active Orders</span>
-                  <span className="font-bold text-blue-600">{picker.activeOrders}</span>
+                  <span className="font-bold text-blue-600">{picker.activeOrders ?? picker.currentOrders ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#64748B]">Completed Today</span>
-                  <span className="font-bold text-green-600">{picker.completedToday}</span>
+                  <span className="font-bold text-green-600">{picker.completedToday ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#64748B]">Pick Rate</span>
-                  <span className="font-medium text-[#1E293B]">{picker.pickRate}/hr</span>
+                  <span className="font-medium text-[#1E293B]">{picker.pickRate ?? 0}/hr</span>
                 </div>
                 
                 <div className="pt-3 border-t border-[#E2E8F0]">
@@ -939,12 +973,12 @@ export function OutboundOps() {
                   {pickers.filter(p => p.status !== 'break').map(picker => (
                     <button
                       key={picker.id}
-                      onClick={() => assignPicker(selectedOrder.id, picker.pickerName)}
+                      onClick={() => assignPicker(selectedOrder.id, (picker.pickerName ?? picker.name) ?? '')}
                       className="w-full flex items-center justify-between p-3 border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] text-left"
                     >
                       <div>
-                        <p className="font-medium text-[#1E293B]">{picker.pickerName}</p>
-                        <p className="text-xs text-[#64748B]">{picker.zone} • {picker.activeOrders} active orders</p>
+                        <p className="font-medium text-[#1E293B]">{picker.pickerName ?? picker.name}</p>
+                        <p className="text-xs text-[#64748B]">{picker.zone} • {(picker.activeOrders ?? picker.currentOrders) ?? 0} active orders</p>
                       </div>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         picker.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
@@ -1233,7 +1267,7 @@ export function OutboundOps() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-[#E2E8F0] flex justify-between items-center sticky top-0 bg-white">
-              <h3 className="font-bold text-lg text-[#1E293B]">Orders for {selectedPicker.pickerName}</h3>
+              <h3 className="font-bold text-lg text-[#1E293B]">Orders for {selectedPicker.pickerName ?? selectedPicker.name}</h3>
               <button onClick={() => setShowPickerOrdersModal(false)} className="text-[#64748B] hover:text-[#1E293B]">
                 <X size={20} />
               </button>
@@ -1242,7 +1276,7 @@ export function OutboundOps() {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="text-xs text-[#64748B] font-medium">Picker ID</label>
-                  <p className="font-bold text-[#1E293B] font-mono">{selectedPicker.pickerId}</p>
+                  <p className="font-bold text-[#1E293B] font-mono">{selectedPicker.pickerId ?? selectedPicker.id}</p>
                 </div>
                 <div>
                   <label className="text-xs text-[#64748B] font-medium">Zone</label>
@@ -1250,17 +1284,17 @@ export function OutboundOps() {
                 </div>
                 <div>
                   <label className="text-xs text-[#64748B] font-medium">Active Orders</label>
-                  <p className="font-bold text-blue-600">{selectedPicker.activeOrders}</p>
+                  <p className="font-bold text-blue-600">{selectedPicker.activeOrders ?? selectedPicker.currentOrders ?? 0}</p>
                 </div>
                 <div>
                   <label className="text-xs text-[#64748B] font-medium">Completed Today</label>
-                  <p className="font-bold text-green-600">{selectedPicker.completedToday}</p>
+                  <p className="font-bold text-green-600">{selectedPicker.completedToday ?? 0}</p>
                 </div>
               </div>
               <div className="border-t border-[#E2E8F0] pt-4">
                 <h4 className="font-bold text-[#1E293B] mb-3">Active Orders</h4>
                 <div className="space-y-2">
-                  {autoPicklists.filter(o => o.picker === selectedPicker.pickerName).map(order => (
+                  {(autoPicklists.concat(manualPicklists)).filter(o => o.picker === (selectedPicker.pickerName ?? selectedPicker.name)).map(order => (
                     <div key={order.id} className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
                       <div className="flex justify-between items-center">
                         <div>
@@ -1277,7 +1311,7 @@ export function OutboundOps() {
                       </div>
                     </div>
                   ))}
-                  {autoPicklists.filter(o => o.picker === selectedPicker.pickerName).length === 0 && (
+                  {(autoPicklists.concat(manualPicklists)).filter(o => o.picker === (selectedPicker.pickerName ?? selectedPicker.name)).length === 0 && (
                     <p className="text-sm text-[#64748B] text-center py-4">No active orders</p>
                   )}
                 </div>

@@ -42,10 +42,19 @@ export function PickTasks() {
   const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [sortBy, setSortBy] = useState('sla');
 
-  const [allPicklists, setAllPicklists] = useState<PickList[]>([]);
+  const DEFAULT_PICKLISTS: PickList[] = [
+    { id: 'PL-1001', zone: 'Ambient A', slaTime: '08:15', slaStatus: 'safe', items: 12, orders: 3, status: 'pending', priority: 'high' },
+    { id: 'PL-1002', zone: 'Chiller', slaTime: '06:45', slaStatus: 'atrisk', items: 8, orders: 2, status: 'inprogress', progress: 45, picker: { name: 'Sarah C.', avatar: 'SC' }, priority: 'urgent' },
+    { id: 'PL-1003', zone: 'Frozen', slaTime: '12:00', slaStatus: 'safe', items: 5, orders: 1, status: 'pending', suggestedPicker: 'Mike R.', priority: 'normal' },
+    { id: 'PL-1004', zone: 'Ambient B', slaTime: '10:30', slaStatus: 'safe', items: 15, orders: 4, status: 'completed', progress: 100, picker: { name: 'John D.', avatar: 'JD' }, priority: 'normal' },
+    { id: 'PL-1005', zone: 'Chiller', slaTime: '05:20', slaStatus: 'urgent', items: 6, orders: 2, status: 'inprogress', progress: 20, picker: { name: 'Rachel Z.', avatar: 'RZ' }, priority: 'urgent' },
+    { id: 'PL-1006', zone: 'Ambient A', slaTime: '14:00', slaStatus: 'safe', items: 9, orders: 2, status: 'pending', priority: 'high' },
+  ];
+
+  const [allPicklists, setAllPicklists] = useState<PickList[]>(DEFAULT_PICKLISTS);
   const [loading, setLoading] = useState(false);
 
-  // Load picklists from API
+  // Load picklists from API; use mock when API fails or returns empty
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -53,30 +62,69 @@ export function PickTasks() {
         setLoading(true);
         const resp = await picklistsApi.getPicklists({});
         if (!mounted) return;
-        if (resp.success && resp.data) {
+        if (resp.success && resp.data && Array.isArray(resp.data) && resp.data.length > 0) {
           setAllPicklists(resp.data);
-        } else if (resp.data && Array.isArray(resp.data)) {
+        } else if (resp.data && Array.isArray(resp.data) && resp.data.length > 0) {
           setAllPicklists(resp.data);
         }
-      } catch (err) {
-        console.error('Failed to load picklists', err);
-        toast.error('Failed to load picklists');
+      } catch (_) {
+        if (mounted) setAllPicklists(DEFAULT_PICKLISTS);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; };
   }, []);
 
-  // Use API data
-  const picklistsToUse = allPicklists;
+  const handleCreatePickList = () => {
+    const zones: Zone[] = ['Ambient A', 'Ambient B', 'Chiller', 'Frozen'];
+    const newId = `PL-${1000 + allPicklists.length + 1}`;
+    const newList: PickList = {
+      id: newId,
+      zone: zones[allPicklists.length % zones.length],
+      slaTime: '15:00',
+      slaStatus: 'safe',
+      items: 4 + (allPicklists.length % 6),
+      orders: 1,
+      status: 'pending',
+      priority: 'normal',
+    };
+    setAllPicklists((prev) => [newList, ...prev]);
+    toast.success(`Pick list ${newId} created`);
+  };
 
-  // Calculate stats
+  // Apply filters and tab-specific subset
+  const filteredByFilters = allPicklists.filter((p) => {
+    const statusOk = statusFilter === 'all' || p.status === statusFilter;
+    const zoneOk = zoneFilter === 'all' || (zoneFilter === 'ambient' && (p.zone === 'Ambient A' || p.zone === 'Ambient B')) || (zoneFilter === 'chiller' && p.zone === 'Chiller') || (zoneFilter === 'frozen' && p.zone === 'Frozen');
+    const priorityOk = priorityFilter === 'all' || p.priority === priorityFilter;
+    const assignOk = assignmentFilter === 'all' || (assignmentFilter === 'assigned' && p.picker) || (assignmentFilter === 'unassigned' && !p.picker) || (assignmentFilter === 'myteam' && p.picker);
+    return statusOk && zoneOk && priorityOk && assignOk;
+  });
+  // Tab-specific subset so each tab shows different emphasis
+  const tabSubset = {
+    auto: filteredByFilters,
+    manual: filteredByFilters.filter((p) => p.status === 'pending'),
+    batch: filteredByFilters.filter((p) => p.status === 'inprogress'),
+    multi: filteredByFilters.filter((p) => p.orders >= 2),
+    route: [...filteredByFilters].sort((a, b) => (a.zone > b.zone ? 1 : -1)),
+    assign: filteredByFilters.filter((p) => !p.picker),
+  };
+  const picklistsToUse = (tabSubset as any)[activeTab] ?? filteredByFilters;
+  const sortedPicklists = [...picklistsToUse].sort((a, b) => {
+    if (sortBy === 'sla') return (a.slaTime || '').localeCompare(b.slaTime || '');
+    if (sortBy === 'items') return (b.items || 0) - (a.items || 0);
+    if (sortBy === 'orders') return (b.orders || 0) - (a.orders || 0);
+    return 0;
+  });
+  const picklistsToRender = sortedPicklists;
+
+  // Calculate stats from filtered list
   const stats = {
-    total: picklistsToUse.length,
-    pending: picklistsToUse.filter(p => p.status === 'pending').length,
-    inProgress: picklistsToUse.filter(p => p.status === 'inprogress').length,
-    completed: picklistsToUse.filter(p => p.status === 'completed').length,
+    total: picklistsToRender.length,
+    pending: picklistsToRender.filter(p => p.status === 'pending').length,
+    inProgress: picklistsToRender.filter(p => p.status === 'inprogress').length,
+    completed: picklistsToRender.filter(p => p.status === 'completed').length,
     slaCompliance: 94,
     overallProgress: 68
   };
@@ -88,7 +136,7 @@ export function PickTasks() {
         subtitle="Manage picking assignments and workflows"
         actions={
           <button 
-            onClick={() => toast.info('Creating new pick list...')}
+            onClick={handleCreatePickList}
             className="px-4 py-2 bg-[#16A34A] text-white font-medium rounded-lg hover:bg-[#15803D] flex items-center gap-2"
           >
             <Plus size={16} />
@@ -197,15 +245,15 @@ export function PickTasks() {
 
       {/* Main Content - Picklist Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {picklistsToUse.map((picklist) => (
-          <PicklistCard key={picklist.id} picklist={picklist} />
+        {picklistsToRender.map((picklist) => (
+          <PicklistCard key={picklist.id} picklist={picklist} onUpdate={(updated) => setAllPicklists(prev => prev.map(p => p.id === updated.id ? updated : p))} />
         ))}
       </div>
 
       {/* Bottom Pagination and View Toggle */}
       <div className="flex items-center justify-between pt-4 border-t border-[#E0E0E0]">
         <div className="text-sm text-[#757575]">
-          Showing <span className="font-bold text-[#212121]">{picklistsToUse.length}</span> of <span className="font-bold text-[#212121]">{picklistsToUse.length}</span> picklists
+          Showing <span className="font-bold text-[#212121]">{picklistsToRender.length}</span> of <span className="font-bold text-[#212121]">{allPicklists.length}</span> picklists
         </div>
 
         <div className="flex items-center gap-2">
@@ -298,7 +346,39 @@ function FilterDropdown({ label, value, onChange, options }: any) {
   );
 }
 
-function PicklistCard({ picklist }: { picklist: PickList }) {
+function PicklistCard({ picklist, onUpdate }: { picklist: PickList; onUpdate?: (p: PickList) => void }) {
+  const handleStartPicking = () => {
+    if (!onUpdate) return;
+    onUpdate({ ...picklist, status: 'inprogress', progress: 0, picker: { name: 'You', avatar: 'Y' } });
+    toast.success(`Started picking ${picklist.id}`);
+  };
+  const handlePause = () => {
+    if (!onUpdate) return;
+    onUpdate({ ...picklist, status: 'paused' });
+    toast.success(`${picklist.id} paused`);
+  };
+  const handleContinue = () => {
+    if (!onUpdate) return;
+    const next = Math.min((picklist.progress || 0) + 25, 100);
+    onUpdate({ ...picklist, progress: next, status: next >= 100 ? 'completed' : 'inprogress' });
+    if (next >= 100) toast.success(`${picklist.id} completed`);
+  };
+  const handleComplete = () => {
+    if (!onUpdate) return;
+    onUpdate({ ...picklist, status: 'completed', progress: 100 });
+    toast.success(`${picklist.id} completed`);
+  };
+  const handleMoveToPacking = () => {
+    toast.success(`${picklist.id} moved to packing`);
+  };
+  const handleDetails = () => {
+    toast.info(`${picklist.id}: ${picklist.zone}, ${picklist.items} items, ${picklist.orders} orders`);
+  };
+  const handleAssignPicker = () => {
+    if (!onUpdate) return;
+    onUpdate({ ...picklist, picker: { name: 'Assigned Picker', avatar: 'AP' } });
+    toast.success(`Picker assigned to ${picklist.id}`);
+  };
   const getZoneColor = (zone: Zone) => {
     switch (zone) {
       case 'Ambient A':
@@ -433,13 +513,13 @@ function PicklistCard({ picklist }: { picklist: PickList }) {
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {picklist.status === 'pending' && (
             <>
-              <button className="flex-1 px-3 py-2 bg-[#212121] text-white rounded-lg text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-1">
+              <button onClick={handleStartPicking} className="flex-1 px-3 py-2 bg-[#212121] text-white rounded-lg text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-1">
                 <Play size={12} /> Start Picking
               </button>
-              <button className="px-3 py-2 border border-[#E0E0E0] text-[#616161] rounded-lg text-xs font-bold hover:bg-[#F5F5F5] transition-colors">
+              <button onClick={handleAssignPicker} className="px-3 py-2 border border-[#E0E0E0] text-[#616161] rounded-lg text-xs font-bold hover:bg-[#F5F5F5] transition-colors" title="Assign Picker">
                 <UserPlus size={12} />
               </button>
             </>
@@ -447,27 +527,34 @@ function PicklistCard({ picklist }: { picklist: PickList }) {
 
           {picklist.status === 'inprogress' && (
             <>
-              <button className="flex-1 px-3 py-2 bg-[#1677FF] text-white rounded-lg text-xs font-bold hover:bg-[#1668E3] transition-colors">
+              <button onClick={handleContinue} className="flex-1 px-3 py-2 bg-[#1677FF] text-white rounded-lg text-xs font-bold hover:bg-[#1668E3] transition-colors">
                 Continue
               </button>
-              <button className="px-3 py-2 border border-[#E0E0E0] text-[#616161] rounded-lg text-xs font-bold hover:bg-[#F5F5F5] transition-colors">
+              <button onClick={handlePause} className="px-3 py-2 border border-[#E0E0E0] text-[#616161] rounded-lg text-xs font-bold hover:bg-[#F5F5F5] transition-colors">
                 <Pause size={12} />
               </button>
-              <button className="px-3 py-2 bg-[#16A34A] text-white rounded-lg text-xs font-bold hover:bg-[#15803D] transition-colors">
+              <button onClick={handleComplete} className="px-3 py-2 bg-[#16A34A] text-white rounded-lg text-xs font-bold hover:bg-[#15803D] transition-colors">
                 <CheckCircle2 size={12} />
               </button>
             </>
           )}
 
+          {picklist.status === 'paused' && (
+            <>
+              <button onClick={handleContinue} className="flex-1 px-3 py-2 bg-[#1677FF] text-white rounded-lg text-xs font-bold">Continue</button>
+              <button onClick={handleComplete} className="px-3 py-2 bg-[#16A34A] text-white rounded-lg text-xs font-bold">Complete</button>
+            </>
+          )}
+
           {picklist.status === 'completed' && (
-            <button className="flex-1 px-3 py-2 bg-[#9333EA] text-white rounded-lg text-xs font-bold hover:bg-[#7E22CE] transition-colors flex items-center justify-center gap-1">
+            <button onClick={handleMoveToPacking} className="flex-1 px-3 py-2 bg-[#9333EA] text-white rounded-lg text-xs font-bold hover:bg-[#7E22CE] transition-colors flex items-center justify-center gap-1">
               <ArrowRight size={12} /> Move to Packing
             </button>
           )}
         </div>
 
         {/* Details Link */}
-        <button className="text-xs text-[#1677FF] hover:underline font-medium flex items-center gap-1">
+        <button onClick={handleDetails} className="text-xs text-[#1677FF] hover:underline font-medium flex items-center gap-1">
           <Info size={12} /> Details
         </button>
       </div>

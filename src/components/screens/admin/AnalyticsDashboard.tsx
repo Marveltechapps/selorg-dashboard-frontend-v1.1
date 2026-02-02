@@ -60,7 +60,7 @@ import {
   ConversionFunnel,
   PaymentMethodAnalytics,
 } from './analyticsApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   BarChart3,
   RefreshCw,
@@ -144,7 +144,6 @@ export function AnalyticsDashboard() {
       setPeakHours(peaks);
       setConversionFunnel(funnel);
       setPaymentMethods(payments);
-<<<<<<< HEAD
     } catch (error: any) {
       console.error('Analytics load error:', error);
       toast.error(`Failed to load analytics data: ${error?.message || 'Unknown error'}`);
@@ -161,10 +160,6 @@ export function AnalyticsDashboard() {
       setPeakHours([]);
       setConversionFunnel([]);
       setPaymentMethods([]);
-=======
-    } catch (error) {
-      toast.error('Failed to load analytics data');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -193,7 +188,6 @@ export function AnalyticsDashboard() {
     return growth >= 0 ? 'text-emerald-600' : 'text-rose-600';
   };
 
-<<<<<<< HEAD
   const handleExportAnalytics = () => {
     try {
       const data = {
@@ -230,9 +224,6 @@ export function AnalyticsDashboard() {
       toast.error(`Failed to export analytics: ${error?.message || 'Unknown error'}`);
     }
   };
-
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -262,7 +253,6 @@ export function AnalyticsDashboard() {
               <SelectItem value="90d">Last 90 Days</SelectItem>
             </SelectContent>
           </Select>
-<<<<<<< HEAD
           <Button 
             size="sm" 
             onClick={async () => {
@@ -278,12 +268,6 @@ export function AnalyticsDashboard() {
             variant="outline"
             onClick={handleExportAnalytics}
           >
-=======
-          <Button size="sm" onClick={loadData} variant="outline">
-            <RefreshCw size={14} className="mr-1.5" /> Refresh
-          </Button>
-          <Button size="sm" variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Download size={14} className="mr-1.5" /> Export
           </Button>
         </div>

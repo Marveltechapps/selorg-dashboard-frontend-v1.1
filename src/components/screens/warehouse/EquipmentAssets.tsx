@@ -24,8 +24,6 @@ export function EquipmentAssets() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -75,23 +73,24 @@ export function EquipmentAssets() {
   };
 
   const addEquipment = async () => {
-    if (newEquipment.equipmentId && newEquipment.name) {
+    if (newEquipment.name) {
       try {
-        await addMachinery({
-          id: newEquipment.equipmentId,
-          equipmentId: newEquipment.equipmentId,
+        const created = await addMachinery({
+          equipmentId: newEquipment.equipmentId || undefined,
           name: newEquipment.name,
           type: newEquipment.type,
-          zone: newEquipment.zone,
+          zone: newEquipment.zone || undefined,
           status: 'idle'
         });
-        toast.success('Equipment added successfully');
-        loadData();
+        toast.success(`Equipment added: ${created.equipmentId}`);
+        setEquipment(prev => [...prev, created]);
         setNewEquipment({ equipmentId: '', name: '', type: 'forklift', zone: '' });
         setShowAddEquipmentModal(false);
       } catch (error) {
         toast.error('Failed to add equipment');
       }
+    } else {
+      toast.error('Name is required');
     }
   };
 

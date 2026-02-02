@@ -26,15 +26,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-<<<<<<< HEAD
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
 import {
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   Store,
   Warehouse,
   Staff,
@@ -50,7 +47,7 @@ import {
   getStoreStats,
 } from './storeWarehouseApi';
 import { AddStoreModal } from './modals/AddStoreModal';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   Store as StoreIcon,
   Plus,
@@ -94,15 +91,11 @@ export function StoreWarehouseManagement() {
 
   // Modals
   const [addStoreOpen, setAddStoreOpen] = useState(false);
-<<<<<<< HEAD
   const [addWarehouseOpen, setAddWarehouseOpen] = useState(false);
   const [editStore, setEditStore] = useState<Store | null>(null);
   const [storeType, setStoreType] = useState<'store' | 'warehouse'>('store');
   const [storeDetailsOpen, setStoreDetailsOpen] = useState(false);
   const [selectedStoreDetails, setSelectedStoreDetails] = useState<Store | null>(null);
-=======
-  const [editStore, setEditStore] = useState<Store | null>(null);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   useEffect(() => {
     loadData();
@@ -126,7 +119,6 @@ export function StoreWarehouseManagement() {
       setPerformance(perfData);
       setStats(statsData);
     } catch (error) {
-<<<<<<< HEAD
       console.error('Failed to load store data:', error);
       toast.error('Failed to load store data');
       // Set empty arrays to prevent undefined errors
@@ -136,9 +128,6 @@ export function StoreWarehouseManagement() {
       if (!zones.length) setZones([]);
       if (!performance.length) setPerformance([]);
       if (!stats) setStats({ totalStores: 0, activeStores: 0, totalWarehouses: 0, totalStaff: 0, avgRating: 0 });
-=======
-      toast.error('Failed to load store data');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     } finally {
       setLoading(false);
     }
@@ -358,7 +347,6 @@ export function StoreWarehouseManagement() {
                 </SelectContent>
               </Select>
 
-<<<<<<< HEAD
               <Button 
                 size="sm" 
                 onClick={() => {
@@ -367,12 +355,6 @@ export function StoreWarehouseManagement() {
                   setAddStoreOpen(true);
                 }}
               >
-=======
-              <Button size="sm" onClick={() => {
-                setEditStore(null);
-                setAddStoreOpen(true);
-              }}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> Add Store
               </Button>
             </div>
@@ -470,14 +452,10 @@ export function StoreWarehouseManagement() {
                               <DropdownMenuItem onClick={() => handleEditStore(store)}>
                                 <Edit size={14} className="mr-2" /> Edit Store
                               </DropdownMenuItem>
-<<<<<<< HEAD
                               <DropdownMenuItem onClick={() => {
                                 setSelectedStoreDetails(store);
                                 setStoreDetailsOpen(true);
                               }}>
-=======
-                              <DropdownMenuItem onClick={() => toast.info('View details')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                                 <Eye size={14} className="mr-2" /> View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleStatus(store)}>
@@ -518,7 +496,6 @@ export function StoreWarehouseManagement() {
           <div className="bg-white border border-[#e4e4e7] rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-[#e4e4e7] bg-[#fcfcfc] flex justify-between items-center">
               <h3 className="font-bold text-[#18181b]">Warehouse Inventory Centers</h3>
-<<<<<<< HEAD
               <Button 
                 size="sm" 
                 onClick={() => {
@@ -527,9 +504,6 @@ export function StoreWarehouseManagement() {
                   setAddStoreOpen(true);
                 }}
               >
-=======
-              <Button size="sm" onClick={() => toast.info('Add warehouse')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> Add Warehouse
               </Button>
             </div>
@@ -608,7 +582,6 @@ export function StoreWarehouseManagement() {
             </div>
 
             <div className="overflow-auto max-h-[600px]">
-<<<<<<< HEAD
               {staff.length === 0 ? (
                 <div className="p-12 text-center text-[#71717a]">
                   <p>No staff data available</p>
@@ -680,72 +653,6 @@ export function StoreWarehouseManagement() {
                   </TableBody>
                 </Table>
               )}
-=======
-              <Table>
-                <TableHeader className="sticky top-0 bg-[#f9fafb] z-10">
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Store</TableHead>
-                    <TableHead>Shift</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Performance</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {staff.map((member) => (
-                    <TableRow key={member.id} className="hover:bg-[#fcfcfc]">
-                      <TableCell>
-                        <div className="font-medium text-[#18181b]">{member.name}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {member.role === 'manager' && '👔'}
-                          {member.role === 'picker' && '📦'}
-                          {member.role === 'packer' && '📮'}
-                          {member.role === 'delivery' && '🚴'}
-                          {member.role === 'supervisor' && '👨‍💼'}
-                          {' '}{member.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-[#52525b]">{member.storeName}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">{member.shift.replace('_', ' ')}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">
-                          <div className="text-[#52525b]">{member.phone}</div>
-                          <div className="text-[#a1a1aa]">{member.email}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-[#e4e4e7] rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full ${
-                                member.performance >= 90 ? 'bg-emerald-500' :
-                                member.performance >= 70 ? 'bg-amber-500' :
-                                'bg-rose-500'
-                              }`}
-                              style={{ width: `${member.performance}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs font-medium">{member.performance}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {member.status === 'active' && <Badge className="bg-emerald-500">Active</Badge>}
-                        {member.status === 'on_leave' && <Badge className="bg-amber-500">On Leave</Badge>}
-                        {member.status === 'inactive' && <Badge variant="secondary">Inactive</Badge>}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
         </TabsContent>
@@ -758,15 +665,12 @@ export function StoreWarehouseManagement() {
             </div>
 
             <div className="p-6">
-<<<<<<< HEAD
               {zones.length === 0 ? (
                 <div className="p-12 text-center text-[#71717a]">
                   <p>No delivery zones configured</p>
                   <p className="text-xs mt-2">Delivery zones will appear here once added</p>
                 </div>
               ) : (
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {zones.map((zone) => (
                   <div key={zone.id} className="border border-[#e4e4e7] rounded-lg p-4">
@@ -806,10 +710,7 @@ export function StoreWarehouseManagement() {
                   </div>
                 ))}
               </div>
-<<<<<<< HEAD
               )}
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
         </TabsContent>
@@ -822,15 +723,12 @@ export function StoreWarehouseManagement() {
             </div>
 
             <div className="overflow-auto max-h-[600px]">
-<<<<<<< HEAD
               {performance.length === 0 ? (
                 <div className="p-12 text-center text-[#71717a]">
                   <p>No performance data available</p>
                   <p className="text-xs mt-2">Performance metrics will appear here once stores start operating</p>
                 </div>
               ) : (
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Table>
                 <TableHeader className="sticky top-0 bg-[#f9fafb] z-10">
                   <TableRow>
@@ -887,10 +785,7 @@ export function StoreWarehouseManagement() {
                   ))}
                 </TableBody>
               </Table>
-<<<<<<< HEAD
               )}
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             </div>
           </div>
         </TabsContent>
@@ -901,7 +796,6 @@ export function StoreWarehouseManagement() {
         open={addStoreOpen}
         onOpenChange={(open) => {
           setAddStoreOpen(open);
-<<<<<<< HEAD
           if (!open) {
             setEditStore(null);
             setStoreType('store');
@@ -977,13 +871,6 @@ export function StoreWarehouseManagement() {
           )}
         </SheetContent>
       </Sheet>
-=======
-          if (!open) setEditStore(null);
-        }}
-        onSuccess={loadData}
-        editStore={editStore}
-      />
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

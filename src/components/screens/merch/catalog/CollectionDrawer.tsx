@@ -15,7 +15,7 @@ import { Badge } from "../../../ui/badge";
 import { Separator } from "../../../ui/separator";
 import { ImageWithFallback } from '../../../figma/ImageWithFallback';
 import { ImageIcon, Copy, Archive, Edit, CheckCircle, Clock } from 'lucide-react';
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface CollectionDrawerProps {
   collection: Collection | null;

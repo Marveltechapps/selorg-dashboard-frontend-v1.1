@@ -24,7 +24,7 @@ import {
   bulkAssignRole,
   bulkUpdateUsers 
 } from '../userManagementApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { AlertTriangle } from 'lucide-react';
 
 interface BulkOperationsModalProps {

@@ -393,8 +393,14 @@ function OutboundTransfersTab({ reloadSummary }: { reloadSummary: () => void }) 
     setLoading(true);
     try {
       const data = await outboundApi.fetchTransferRequests();
-      setTransfers(data.transfer_requests);
-      const activeTransfer = data.transfer_requests.find(t => t.status === 'approved' || t.status === 'in_progress');
+      let list = data.transfer_requests || [];
+      const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+      const statusMap = darkstorePersistence.outboundTransferStatus();
+      if (Object.keys(statusMap).length > 0) {
+        list = list.map((r: any) => statusMap[r.request_id] ? { ...r, status: statusMap[r.request_id] } : r);
+      }
+      setTransfers(list);
+      const activeTransfer = list.find((t: any) => t.status === 'approved' || t.status === 'in_progress');
       if (activeTransfer) {
         loadFulfillment(activeTransfer.request_id);
       }
@@ -427,7 +433,9 @@ function OutboundTransfersTab({ reloadSummary }: { reloadSummary: () => void }) 
     try {
       await outboundApi.approveTransferRequest(requestId);
       toast.success('Transfer request approved');
-      loadTransfers();
+      setTransfers(prev => prev.map(r => r.request_id === requestId ? { ...r, status: 'approved' } : r));
+      const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+      darkstorePersistence.setOutboundTransferStatus(requestId, 'approved');
       reloadSummary();
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve');
@@ -438,7 +446,9 @@ function OutboundTransfersTab({ reloadSummary }: { reloadSummary: () => void }) 
     try {
       await outboundApi.rejectTransferRequest(requestId);
       toast.success('Transfer request rejected');
-      loadTransfers();
+      setTransfers(prev => prev.map(r => r.request_id === requestId ? { ...r, status: 'rejected' } : r));
+      const { darkstorePersistence } = await import('../../utils/darkstorePersistence');
+      darkstorePersistence.setOutboundTransferStatus(requestId, 'rejected');
       reloadSummary();
     } catch (error: any) {
       toast.error(error.message || 'Failed to reject');

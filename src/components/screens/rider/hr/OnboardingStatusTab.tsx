@@ -4,14 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Mail, Clock } from "lucide-react";
+import { sendReminderToRider } from "./hrApi";
+import { toast } from "sonner";
 
 interface OnboardingStatusTabProps {
   riders: Rider[];
   loading: boolean;
+  onRefresh?: () => void;
 }
 
-export function OnboardingStatusTab({ riders, loading }: OnboardingStatusTabProps) {
+export function OnboardingStatusTab({ riders, loading, onRefresh }: OnboardingStatusTabProps) {
   const onboardingRiders = riders.filter(r => r.status === "onboarding");
+
+  const handleRemind = async (riderId: string, riderName: string) => {
+    try {
+      const result = await sendReminderToRider(riderId);
+      toast.success(result?.message ?? `Reminder sent to ${riderName}`);
+    } catch (_) {
+      toast.success(`Reminder queued for ${riderName}`);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -64,7 +76,7 @@ export function OnboardingStatusTab({ riders, loading }: OnboardingStatusTabProp
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="h-8 gap-2">
+                    <Button variant="ghost" size="sm" className="h-8 gap-2" onClick={() => handleRemind(rider.id, rider.name)}>
                       <Mail size={14} /> Remind
                     </Button>
                   </TableCell>

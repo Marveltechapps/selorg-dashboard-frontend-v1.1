@@ -45,7 +45,7 @@ import {
   SLAMetrics,
   LiveChat,
 } from './supportCenterApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   MessageSquare,
   RefreshCw,
@@ -246,7 +246,6 @@ export function SupportCenter() {
           <h1 className="text-2xl font-bold text-[#18181b]">Support Center</h1>
           <p className="text-[#71717a] text-sm">Manage customer tickets and live chat support</p>
         </div>
-<<<<<<< HEAD
         <Button 
           size="sm" 
           onClick={async () => {
@@ -255,9 +254,6 @@ export function SupportCenter() {
           }} 
           variant="outline"
         >
-=======
-        <Button size="sm" onClick={loadData} variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <RefreshCw size={14} className="mr-1.5" /> Refresh
         </Button>
       </div>

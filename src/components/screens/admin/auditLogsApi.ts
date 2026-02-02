@@ -527,7 +527,6 @@ export async function fetchAuditStats(): Promise<AuditStats> {
   }
 }
 
-<<<<<<< HEAD
 export async function exportAuditLogs(format: 'csv' | 'json', logs?: AuditLog[]): Promise<{ url: string }> {
   try {
     // If logs are provided, use them; otherwise fetch from API
@@ -581,11 +580,6 @@ export async function exportAuditLogs(format: 'csv' | 'json', logs?: AuditLog[])
     console.error('Failed to export audit logs:', error);
     throw error;
   }
-=======
-export async function exportAuditLogs(format: 'csv' | 'json'): Promise<{ url: string }> {
-  // TODO: Implement backend endpoint for export
-  return { url: `https://example.com/audit-logs-export.${format}` };
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function fetchLogDetails(logId: string): Promise<AuditLog | null> {

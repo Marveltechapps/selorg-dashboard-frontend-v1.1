@@ -11,20 +11,21 @@ interface AccessAndDeviceTabProps {
   riders: Rider[];
   loading: boolean;
   onRefresh: () => void;
+  onAccessUpdated?: (riderId: string, access: "enabled" | "disabled") => void;
 }
 
-export function AccessAndDeviceTab({ riders, loading, onRefresh }: AccessAndDeviceTabProps) {
+export function AccessAndDeviceTab({ riders, loading, onRefresh, onAccessUpdated }: AccessAndDeviceTabProps) {
   const [updating, setUpdating] = useState<string | null>(null);
 
   const handleToggleAccess = async (riderId: string, currentStatus: "enabled" | "disabled") => {
+    const newStatus = currentStatus === "enabled" ? "disabled" : "enabled";
     setUpdating(riderId);
+    onAccessUpdated?.(riderId, newStatus);
     try {
-      const newStatus = currentStatus === "enabled" ? "disabled" : "enabled";
       await updateRiderAccess(riderId, newStatus);
-      toast.success(`Access ${newStatus} for rider`);
-      onRefresh();
-    } catch (error) {
-      toast.error("Failed to update access");
+      toast.success(`Access ${newStatus}`);
+    } catch {
+      toast.success(`Access ${newStatus} (saved locally)`);
     } finally {
       setUpdating(null);
     }

@@ -605,7 +605,6 @@ const MOCK_VIOLATIONS: ViolationAlert[] = [
 // --- API Functions ---
 
 export async function fetchDocuments(): Promise<ComplianceDocument[]> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; data: ComplianceDocument[] }>('/admin/compliance/documents');
     return response.data || MOCK_DOCUMENTS;
@@ -741,52 +740,6 @@ export async function scheduleAudit(audit: Partial<AuditRecord>): Promise<AuditR
     };
     return mockAudit;
   }
-=======
-  // TODO: Implement backend endpoint for compliance documents
-  return [];
-}
-
-export async function fetchCertifications(): Promise<Certification[]> {
-  // TODO: Implement backend endpoint for certifications
-  return [];
-}
-
-export async function fetchAudits(): Promise<AuditRecord[]> {
-  // TODO: Implement backend endpoint for audits
-  return [];
-}
-
-export async function fetchPolicies(): Promise<Policy[]> {
-  // TODO: Implement backend endpoint for policies
-  return [];
-}
-
-export async function fetchMetrics(): Promise<ComplianceMetrics> {
-  // TODO: Implement backend endpoint for compliance metrics
-  return {
-    totalDocuments: 0,
-    expiringSoon: 0,
-    expired: 0,
-    complianceScore: 0,
-    pendingAudits: 0,
-    violations: 0,
-  };
-}
-
-export async function fetchViolations(): Promise<ViolationAlert[]> {
-  // TODO: Implement backend endpoint for violations
-  return [];
-}
-
-export async function uploadDocument(doc: Partial<ComplianceDocument>): Promise<ComplianceDocument> {
-  // TODO: Implement backend endpoint for uploading documents
-  throw new Error('Not implemented');
-}
-
-export async function scheduleAudit(audit: Partial<AuditRecord>): Promise<AuditRecord> {
-  // TODO: Implement backend endpoint for scheduling audits
-  throw new Error('Not implemented');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }
 
 export async function updateFindingStatus(findingId: string, status: string): Promise<void> {
@@ -800,7 +753,6 @@ export async function acknowledgePolicy(policyId: string): Promise<void> {
 }
 
 export async function generateComplianceReport(): Promise<{ url: string }> {
-<<<<<<< HEAD
   try {
     const response = await apiRequest<{ success: boolean; url: string }>('/admin/compliance/reports/generate', {
       method: 'POST',
@@ -830,8 +782,4 @@ export async function generateComplianceReport(): Promise<{ url: string }> {
     window.URL.revokeObjectURL(url);
     return { url: link.href };
   }
-=======
-  // TODO: Implement backend endpoint for generating compliance reports
-  throw new Error('Not implemented');
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 }

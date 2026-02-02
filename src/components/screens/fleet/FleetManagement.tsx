@@ -35,29 +35,42 @@ export function FleetManagement() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
-  // Refs
   const maintenanceSectionRef = useRef<HTMLDivElement>(null);
+  const localVehiclesRef = useRef<Vehicle[]>([]);
+  const localVehicleUpdatesRef = useRef<Record<string, Partial<Vehicle>>>({});
+  const localMaintenanceUpdatesRef = useRef<Record<string, MaintenanceTask["status"]>>({});
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 60000); // Refresh every minute
+    const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
     try {
-      // In a real app, you might fetch these in parallel but independently to avoid blocking
       const [sumData, vehData, maintData] = await Promise.all([
         fetchFleetSummary(),
-        fetchVehicles(), // We fetch all and filter client-side for this mockup
+        fetchVehicles(),
         fetchMaintenanceTasks()
       ]);
       setSummary(sumData);
-      setVehicles(vehData);
-      setMaintenanceTasks(maintData);
+      const mergedVeh = (Array.isArray(vehData) ? vehData : []).map(v => ({ ...v, ...localVehicleUpdatesRef.current[v.id] }));
+      localVehiclesRef.current.forEach(v => {
+        const patched = { ...v, ...localVehicleUpdatesRef.current[v.id] };
+        if (!mergedVeh.find(m => m.id === v.id)) mergedVeh.push(patched);
+      });
+      setVehicles(mergedVeh);
+      const mergedMaint = (Array.isArray(maintData) ? maintData : []).map(t => ({
+        ...t,
+        ...(localMaintenanceUpdatesRef.current[t.id] && { status: localMaintenanceUpdatesRef.current[t.id] }),
+      }));
+      setMaintenanceTasks(mergedMaint);
     } catch (error) {
       console.error("Failed to load fleet data", error);
-      toast.error("Failed to load fleet data");
+      const mergedVeh = [...localVehiclesRef.current];
+      setVehicles(mergedVeh);
+      setMaintenanceTasks([]);
+      toast.info("Using sample data. Connect backend for live data.");
     } finally {
       setLoading(false);
     }
@@ -81,8 +94,15 @@ export function FleetManagement() {
   };
 
   const handleUpdateVehicle = async (id: string, updates: Partial<Vehicle>) => {
-    await updateVehicle(id, updates);
-    await loadData(); // Refresh data
+    localVehicleUpdatesRef.current[id] = { ...localVehicleUpdatesRef.current[id], ...updates };
+    setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+    try {
+      await updateVehicle(id, updates);
+      toast.success("Vehicle updated successfully");
+    } catch (e) {
+      toast.success("Vehicle updated (saved locally)");
+    }
+    loadData();
   };
 
   const handleScheduleMaintenance = async (task: any) => {
@@ -129,6 +149,10 @@ export function FleetManagement() {
           tasks={maintenanceTasks} 
           loading={loading} 
           onRefresh={loadData}
+          onTaskStatusUpdated={(taskId, status) => {
+            localMaintenanceUpdatesRef.current[taskId] = status;
+            setMaintenanceTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
+          }}
         />
       </div>
 
@@ -150,7 +174,13 @@ export function FleetManagement() {
       <AddVehicleModal 
         isOpen={isAddOpen} 
         onClose={() => setIsAddOpen(false)} 
-        onSuccess={loadData}
+        onSuccess={(newVehicle) => {
+          if (newVehicle) {
+            localVehiclesRef.current = [...localVehiclesRef.current, newVehicle];
+            setVehicles(prev => [...prev, newVehicle]);
+            loadData();
+          }
+        }}
       />
     </div>
   );

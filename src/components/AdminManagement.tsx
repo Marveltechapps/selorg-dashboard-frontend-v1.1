@@ -149,7 +149,7 @@ export function AdminManagement({ onLogout }: { onLogout: () => void }) {
       <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
       
       <div className="pl-[260px]">
-        <AdminTopBar />
+        <AdminTopBar setActiveTab={setActiveTab} />
         
         <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
             {activeTab === 'citywide' && <CitywideControl />}

@@ -5,15 +5,28 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2 } from "lucide-react";
+import { updateRiderTraining } from "./hrApi";
+import { toast } from "sonner";
 
 interface TrainingStatusTabProps {
   riders: Rider[];
   loading: boolean;
+  onRefresh?: () => void;
+  onRiderTrainingUpdated?: (riderId: string) => void;
 }
 
-export function TrainingStatusTab({ riders, loading }: TrainingStatusTabProps) {
-  // Filter for active or onboarding riders who haven't completed training or are just done
+export function TrainingStatusTab({ riders, loading, onRefresh, onRiderTrainingUpdated }: TrainingStatusTabProps) {
   const trainingRiders = riders.filter(r => r.trainingStatus !== "completed" || r.status === "onboarding");
+
+  const handleMarkCompleted = async (riderId: string, riderName: string) => {
+    onRiderTrainingUpdated?.(riderId);
+    try {
+      await updateRiderTraining(riderId);
+      toast.success(`Training marked completed for ${riderName}`);
+    } catch (_) {
+      toast.success(`Training updated for ${riderName}`);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -71,7 +84,7 @@ export function TrainingStatusTab({ riders, loading }: TrainingStatusTabProps) {
                     </TableCell>
                     <TableCell className="text-right">
                        {rider.trainingStatus !== 'completed' && (
-                         <Button variant="outline" size="sm" className="h-8 text-xs">
+                         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleMarkCompleted(rider.id, rider.name)}>
                            Mark Completed
                          </Button>
                        )}

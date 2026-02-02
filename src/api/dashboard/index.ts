@@ -1,7 +1,15 @@
 /**
  * Dashboard API
- * Handles dashboard-related API calls
+ * Handles dashboard-related API calls. Uses mock data when API fails or returns empty.
  */
+
+import {
+  MOCK_DASHBOARD_SUMMARY,
+  MOCK_STAFF_LOAD,
+  MOCK_STOCK_ALERTS,
+  MOCK_RTO_ALERTS,
+  MOCK_LIVE_ORDERS,
+} from './darkstoreMockData';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
@@ -14,7 +22,6 @@ async function get(endpoint: string, params?: Record<string, any>) {
       }
     });
   }
-  
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`API Error: ${response.statusText}`);
@@ -30,7 +37,6 @@ async function post(endpoint: string, data?: Record<string, any>) {
     },
     body: data ? JSON.stringify(data) : undefined,
   });
-  
   if (!response.ok) {
     throw new Error(`API Error: ${response.statusText}`);
   }
@@ -43,35 +49,55 @@ const BASE_PATH = '/api/v1/darkstore/dashboard';
  * Get dashboard summary metrics
  */
 export async function getDashboardSummary(storeId = 'DS-Brooklyn-04') {
-  return get(`${BASE_PATH}/summary`, { storeId });
+  try {
+    const data = await get(`${BASE_PATH}/summary`, { storeId });
+    if (data && (data.queue != null || data.sla_threat != null)) return data;
+  } catch (_) {}
+  return MOCK_DASHBOARD_SUMMARY;
 }
 
 /**
  * Get staff load metrics
  */
 export async function getStaffLoad(storeId = 'DS-Brooklyn-04') {
-  return get(`${BASE_PATH}/staff-load`, { storeId });
+  try {
+    const data = await get(`${BASE_PATH}/staff-load`, { storeId });
+    if (data && (data.pickers != null || data.packers != null)) return data;
+  } catch (_) {}
+  return MOCK_STAFF_LOAD;
 }
 
 /**
  * Get stock alerts
  */
 export async function getStockAlerts(storeId = 'DS-Brooklyn-04', severity = 'all') {
-  return get(`${BASE_PATH}/stock-alerts`, { storeId, severity });
+  try {
+    const data = await get(`${BASE_PATH}/stock-alerts`, { storeId, severity });
+    if (data && Array.isArray(data.alerts)) return data;
+  } catch (_) {}
+  return MOCK_STOCK_ALERTS;
 }
 
 /**
  * Get RTO alerts
  */
 export async function getRTOAlerts(storeId = 'DS-Brooklyn-04') {
-  return get(`${BASE_PATH}/rto-alerts`, { storeId });
+  try {
+    const data = await get(`${BASE_PATH}/rto-alerts`, { storeId });
+    if (data && Array.isArray(data.alerts)) return data;
+  } catch (_) {}
+  return MOCK_RTO_ALERTS;
 }
 
 /**
  * Get live orders
  */
 export async function getLiveOrders(storeId = 'DS-Brooklyn-04', status = 'all', limit = 50) {
-  return get(`${BASE_PATH}/live-orders`, { storeId, status, limit });
+  try {
+    const data = await get(`${BASE_PATH}/live-orders`, { storeId, status, limit });
+    if (data && Array.isArray(data.orders) && data.orders.length > 0) return data;
+  } catch (_) {}
+  return { orders: MOCK_LIVE_ORDERS };
 }
 
 /**

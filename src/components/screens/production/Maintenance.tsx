@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
+import { getProductionSession, setProductionSession, PRODUCTION_KEYS } from '../../../utils/productionSessionStore';
 
 interface Equipment {
   id: string;
@@ -59,28 +60,59 @@ export function MaintenanceAssets() {
   const [showDetailsModal, setShowDetailsModal] = useState<Equipment | MaintenanceTask | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [equipment, setEquipment] = useState<Equipment[]>([
+  const DEFAULT_EQUIPMENT: Equipment[] = [
     { id: '1', name: 'Conveyor Belt A1', code: 'CVB-A1', status: 'operational', health: 98, location: 'Line A', category: 'Conveyor', lastMaintenance: '2024-12-15', nextMaintenance: '2025-01-15' },
     { id: '2', name: 'Mixer M-200', code: 'MXR-200', status: 'maintenance', health: 75, location: 'Processing Area', category: 'Mixer', lastMaintenance: '2024-11-20', nextMaintenance: '2024-12-24' },
     { id: '3', name: 'Packaging Machine PM-3', code: 'PKG-PM3', status: 'operational', health: 92, location: 'Line B', category: 'Packaging', lastMaintenance: '2024-12-10', nextMaintenance: '2025-01-10' },
     { id: '4', name: 'Industrial Oven IO-1', code: 'OVN-IO1', status: 'operational', health: 88, location: 'Baking Area', category: 'Oven', lastMaintenance: '2024-12-05', nextMaintenance: '2024-12-30' },
     { id: '5', name: 'Cooling System CS-A', code: 'CLS-CSA', status: 'down', health: 45, location: 'Line A', category: 'Cooling', lastMaintenance: '2024-12-01', nextMaintenance: '2024-12-22' },
-  ]);
-
-  const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>([
+  ];
+  const DEFAULT_TASKS: MaintenanceTask[] = [
     { id: '1', equipmentId: '2', equipmentName: 'Mixer M-200', taskType: 'preventive', priority: 'high', status: 'scheduled', scheduledDate: '2024-12-24', description: 'Lubrication and belt replacement', estimatedHours: 4 },
     { id: '2', equipmentId: '5', equipmentName: 'Cooling System CS-A', taskType: 'breakdown', priority: 'critical', status: 'in-progress', scheduledDate: '2024-12-22', description: 'Compressor failure - urgent repair', technician: 'John Smith', estimatedHours: 8 },
     { id: '3', equipmentId: '4', equipmentName: 'Industrial Oven IO-1', taskType: 'preventive', priority: 'medium', status: 'scheduled', scheduledDate: '2024-12-30', description: 'Temperature calibration', estimatedHours: 2 },
     { id: '4', equipmentId: '3', equipmentName: 'Packaging Machine PM-3', taskType: 'corrective', priority: 'low', status: 'completed', scheduledDate: '2024-12-20', completedDate: '2024-12-20', description: 'Minor adjustment to sealing unit', technician: 'Sarah Johnson', estimatedHours: 1 },
-  ]);
-
-  const [iotDevices, setIotDevices] = useState<IoTDevice[]>([
+  ];
+  const DEFAULT_IOT: IoTDevice[] = [
     { id: '1', deviceId: 'HSD-A1-001', name: 'Line A Temperature Monitor', type: 'HSD', status: 'online', battery: 85, lastReading: '2 min ago', location: 'Line A' },
     { id: '2', deviceId: 'HSD-B2-002', name: 'Line B Vibration Sensor', type: 'HSD', status: 'online', battery: 92, lastReading: '1 min ago', location: 'Line B' },
     { id: '3', deviceId: 'SNR-M200-01', name: 'Mixer Speed Sensor', type: 'Sensor', status: 'online', battery: 15, lastReading: '3 min ago', location: 'Processing Area' },
     { id: '4', deviceId: 'HSD-C3-003', name: 'Cooling System Monitor', type: 'HSD', status: 'warning', battery: 78, lastReading: '15 min ago', location: 'Line A' },
     { id: '5', deviceId: 'MON-OV-01', name: 'Oven Temperature Monitor', type: 'Monitor', status: 'online', battery: 88, lastReading: '1 min ago', location: 'Baking Area' },
-  ]);
+  ];
+
+  const [equipment, setEquipmentState] = useState<Equipment[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.maintenanceEquipment, DEFAULT_EQUIPMENT)
+  );
+  const [maintenanceTasks, setMaintenanceTasksState] = useState<MaintenanceTask[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.maintenanceTasks, DEFAULT_TASKS)
+  );
+
+  const setEquipment = (next: Equipment[] | ((prev: Equipment[]) => Equipment[])) => {
+    setEquipmentState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.maintenanceEquipment, resolved);
+      return resolved;
+    });
+  };
+  const setMaintenanceTasks = (next: MaintenanceTask[] | ((prev: MaintenanceTask[]) => MaintenanceTask[])) => {
+    setMaintenanceTasksState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.maintenanceTasks, resolved);
+      return resolved;
+    });
+  };
+
+  const [iotDevices, setIotDevicesState] = useState<IoTDevice[]>(() =>
+    getProductionSession(PRODUCTION_KEYS.maintenanceIot, DEFAULT_IOT)
+  );
+  const setIotDevices = (next: IoTDevice[] | ((prev: IoTDevice[]) => IoTDevice[])) => {
+    setIotDevicesState(prev => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      setProductionSession(PRODUCTION_KEYS.maintenanceIot, resolved);
+      return resolved;
+    });
+  };
 
   const [newMaintenance, setNewMaintenance] = useState({
     equipmentId: '',
@@ -113,7 +145,7 @@ export function MaintenanceAssets() {
           description: newMaintenance.description,
           estimatedHours: parseInt(newMaintenance.estimatedHours) || undefined,
         };
-        setMaintenanceTasks([task, ...maintenanceTasks]);
+        setMaintenanceTasks(prev => [task, ...prev]);
         setNewMaintenance({ equipmentId: '', taskType: 'preventive', priority: 'medium', scheduledDate: '', description: '', estimatedHours: '' });
         setShowScheduleModal(false);
       }
@@ -131,14 +163,15 @@ export function MaintenanceAssets() {
         location: newEquipment.location,
         category: newEquipment.category,
       };
-      setEquipment([...equipment, equip]);
+      setEquipment(prev => [...prev, equip]);
       setNewEquipment({ name: '', code: '', category: '', location: '' });
       setShowEquipmentModal(false);
     }
   };
 
   const updateTaskStatus = (id: string, newStatus: MaintenanceTask['status']) => {
-    setMaintenanceTasks(maintenanceTasks.map(t => {
+    const task = maintenanceTasks.find(t => t.id === id);
+    setMaintenanceTasks(prev => prev.map(t => {
       if (t.id === id) {
         const updates: Partial<MaintenanceTask> = { status: newStatus };
         if (newStatus === 'completed') {
@@ -153,19 +186,15 @@ export function MaintenanceAssets() {
       return t;
     }));
 
-    // Update equipment status when task is completed
-    if (newStatus === 'completed') {
-      const task = maintenanceTasks.find(t => t.id === id);
-      if (task) {
-        setEquipment(equipment.map(e => 
-          e.id === task.equipmentId ? { 
-            ...e, 
-            status: 'operational' as const, 
-            health: Math.min(100, e.health + 10),
-            lastMaintenance: new Date().toISOString().split('T')[0]
-          } : e
-        ));
-      }
+    if (newStatus === 'completed' && task) {
+      setEquipment(prev => prev.map(e => 
+        e.id === task.equipmentId ? { 
+          ...e, 
+          status: 'operational' as const, 
+          health: Math.min(100, e.health + 10),
+          lastMaintenance: new Date().toISOString().split('T')[0]
+        } : e
+      ));
     }
   };
 

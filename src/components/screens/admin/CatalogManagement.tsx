@@ -35,16 +35,13 @@ import {
   fetchAttributes,
   deleteProduct,
   updateProduct,
-<<<<<<< HEAD
   createProduct,
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   getStockStatus,
 } from './catalogApi';
 import { AddProductModal } from './modals/AddProductModal';
 import { AddCategoryModal } from './modals/AddCategoryModal';
 import { BulkProductOperationsModal } from './modals/BulkProductOperationsModal';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   Package,
   Plus,
@@ -79,10 +76,7 @@ export function CatalogManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<string>('products');
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const [stockFilter, setStockFilter] = useState<string>('all');
   
   // Modals
@@ -154,7 +148,6 @@ export function CatalogManagement() {
     setAddProductOpen(true);
   };
 
-<<<<<<< HEAD
   const handleDuplicateProduct = async (product: Product) => {
     try {
       const duplicateData: Partial<Product> = {
@@ -174,11 +167,6 @@ export function CatalogManagement() {
       console.error('Duplicate product error:', error);
       toast.error('Failed to duplicate product');
     }
-=======
-  const handleDuplicateProduct = (product: Product) => {
-    // For demo - in real app, would create a copy
-    toast.info(`Duplicating product: ${product.name}`);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -197,7 +185,6 @@ export function CatalogManagement() {
     }
   };
 
-<<<<<<< HEAD
   const handleExport = () => {
     try {
       if (filteredProducts.length === 0) {
@@ -387,9 +374,6 @@ export function CatalogManagement() {
     };
     input.click();
   };
-
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   // Filtering
   const filteredProducts = products.filter(product => {
     // Search filter
@@ -448,7 +432,6 @@ export function CatalogManagement() {
           <p className="text-[#71717a] text-sm">Manage products, categories, and inventory</p>
         </div>
         <div className="flex gap-2">
-<<<<<<< HEAD
           <Button 
             variant="outline" 
             size="sm" 
@@ -461,12 +444,6 @@ export function CatalogManagement() {
             size="sm" 
             onClick={handleImport}
           >
-=======
-          <Button variant="outline" size="sm" onClick={() => toast.info('Export feature')}>
-            <Download size={14} className="mr-1.5" /> Export
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => toast.info('Import feature')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Upload size={14} className="mr-1.5" /> Import
           </Button>
           <Button size="sm" onClick={loadData} variant="outline">
@@ -539,15 +516,9 @@ export function CatalogManagement() {
       </div>
 
       {/* Main Content */}
-<<<<<<< HEAD
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="products" id="products-tab">
-=======
-      <Tabs defaultValue="products" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="products">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
             <Package size={14} className="mr-1.5" /> Products
           </TabsTrigger>
           <TabsTrigger value="categories">
@@ -633,11 +604,7 @@ export function CatalogManagement() {
             </div>
 
             {/* Table */}
-<<<<<<< HEAD
             <div className="overflow-auto max-h-[600px] overflow-x-auto">
-=======
-            <div className="overflow-auto max-h-[600px]">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
               <Table>
                 <TableHeader className="sticky top-0 bg-[#f9fafb] z-10">
                   <TableRow>
@@ -690,11 +657,7 @@ export function CatalogManagement() {
                                 </div>
                               )}
                             </div>
-<<<<<<< HEAD
                             <div className="min-w-0 flex-1">
-=======
-                            <div className="min-w-0">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                               <div className="font-medium text-[#18181b] flex items-center gap-1.5">
                                 {product.name}
                                 {product.featured && <Star size={12} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
@@ -702,7 +665,6 @@ export function CatalogManagement() {
                               <div className="text-xs text-[#71717a] truncate">
                                 {product.attributes.weight || 'No weight specified'}
                               </div>
-<<<<<<< HEAD
                               {product.tags && product.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1 max-w-[200px] overflow-x-auto">
                                   {product.tags.slice(0, 3).map((tag, idx) => (
@@ -717,8 +679,6 @@ export function CatalogManagement() {
                                   )}
                                 </div>
                               )}
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                             </div>
                           </div>
                         </TableCell>
@@ -835,7 +795,6 @@ export function CatalogManagement() {
                       </Badge>
                     </div>
                     {subcats.length > 0 && (
-<<<<<<< HEAD
                       <div className="p-4 space-y-2 max-h-[300px] overflow-y-auto">
                         {subcats.map(subcat => (
                           <div 
@@ -848,11 +807,6 @@ export function CatalogManagement() {
                               setActiveTab('products');
                             }}
                           >
-=======
-                      <div className="p-4 space-y-2">
-                        {subcats.map(subcat => (
-                          <div key={subcat.id} className="flex items-center justify-between py-2 px-3 rounded hover:bg-[#f4f4f5]">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                             <div className="flex items-center gap-2">
                               <div className="w-1 h-1 rounded-full bg-[#a1a1aa]"></div>
                               <span className="text-sm text-[#52525b]">{subcat.name}</span>
@@ -914,7 +868,6 @@ export function CatalogManagement() {
                 Upload a CSV file to add multiple products at once. Download the template to get started.
               </p>
               <div className="flex gap-3 justify-center">
-<<<<<<< HEAD
                 <Button 
                   variant="outline" 
                   onClick={handleDownloadTemplate}
@@ -922,12 +875,6 @@ export function CatalogManagement() {
                   <Download size={14} className="mr-1.5" /> Download Template
                 </Button>
                 <Button onClick={handleBulkImport}>
-=======
-                <Button variant="outline" onClick={() => toast.info('Download CSV template')}>
-                  <Download size={14} className="mr-1.5" /> Download Template
-                </Button>
-                <Button onClick={() => toast.info('Upload CSV file')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                   <Upload size={14} className="mr-1.5" /> Upload CSV
                 </Button>
               </div>

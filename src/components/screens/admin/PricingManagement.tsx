@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-<<<<<<< HEAD
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,10 +13,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-=======
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   Table,
   TableBody,
   TableCell,
@@ -47,20 +42,14 @@ import {
   fetchPricingStats,
   deleteSurgeRule,
   deleteCoupon,
-<<<<<<< HEAD
   updateCoupon,
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   updateCouponStatus,
 } from './pricingApi';
 import { AddSurgeRuleModal } from './modals/AddSurgeRuleModal';
 import { AddCouponModal } from './modals/AddCouponModal';
-<<<<<<< HEAD
 import { AddCampaignModal } from './modals/AddCampaignModal';
 import { createDiscount, createFlashSale, createBundle } from './pricingApi';
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   Tag,
   Plus,
@@ -105,7 +94,6 @@ export function PricingManagement() {
 
   // Modals
   const [addSurgeOpen, setAddSurgeOpen] = useState(false);
-<<<<<<< HEAD
   const [editSurgeRule, setEditSurgeRule] = useState<SurgeRule | null>(null);
   const [duplicateSurgeRule, setDuplicateSurgeRule] = useState<SurgeRule | null>(null);
   const [addCouponOpen, setAddCouponOpen] = useState(false);
@@ -113,9 +101,6 @@ export function PricingManagement() {
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [addFlashSaleOpen, setAddFlashSaleOpen] = useState(false);
   const [addBundleOpen, setAddBundleOpen] = useState(false);
-=======
-  const [addCouponOpen, setAddCouponOpen] = useState(false);
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
 
   useEffect(() => {
     loadData();
@@ -139,25 +124,18 @@ export function PricingManagement() {
       setBundles(bundleData);
       setStats(statsData);
     } catch (error) {
-<<<<<<< HEAD
       console.error('Failed to load pricing data:', error);
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       toast.error('Failed to load pricing data');
     } finally {
       setLoading(false);
     }
   };
 
-<<<<<<< HEAD
   // Refresh button handler
   const handleRefresh = async () => {
     await loadData();
     toast.success('Data refreshed');
   };
-
-=======
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
   const handleDeleteSurgeRule = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
     try {
@@ -224,11 +202,7 @@ export function PricingManagement() {
           <h1 className="text-2xl font-bold text-[#18181b]">Pricing & Promotions</h1>
           <p className="text-[#71717a] text-sm">Manage pricing rules, discounts, and promotional campaigns</p>
         </div>
-<<<<<<< HEAD
         <Button size="sm" onClick={handleRefresh} variant="outline">
-=======
-        <Button size="sm" onClick={loadData} variant="outline">
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
           <RefreshCw size={14} className="mr-1.5" /> Refresh
         </Button>
       </div>
@@ -397,7 +371,6 @@ export function PricingManagement() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-<<<<<<< HEAD
                               <DropdownMenuItem onClick={() => {
                                 setEditSurgeRule(rule);
                                 setDuplicateSurgeRule(null);
@@ -410,12 +383,6 @@ export function PricingManagement() {
                                 setEditSurgeRule(null);
                                 setAddSurgeOpen(true);
                               }}>
-=======
-                              <DropdownMenuItem>
-                                <Edit size={14} className="mr-2" /> Edit Rule
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                                 <Copy size={14} className="mr-2" /> Duplicate
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -445,14 +412,10 @@ export function PricingManagement() {
                 <h3 className="font-bold text-[#18181b]">Discount Campaigns</h3>
                 <p className="text-xs text-[#71717a] mt-0.5">Category-wide and product-specific discount offers</p>
               </div>
-<<<<<<< HEAD
               <Button 
                 size="sm" 
                 onClick={() => setAddCampaignOpen(true)}
               >
-=======
-              <Button size="sm" onClick={() => toast.info('Add discount feature')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> Create Campaign
               </Button>
             </div>
@@ -628,14 +591,10 @@ export function PricingManagement() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-<<<<<<< HEAD
                               <DropdownMenuItem onClick={() => {
                                 setEditCoupon(coupon);
                                 setAddCouponOpen(true);
                               }}>
-=======
-                              <DropdownMenuItem>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                                 <Edit size={14} className="mr-2" /> Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleCopyCoupon(coupon.code)}>
@@ -668,14 +627,10 @@ export function PricingManagement() {
                 <h3 className="font-bold text-[#18181b]">Flash Sales</h3>
                 <p className="text-xs text-[#71717a] mt-0.5">Limited-time deals on specific products</p>
               </div>
-<<<<<<< HEAD
               <Button 
                 size="sm" 
                 onClick={() => setAddFlashSaleOpen(true)}
               >
-=======
-              <Button size="sm" onClick={() => toast.info('Create flash sale')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> Create Flash Sale
               </Button>
             </div>
@@ -743,14 +698,10 @@ export function PricingManagement() {
                 <h3 className="font-bold text-[#18181b]">Product Bundles</h3>
                 <p className="text-xs text-[#71717a] mt-0.5">Curated product combos at discounted prices</p>
               </div>
-<<<<<<< HEAD
               <Button 
                 size="sm" 
                 onClick={() => setAddBundleOpen(true)}
               >
-=======
-              <Button size="sm" onClick={() => toast.info('Create bundle')}>
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
                 <Plus size={14} className="mr-1.5" /> Create Bundle
               </Button>
             </div>
@@ -806,7 +757,6 @@ export function PricingManagement() {
       {/* Modals */}
       <AddSurgeRuleModal
         open={addSurgeOpen}
-<<<<<<< HEAD
         onOpenChange={(open) => {
           setAddSurgeOpen(open);
           if (!open) {
@@ -817,15 +767,10 @@ export function PricingManagement() {
         onSuccess={loadData}
         editRule={editSurgeRule}
         duplicateRule={duplicateSurgeRule}
-=======
-        onOpenChange={setAddSurgeOpen}
-        onSuccess={loadData}
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
       />
 
       <AddCouponModal
         open={addCouponOpen}
-<<<<<<< HEAD
         onOpenChange={(open) => {
           setAddCouponOpen(open);
           if (!open) setEditCoupon(null);
@@ -946,11 +891,6 @@ export function PricingManagement() {
           </DialogContent>
         </Dialog>
       )}
-=======
-        onOpenChange={setAddCouponOpen}
-        onSuccess={loadData}
-      />
->>>>>>> 63b3bc210ee91a70915e036eecbe3c11bfc59f48
     </div>
   );
 }

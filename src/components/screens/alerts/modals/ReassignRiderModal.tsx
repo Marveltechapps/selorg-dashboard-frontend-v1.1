@@ -3,39 +3,53 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Search, User } from "lucide-react";
+import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+
+interface RiderOption {
+  id: string;
+  name: string;
+  distance?: string;
+  status?: string;
+  load?: number;
+}
 
 interface ReassignRiderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (riderId: string, riderName: string) => Promise<void>;
+  riders?: RiderOption[];
 }
 
-// Mock Riders for this modal
-const MOCK_RIDERS = [
-  { id: "r-1", name: "Alice Smith", distance: "0.5km", status: "online", load: 0 },
-  { id: "r-2", name: "Bob Jones", distance: "1.2km", status: "online", load: 1 },
-  { id: "r-3", name: "Charlie Day", distance: "2.0km", status: "busy", load: 3 },
-  { id: "r-4", name: "David Kim", distance: "0.8km", status: "online", load: 0 },
-  { id: "r-5", name: "Eve Polastri", distance: "1.5km", status: "online", load: 1 },
+const FALLBACK_RIDERS: RiderOption[] = [
+  { id: "r1", name: "Raj K", distance: "0.5km", status: "online", load: 0 },
+  { id: "r2", name: "Priya M", distance: "1.2km", status: "online", load: 1 },
+  { id: "r3", name: "Amit S", distance: "2.0km", status: "idle", load: 0 },
 ];
 
-export function ReassignRiderModal({ isOpen, onClose, onConfirm }: ReassignRiderModalProps) {
+export function ReassignRiderModal({ isOpen, onClose, onConfirm, riders: ridersProp }: ReassignRiderModalProps) {
   const [search, setSearch] = useState("");
-  const [selectedRider, setSelectedRider] = useState<typeof MOCK_RIDERS[0] | null>(null);
+  const [selectedRider, setSelectedRider] = useState<RiderOption | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const filteredRiders = MOCK_RIDERS.filter(r => 
-    r.name.toLowerCase().includes(search.toLowerCase()) && r.status !== "offline"
+  const ridersList = ridersProp?.length ? ridersProp.map(r => ({ id: r.id, name: r.name, distance: `${Math.floor(Math.random() * 2) + 0.5}km`, status: (r as any).status || "online", load: (r as any).capacity?.currentLoad ?? 0 })) : FALLBACK_RIDERS;
+  const filteredRiders = ridersList.filter(r => 
+    r.name.toLowerCase().includes(search.toLowerCase()) && (r.status !== "offline")
   );
 
   const handleAssign = async () => {
     if (!selectedRider) return;
     setLoading(true);
-    await onConfirm(selectedRider.id, selectedRider.name);
-    setLoading(false);
-    onClose();
+    try {
+      await onConfirm(selectedRider.id, selectedRider.name);
+      toast.success(`Order reassigned to ${selectedRider.name}`);
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reassign failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

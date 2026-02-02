@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Category, createCategory, fetchCategories } from '../catalogApi';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { FolderTree } from 'lucide-react';
 
 interface AddCategoryModalProps {

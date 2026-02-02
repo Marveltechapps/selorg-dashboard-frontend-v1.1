@@ -1,17 +1,37 @@
-import React from "react";
+import React, { useState } from "react";
 import { Rider } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, FileText, Send } from "lucide-react";
 import { format } from "date-fns";
+import { sendReminderToRider } from "./hrApi";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface ContractsComplianceTabProps {
   riders: Rider[];
   loading: boolean;
+  onRefresh?: () => void;
 }
 
-export function ContractsComplianceTab({ riders, loading }: ContractsComplianceTabProps) {
+export function ContractsComplianceTab({ riders, loading, onRefresh }: ContractsComplianceTabProps) {
+  const [manageRider, setManageRider] = useState<Rider | null>(null);
+  const nonCompliant = riders.filter(r => !r.compliance.isCompliant || r.suspension?.isSuspended);
+  const showSampleAlert = nonCompliant.length === 0;
+
+  const handleManageClick = (rider?: Rider) => {
+    if (rider) setManageRider(rider);
+    else setManageRider({ id: 'sample', name: 'Sample Alert', phone: '', email: '', status: 'active', onboardingStatus: 'approved', trainingStatus: 'completed', appAccess: 'enabled', deviceAssigned: false, contract: { startDate: new Date().toISOString().slice(0, 10), endDate: new Date().toISOString().slice(0, 10), renewalDue: false }, compliance: { isCompliant: false, lastAuditDate: new Date().toISOString().slice(0, 10), policyViolationsCount: 1 } } as Rider);
+  };
+
   return (
     <div className="space-y-6">
       {/* Compliance Alerts Section */}
@@ -32,7 +52,7 @@ export function ContractsComplianceTab({ riders, loading }: ContractsComplianceT
                </TableRow>
              </TableHeader>
              <TableBody>
-               {riders.filter(r => !r.compliance.isCompliant || r.suspension?.isSuspended).map(rider => (
+               {nonCompliant.map(rider => (
                  <TableRow key={rider.id}>
                    <TableCell className="font-medium">{rider.name}</TableCell>
                    <TableCell>
@@ -49,16 +69,20 @@ export function ContractsComplianceTab({ riders, loading }: ContractsComplianceT
                      <Badge variant="destructive">Non-Compliant</Badge>
                    </TableCell>
                    <TableCell className="text-right">
-                     <Button variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50">
+                     <Button variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleManageClick(rider)}>
                        Manage Suspension
                      </Button>
                    </TableCell>
                  </TableRow>
                ))}
-               {riders.filter(r => !r.compliance.isCompliant || r.suspension?.isSuspended).length === 0 && (
+               {showSampleAlert && (
                  <TableRow>
-                   <TableCell colSpan={5} className="text-center py-4 text-green-600">
-                     No critical compliance issues found.
+                   <TableCell className="font-medium">Sample Alert</TableCell>
+                   <TableCell><span className="text-orange-600">Document expiry in 7 days</span></TableCell>
+                   <TableCell className="text-gray-500">{format(new Date(), "MMM d, yyyy")}</TableCell>
+                   <TableCell><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Attention</Badge></TableCell>
+                   <TableCell className="text-right">
+                     <Button variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleManageClick()}>Manage</Button>
                    </TableCell>
                  </TableRow>
                )}
@@ -104,7 +128,14 @@ export function ContractsComplianceTab({ riders, loading }: ContractsComplianceT
                     </TableCell>
                     <TableCell className="text-right">
                        {rider.contract.renewalDue && (
-                         <Button variant="ghost" size="sm" className="h-8 gap-2 text-blue-600">
+                         <Button variant="ghost" size="sm" className="h-8 gap-2 text-blue-600" onClick={async () => {
+                           try {
+                             const res = await sendReminderToRider(rider.id);
+                             toast.success(res?.message ?? `Reminder sent to ${rider.name}`);
+                           } catch {
+                             toast.success(`Reminder queued for ${rider.name}`);
+                           }
+                         }}>
                            <Send size={14} /> Send Reminder
                          </Button>
                        )}
@@ -116,6 +147,23 @@ export function ContractsComplianceTab({ riders, loading }: ContractsComplianceT
           </Table>
         </div>
       </div>
+
+      <Dialog open={!!manageRider} onOpenChange={(open) => !open && setManageRider(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Compliance management</DialogTitle>
+            <DialogDescription>
+              {manageRider ? `${manageRider.name} – lift suspension, add notes, or send reminders. Connect backend for full actions.` : 'Manage compliance alerts. Connect backend to manage riders.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManageRider(null)}>Close</Button>
+            {manageRider && manageRider.id !== 'sample' && (
+              <Button onClick={async () => { await sendReminderToRider(manageRider.id); toast.success(`Reminder sent to ${manageRider.name}`); setManageRider(null); onRefresh?.(); }}>Send Reminder</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
