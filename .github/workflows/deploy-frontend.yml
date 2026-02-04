@@ -25,6 +25,8 @@ jobs:
             echo "=============================="
 
             FRONTEND_DIR="/home/ubuntu/selorg/selorg-dashboard-frontend-v1.1"
+            LOCAL_DOCKERFILE="/home/ubuntu/dockerfiles/Dockerfile.frontend"
+
             IMAGE_NAME="selorg-dashboard-frontend"
             CONTAINER_NAME="selorg-frontend"
             PORT_MAPPING="8080:80"
@@ -38,7 +40,7 @@ jobs:
             git clean -fd
             git pull origin main
 
-            echo "🔐 Apply env file before Vite build"
+            echo "🔐 Apply env file before build"
             cp $ENV_FILE .env
 
             COMMIT=$(git rev-parse --short HEAD)
@@ -52,8 +54,8 @@ jobs:
             echo "📌 Backup current latest image (if exists)"
             sudo docker image inspect $LATEST_IMAGE >/dev/null 2>&1 && sudo docker tag $LATEST_IMAGE $BACKUP_IMAGE || true
 
-            echo "🐳 Build new frontend image (no-cache)"
-            sudo docker build --no-cache -t $NEW_IMAGE .
+            echo "🐳 Build new frontend image using LOCAL Dockerfile (no-cache)"
+            sudo docker build --no-cache -t $NEW_IMAGE -f $LOCAL_DOCKERFILE .
 
             echo "📌 Tag new image as latest"
             sudo docker tag $NEW_IMAGE $LATEST_IMAGE
