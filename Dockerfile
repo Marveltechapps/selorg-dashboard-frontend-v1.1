@@ -9,7 +9,10 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+# Build project
 RUN npm run build
+
 
 # ============================
 # Stage 2: Serve with Nginx
@@ -18,10 +21,10 @@ FROM nginx:alpine
 
 RUN rm -rf /usr/share/nginx/html/*
 
-# Vite output = dist
-COPY --from=build /app/dist /usr/share/nginx/html
+# ✅ Your output folder is "build"
+COPY --from=build /app/build /usr/share/nginx/html
 
-# SPA routing
+# SPA routing support
 RUN printf 'server {\n\
   listen 80;\n\
   server_name _;\n\
