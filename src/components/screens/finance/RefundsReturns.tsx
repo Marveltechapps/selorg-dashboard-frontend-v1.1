@@ -28,8 +28,8 @@ export function RefundsReturns() {
   
   const [filters, setFilters] = useState<RefundQueueFilter>({
       page: 1,
-      pageSize: 10,
-      status: 'pending',
+      pageSize: 50, // Increased to show more data
+      status: undefined, // Show all by default
       reason: undefined,
       dateFrom: undefined,
       dateTo: undefined
@@ -57,6 +57,7 @@ export function RefundsReturns() {
   const loadQueue = useCallback(async () => {
       setIsLoadingQueue(true);
       try {
+          // fetchRefundQueue now uses localStorage data internally
           const result = await fetchRefundQueue(filters);
           setQueue(result.data);
       } catch (e) {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { SKU_CHART_DATA } from './mockData';
+import { SKU_CHART_DATA, SKU_DATA } from './mockData';
 import { toast } from 'sonner';
 import { Package, TrendingDown, AlertCircle } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -14,7 +14,10 @@ import { cn } from "@/lib/utils";
 export function SkuSalesReport() {
   const [dateRange, setDateRange] = useState('30days');
   const [category, setCategory] = useState('all');
-  const [promoOnly, setPromoOnly] = useState(false);
+  const [promoOnly, setPromoOnly] = useState(() => {
+    const stored = localStorage.getItem('sku_promo_only');
+    return stored === 'true';
+  });
   const [skuData, setSkuData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -40,12 +43,18 @@ export function SkuSalesReport() {
               daysCover: 5,
               promoImpact: 10
             })));
+          } else {
+            // Fallback to mock data
+            setSkuData(SKU_DATA);
           }
+        } else {
+          // Fallback to mock data on error
+          setSkuData(SKU_DATA);
         }
       } catch (err) {
         console.error('Failed to load SKU analytics', err);
-        toast.error('Failed to load SKU analytics');
-        setSkuData([]);
+        // Use mock data as fallback
+        setSkuData(SKU_DATA);
       } finally {
         setLoading(false);
       }
@@ -53,19 +62,31 @@ export function SkuSalesReport() {
     return () => { mounted = false; };
   }, [dateRange]);
 
+  useEffect(() => {
+    localStorage.setItem('sku_promo_only', promoOnly.toString());
+  }, [promoOnly]);
+
   const filteredData = useMemo(() => {
     let data = [...skuData];
     if (category !== 'all') {
       data = data.filter(sku => sku.category.toLowerCase() === category.toLowerCase());
     }
+    if (promoOnly) {
+      data = data.filter(sku => sku.promoImpact > 0);
+    }
     return data;
-  }, [category, skuData]);
+  }, [category, promoOnly, skuData]);
 
   return (
     <div className="space-y-6 h-full flex flex-col">
        {/* Filters */}
        <div className="flex flex-wrap items-center gap-4 pb-4 border-b">
-        <Select value={dateRange} onValueChange={setDateRange}>
+        <Select 
+          value={dateRange} 
+          onValueChange={(value) => {
+            setDateRange(value);
+          }}
+        >
             <SelectTrigger className="w-[150px] bg-white text-xs">
                 <SelectValue placeholder="Date Range" />
             </SelectTrigger>
@@ -74,7 +95,12 @@ export function SkuSalesReport() {
                 <SelectItem value="30days">Last 30 Days</SelectItem>
             </SelectContent>
         </Select>
-        <Select value={category} onValueChange={setCategory}>
+        <Select 
+          value={category} 
+          onValueChange={(value) => {
+            setCategory(value);
+          }}
+        >
             <SelectTrigger className="w-[150px] bg-white text-xs">
                 <SelectValue placeholder="Category" />
             </SelectTrigger>
@@ -86,7 +112,16 @@ export function SkuSalesReport() {
             </SelectContent>
         </Select>
         <div className="flex items-center space-x-2 ml-auto">
-            <Switch id="promo-only" checked={promoOnly} onCheckedChange={setPromoOnly} />
+            <Switch 
+              id="promo-only" 
+              checked={promoOnly} 
+              onCheckedChange={(checked) => {
+                setPromoOnly(checked);
+                toast.success("Filter updated", {
+                  description: checked ? "Showing only promo-linked SKUs" : "Showing all SKUs"
+                });
+              }} 
+            />
             <Label htmlFor="promo-only" className="text-xs">Show only promo-linked SKUs</Label>
         </div>
       </div>
@@ -131,15 +166,29 @@ export function SkuSalesReport() {
                   <h3 className="text-sm font-semibold">Top 10 SKUs by Units Sold</h3>
                </div>
                <div className="flex-1 min-h-0">
-                   <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={filteredData.slice(0, 10)} layout="vertical" margin={{ left: 40 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 10}} interval={0} />
-                            <Tooltip cursor={{fill: '#f3f4f6'}} />
-                            <Bar dataKey="unitsSold" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} name="Units Sold" />
-                        </BarChart>
-                   </ResponsiveContainer>
+                   {filteredData.length > 0 ? (
+                     <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={filteredData
+                              .slice()
+                              .sort((a, b) => b.unitsSold - a.unitsSold)
+                              .slice(0, 10)
+                              .map(sku => ({ name: sku.name, unitsSold: sku.unitsSold }))} 
+                            layout="vertical" 
+                            margin={{ left: 40, right: 20, top: 10, bottom: 10 }}
+                          >
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                              <XAxis type="number" />
+                              <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 9}} interval={0} />
+                              <Tooltip cursor={{fill: '#f3f4f6'}} />
+                              <Bar dataKey="unitsSold" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} name="Units Sold" />
+                          </BarChart>
+                     </ResponsiveContainer>
+                   ) : (
+                     <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                       No data available
+                     </div>
+                   )}
                </div>
           </div>
           <div className="bg-white p-4 rounded-lg border shadow-sm overflow-y-auto">

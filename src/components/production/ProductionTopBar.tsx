@@ -272,7 +272,7 @@ export function ProductionTopBar({ setActiveTab, onOpenDowntime }: ProductionTop
             )}
           </button>
           {notificationsOpen && (
-            <div className="absolute top-full right-0 mt-1 w-[320px] bg-white border border-[#E0E0E0] rounded-lg shadow-lg z-50 max-h-[360px] overflow-y-auto">
+            <div className="absolute top-full right-2 mt-1 w-[320px] bg-white border border-[#E0E0E0] rounded-lg shadow-lg z-50 max-h-[360px] overflow-y-auto">
               <div className="p-3 border-b border-[#E0E0E0] flex justify-between items-center">
                 <span className="font-semibold text-[#212121]">Notifications</span>
                 <button type="button" onClick={() => setNotificationsOpen(false)} className="p-1 rounded hover:bg-[#F5F5F5] text-[#757575]">

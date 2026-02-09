@@ -42,7 +42,9 @@ export function NewJournalEntryModal({ open, onClose, onSuccess, accounts }: Pro
   const totalDebits = lines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
   const totalCredits = lines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
-  const isValid = isBalanced && totalDebits > 0 && lines.every(l => l.accountCode);
+  // Filter out empty lines (no account code) for validation
+  const validLines = lines.filter(l => l.accountCode);
+  const isValid = isBalanced && totalDebits > 0 && validLines.length >= 2 && validLines.every(l => l.accountCode && ((l.debit > 0) || (l.credit > 0)));
 
   const handleAddLine = () => {
       setLines([...lines, { accountCode: '', debit: 0, credit: 0, description: '' }]);
@@ -70,22 +72,70 @@ export function NewJournalEntryModal({ open, onClose, onSuccess, accounts }: Pro
       setLines(newLines);
   };
 
-  const handleSubmit = async () => {
-      if (!isValid) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      // Filter out empty lines before validation
+      const validLines = lines.filter(l => l.accountCode && ((Number(l.debit) > 0) || (Number(l.credit) > 0)));
+      
+      // Validate form
+      if (validLines.length < 2) {
+        toast.error("Journal entry must have at least two lines with accounts and amounts");
+        return;
+      }
+      
+      if (!isBalanced) {
+        toast.error(`Debits and credits must balance. Difference: $${Math.abs(totalDebits - totalCredits).toFixed(2)}`);
+        return;
+      }
+      
+      if (totalDebits === 0 && totalCredits === 0) {
+        toast.error("Please enter at least one debit or credit amount");
+        return;
+      }
+      
+      if (!validLines.every(l => l.accountCode)) {
+        toast.error("Please select an account for all lines with amounts");
+        return;
+      }
+      
       setIsSubmitting(true);
       try {
-          await createJournalEntry({
+          const result = await createJournalEntry({
               date,
               reference,
               memo,
-              lines,
-              createdBy: "Current User" // Mock
+              lines: validLines.map(line => ({
+                accountCode: line.accountCode,
+                debit: Number(line.debit) || 0,
+                credit: Number(line.credit) || 0,
+                description: line.description || ''
+              })),
+              createdBy: "Current User"
           });
+          
           toast.success("Journal Entry Posted Successfully");
+          
+          // Reset form before closing
+          setDate(new Date().toISOString().split('T')[0]);
+          setReference(`JE-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`);
+          setMemo('');
+          setLines([
+            { accountCode: '', debit: 0, credit: 0, description: '' },
+            { accountCode: '', debit: 0, credit: 0, description: '' }
+          ]);
+          
+          // Call onSuccess to refresh data
           onSuccess();
+          
+          // Close modal
           onClose();
-      } catch (e) {
-          toast.error("Failed to post journal entry");
+      } catch (error: any) {
+          console.error('Error creating journal entry:', error);
+          toast.error(error?.message || "Failed to post journal entry. Please try again.");
       } finally {
           setIsSubmitting(false);
       }
@@ -129,19 +179,25 @@ export function NewJournalEntryModal({ open, onClose, onSuccess, accounts }: Pro
                      {lines.map((line, idx) => (
                          <div key={idx} className="grid grid-cols-[1fr,2fr,1fr,1fr,40px] gap-2 items-start">
                              <Select 
-                                value={line.accountCode} 
-                                onValueChange={(val) => updateLine(idx, 'accountCode', val)}
+                                value={line.accountCode || ''} 
+                                onValueChange={(val) => {
+                                  updateLine(idx, 'accountCode', val);
+                                }}
                              >
                                 <SelectTrigger className="h-9">
                                     <SelectValue placeholder="Select Account" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {accounts.map(acc => (
+                                    {accounts && accounts.length > 0 ? (
+                                      accounts.map(acc => (
                                         <SelectItem key={acc.code} value={acc.code}>
                                             <span className="font-mono text-xs text-gray-500 mr-2">{acc.code}</span>
                                             {acc.name}
                                         </SelectItem>
-                                    ))}
+                                      ))
+                                    ) : (
+                                      <SelectItem value="" disabled>No accounts available</SelectItem>
+                                    )}
                                 </SelectContent>
                              </Select>
 
@@ -210,11 +266,35 @@ export function NewJournalEntryModal({ open, onClose, onSuccess, accounts }: Pro
         </div>
 
         <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
             <Button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting || !isValid}
-                className="bg-[#212121] text-white hover:bg-black"
+                variant="outline" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Reset form
+                  setDate(new Date().toISOString().split('T')[0]);
+                  setReference(`JE-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`);
+                  setMemo('');
+                  setLines([
+                    { accountCode: '', debit: 0, credit: 0, description: '' },
+                    { accountCode: '', debit: 0, credit: 0, description: '' }
+                  ]);
+                  onClose();
+                }} 
+                disabled={isSubmitting}
+                type="button"
+            >
+              Cancel
+            </Button>
+            <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSubmit(e);
+                }} 
+                disabled={isSubmitting}
+                className="bg-[#212121] text-white hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
             >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Post Entry

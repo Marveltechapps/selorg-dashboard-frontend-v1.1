@@ -15,6 +15,7 @@ import {
 
 import { Alert, AlertStatus } from './alerts/types';
 import { alertsApi } from './alerts/alertsApi';
+import { INITIAL_ALERTS } from './alerts/mockData';
 import { AlertTile } from './alerts/AlertTile';
 import { AlertDetailDrawer } from './alerts/AlertDetailDrawer';
 import { PricingConflictDialog } from './alerts/PricingConflictDialog';
@@ -40,15 +41,46 @@ export function MerchAlerts({ searchQuery = "", onNavigate }: MerchAlertsProps) 
         setLoading(true);
         const alertsResp = await alertsApi.getAlerts({});
         if (!mounted) return;
-        if (alertsResp.success && alertsResp.data) {
+        if (alertsResp.success && alertsResp.data && alertsResp.data.length > 0) {
           setAlerts(alertsResp.data);
-        } else if (alertsResp.data && Array.isArray(alertsResp.data)) {
+        } else if (alertsResp.data && Array.isArray(alertsResp.data) && alertsResp.data.length > 0) {
           setAlerts(alertsResp.data);
+        } else {
+          // Fallback to mock data
+          const mockAlerts = INITIAL_ALERTS;
+          setAlerts(mockAlerts);
+          // Save to localStorage
+          try {
+            localStorage.setItem('merch_alerts', JSON.stringify(mockAlerts));
+          } catch (e) {
+            console.error('Failed to save mock alerts', e);
+          }
         }
       } catch (err) {
         console.error('Failed to load alerts', err);
-        toast.error('Failed to load alerts');
-        setAlerts([]);
+        // Don't show error toast - silently fallback to mock data
+        // Try to load from localStorage first
+        try {
+          const stored = localStorage.getItem('merch_alerts');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAlerts(parsed);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load from localStorage', e);
+        }
+        // Final fallback: use mock data
+        const mockAlerts = INITIAL_ALERTS;
+        setAlerts(mockAlerts);
+        // Save to localStorage
+        try {
+          localStorage.setItem('merch_alerts', JSON.stringify(mockAlerts));
+        } catch (e) {
+          console.error('Failed to save mock alerts', e);
+        }
       } finally {
         setLoading(false);
       }
@@ -67,6 +99,21 @@ export function MerchAlerts({ searchQuery = "", onNavigate }: MerchAlertsProps) 
   const [resolvedAlerts, setResolvedAlerts] = useState<Alert[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
+  // Load resolved alerts from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('merch_alerts_history');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setResolvedAlerts(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load resolved alerts from storage', e);
+    }
+  }, []);
+
   // Sync prop searchQuery with filter search
   useEffect(() => {
     setFilters(prev => ({ ...prev, search: searchQuery }));
@@ -82,12 +129,27 @@ export function MerchAlerts({ searchQuery = "", onNavigate }: MerchAlertsProps) 
   // Filtering Logic (Client side)
   const filteredAlerts = useMemo(() => {
     return alerts.filter(alert => {
+      // Status filter
+      if (filters.status === 'active') {
+        // Show only active alerts (New, In Progress)
+        if (!['New', 'In Progress'].includes(alert.status)) return false;
+      } else if (filters.status !== 'all') {
+        // Filter by specific status
+        if (alert.status !== filters.status) return false;
+      }
+      
+      // Search filter
       if (filters.search) {
         const query = filters.search.toLowerCase();
         if (!alert.title.toLowerCase().includes(query) && !alert.description.toLowerCase().includes(query)) return false;
       }
+      
+      // Type filter
       if (filters.type !== 'all' && alert.type !== filters.type) return false;
+      
+      // Severity filter
       if (filters.severity !== 'all' && alert.severity !== filters.severity) return false;
+      
       return true;
     }).sort((a, b) => {
         const severityScore = { critical: 3, warning: 2, info: 1 };
@@ -96,34 +158,72 @@ export function MerchAlerts({ searchQuery = "", onNavigate }: MerchAlertsProps) 
         if (scoreA !== scoreB) return scoreB - scoreA;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [alerts, filters.search, filters.type, filters.severity]);
+  }, [alerts, filters.search, filters.type, filters.severity, filters.status]);
 
-  // Handlers - Updated locally
-  const handleResolve = (id: string) => {
-    const alert = alerts.find(a => (a.id || (a as any)._id) === id);
-    if (alert) {
-        setAlerts(prev => prev.filter(a => (a.id || (a as any)._id) !== id));
-        setResolvedAlerts(prev => [{ ...alert, status: 'Resolved', updatedAt: new Date().toISOString() }, ...prev]);
-        toast.success("Alert Resolved Locally");
+  // Save resolved alerts to localStorage
+  const saveResolvedAlerts = (resolved: Alert[]) => {
+    try {
+      localStorage.setItem('merch_alerts_history', JSON.stringify(resolved));
+    } catch (e) {
+      console.error('Failed to save resolved alerts', e);
     }
   };
 
-  const handleDismiss = (id: string) => {
+  // Handlers - Updated locally with persistence
+  const handleResolve = async (id: string) => {
     const alert = alerts.find(a => (a.id || (a as any)._id) === id);
     if (alert) {
+        const updatedAlert = { ...alert, status: 'Resolved' as AlertStatus, updatedAt: new Date().toISOString() };
+        // Update via API (which handles localStorage)
+        await alertsApi.updateAlert(id, { status: 'Resolved', updatedAt: updatedAlert.updatedAt });
         setAlerts(prev => prev.filter(a => (a.id || (a as any)._id) !== id));
-        setResolvedAlerts(prev => [{ ...alert, status: 'Dismissed', updatedAt: new Date().toISOString() }, ...prev]);
-        toast.success("Alert Dismissed Locally");
+        const newResolved = [updatedAlert, ...resolvedAlerts];
+        setResolvedAlerts(newResolved);
+        saveResolvedAlerts(newResolved);
+        toast.success("Alert Resolved", {
+          description: 'Changes have been saved and will persist after refresh'
+        });
     }
   };
 
-  const handleAlertsBulkAction = (action: string) => {
+  const handleDismiss = async (id: string) => {
+    const alert = alerts.find(a => (a.id || (a as any)._id) === id);
+    if (alert) {
+        const updatedAlert = { ...alert, status: 'Dismissed' as AlertStatus, updatedAt: new Date().toISOString() };
+        // Update via API (which handles localStorage)
+        await alertsApi.updateAlert(id, { status: 'Dismissed', updatedAt: updatedAlert.updatedAt });
+        setAlerts(prev => prev.filter(a => (a.id || (a as any)._id) !== id));
+        const newResolved = [updatedAlert, ...resolvedAlerts];
+        setResolvedAlerts(newResolved);
+        saveResolvedAlerts(newResolved);
+        toast.success("Alert Dismissed", {
+          description: 'Changes have been saved and will persist after refresh'
+        });
+    }
+  };
+
+  const handleAlertsBulkAction = async (action: string) => {
       if (action === 'resolve') {
           const ids = Array.from(selectedAlerts);
           const solved = alerts.filter(a => ids.includes(a.id || (a as any)._id));
+          // Update all alerts via API
+          const updates = solved.map(s => ({
+            ...s,
+            status: 'Resolved' as AlertStatus,
+            updatedAt: new Date().toISOString()
+          }));
+          try {
+            await alertsApi.bulkUpdate(ids, { status: 'Resolved', updatedAt: new Date().toISOString() });
+          } catch (e) {
+            console.error('Failed to bulk update alerts', e);
+          }
           setAlerts(prev => prev.filter(a => !ids.includes(a.id || (a as any)._id)));
-          setResolvedAlerts(prev => [...solved.map(s => ({ ...s, status: 'Resolved' as AlertStatus })), ...prev]);
-          toast.success(`${ids.length} alerts resolved locally`);
+          const newResolved = [...updates, ...resolvedAlerts];
+          setResolvedAlerts(newResolved);
+          saveResolvedAlerts(newResolved);
+          toast.success(`${ids.length} alerts resolved`, {
+            description: 'Changes have been saved and will persist after refresh'
+          });
           setSelectedAlerts(new Set());
       } else if (action === 'clear') {
           setSelectedAlerts(new Set());
@@ -168,13 +268,38 @@ export function MerchAlerts({ searchQuery = "", onNavigate }: MerchAlertsProps) 
   };
 
   const handleClearResolved = () => {
-      toast.info("View Cleared");
+      // Clear resolved alerts from history storage
+      try {
+        localStorage.removeItem('merch_alerts_history');
+        setResolvedAlerts([]);
+        toast.success("Resolved alerts cleared", {
+          description: 'All resolved alerts have been removed from history'
+        });
+      } catch (e) {
+        console.error('Failed to clear resolved alerts', e);
+        toast.error("Failed to clear resolved alerts");
+      }
       setIsClearConfirmOpen(false);
   };
 
-  const handleSeedData = () => {
-    setAlerts(INITIAL_ALERTS);
-    toast.success("Mock alerts restored");
+  const handleSeedData = async () => {
+    try {
+      await alertsApi.seedData();
+      // Reload alerts
+      const alertsResp = await alertsApi.getAlerts({});
+      if (alertsResp.success && alertsResp.data) {
+        setAlerts(alertsResp.data);
+        toast.success("Alerts restored", {
+          description: `${alertsResp.data.length} alerts loaded`
+        });
+      } else {
+        setAlerts(INITIAL_ALERTS);
+        toast.success("Mock alerts restored");
+      }
+    } catch (e) {
+      setAlerts(INITIAL_ALERTS);
+      toast.success("Mock alerts restored");
+    }
   };
 
   return (

@@ -23,7 +23,11 @@ import {
 } from "./hr/hrApi";
 import { HrDashboardSummary, RiderDocument, Rider } from "./hr/types";
 
-export function RiderHR() {
+interface RiderHRProps {
+  searchQuery?: string;
+}
+
+export function RiderHR({ searchQuery = '' }: RiderHRProps) {
   // State
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<HrDashboardSummary | null>(null);
@@ -42,6 +46,32 @@ export function RiderHR() {
   const [reviewDoc, setReviewDoc] = useState<RiderDocument | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewRiderDetails, setReviewRiderDetails] = useState<Rider | null>(null);
+
+  // Filter riders and documents based on search query
+  const filteredRiders = React.useMemo(() => {
+    if (!searchQuery.trim()) return riders;
+    const query = searchQuery.toLowerCase();
+    return riders.filter(r => 
+      r.id.toLowerCase().includes(query) ||
+      r.name.toLowerCase().includes(query) ||
+      r.email.toLowerCase().includes(query) ||
+      r.phone.toLowerCase().includes(query)
+    );
+  }, [riders, searchQuery]);
+
+  const filteredDocuments = React.useMemo(() => {
+    let docs = documents;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      docs = docs.filter(d => 
+        d.id.toLowerCase().includes(query) ||
+        d.riderId.toLowerCase().includes(query) ||
+        d.riderName.toLowerCase().includes(query) ||
+        d.documentType.toLowerCase().includes(query)
+      );
+    }
+    return docs;
+  }, [documents, searchQuery]);
 
   // Initial Data Load
   useEffect(() => {
@@ -173,8 +203,46 @@ export function RiderHR() {
     if (docId && newStatus) {
       localDocumentUpdatesRef.current[docId] = newStatus;
       setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: newStatus } : d));
-      loadDocuments();
+      // Background refresh without blocking UI
+      loadDocuments().catch(() => {});
+      refreshSummaryBackground();
     }
+  };
+
+  // Lightweight refresh functions that don't show loading state
+  const refreshRidersBackground = async () => {
+    try {
+      const ridersData = await fetchAllRiders();
+      const merged = [...ridersData];
+      localRidersRef.current.forEach(l => {
+        if (!merged.find(m => m.id === l.id)) merged.push(l);
+      });
+      merged.forEach(r => { 
+        if (localRiderAccessRef.current[r.id]) r.appAccess = localRiderAccessRef.current[r.id]; 
+      });
+      setRiders(merged);
+    } catch (error) {
+      console.error("Background refresh failed", error);
+      // Don't show error toast for background refreshes
+    }
+  };
+
+  const refreshSummaryBackground = async () => {
+    try {
+      const summaryData = await fetchHrSummary();
+      setSummary(summaryData);
+    } catch (error) {
+      console.error("Background summary refresh failed", error);
+      // Don't show error toast for background refreshes
+    }
+  };
+
+  // Lightweight refresh that updates riders and summary without full page reload
+  const handleLightRefresh = async () => {
+    await Promise.all([
+      refreshRidersBackground(),
+      refreshSummaryBackground()
+    ]);
   };
 
   return (
@@ -199,12 +267,12 @@ export function RiderHR() {
         loading={loading}
         onFilterPending={() => { setActiveTab("documents"); setFilterStatus("pending"); }}
         onShowExpired={() => { setActiveTab("documents"); setFilterStatus("expired"); }}
-        onShowActive={() => { setActiveTab("access"); toast.info("Showing active & compliant riders"); }}
+        onShowActive={() => { setActiveTab("access"); setFilterStatus("all"); toast.info("Showing active & compliant riders"); }}
       />
 
-      {/* Main Content Tabs */}
+      {/* Main Content Tabs - forceMount so tab content is available when switching from summary cards */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-white border border-[#E0E0E0] p-1 h-auto w-full justify-start overflow-x-auto">
+        <TabsList className="bg-white border border-[#E0E0E0] p-1 h-auto w-full justify-start overflow-x-auto flex flex-wrap gap-1">
           <TabsTrigger value="documents" className="data-[state=active]:bg-[#F3F4F6]">Document Queue</TabsTrigger>
           <TabsTrigger value="onboarding" className="data-[state=active]:bg-[#F3F4F6]">Onboarding Status</TabsTrigger>
           <TabsTrigger value="training" className="data-[state=active]:bg-[#F3F4F6]">Training</TabsTrigger>
@@ -213,9 +281,9 @@ export function RiderHR() {
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="documents" className="m-0">
+          <TabsContent value="documents" className="m-0 data-[state=inactive]:hidden">
             <DocumentApprovalTable 
-              documents={documents}
+              documents={filteredDocuments}
               loading={loading}
               filterStatus={filterStatus}
               onFilterChange={setFilterStatus}
@@ -227,28 +295,39 @@ export function RiderHR() {
             />
           </TabsContent>
           
-          <TabsContent value="onboarding" className="m-0">
-            <OnboardingStatusTab riders={riders} loading={loading} onRefresh={loadDashboardData} />
+          <TabsContent value="onboarding" className="m-0 data-[state=inactive]:hidden">
+            <OnboardingStatusTab riders={filteredRiders} loading={loading} onRefresh={handleLightRefresh} />
           </TabsContent>
 
-          <TabsContent value="training" className="m-0">
-            <TrainingStatusTab riders={riders} loading={loading} onRefresh={loadDashboardData} onRiderTrainingUpdated={(riderId) => setRiders(prev => prev.map(r => r.id === riderId ? { ...r, trainingStatus: 'completed' as const } : r))} />
-          </TabsContent>
-
-          <TabsContent value="access" className="m-0">
-            <AccessAndDeviceTab 
-              riders={riders} 
+          <TabsContent value="training" className="m-0 data-[state=inactive]:hidden">
+            <TrainingStatusTab 
+              riders={filteredRiders} 
               loading={loading} 
-              onRefresh={loadDashboardData}
+              onRefresh={handleLightRefresh} 
+              onRiderTrainingUpdated={(riderId) => {
+                setRiders(prev => prev.map(r => r.id === riderId ? { ...r, trainingStatus: 'completed' as const } : r));
+                // Background refresh to sync with server
+                handleLightRefresh().catch(() => {});
+              }} 
+            />
+          </TabsContent>
+
+          <TabsContent value="access" className="m-0 data-[state=inactive]:hidden">
+            <AccessAndDeviceTab 
+              riders={filteredRiders} 
+              loading={loading} 
+              onRefresh={handleLightRefresh}
               onAccessUpdated={(riderId, access) => {
                 localRiderAccessRef.current[riderId] = access;
                 setRiders(prev => prev.map(r => r.id === riderId ? { ...r, appAccess: access } : r));
+                // Background refresh to sync with server
+                handleLightRefresh().catch(() => {});
               }}
             />
           </TabsContent>
 
-          <TabsContent value="contracts" className="m-0">
-            <ContractsComplianceTab riders={riders} loading={loading} onRefresh={loadDashboardData} />
+          <TabsContent value="contracts" className="m-0 data-[state=inactive]:hidden">
+            <ContractsComplianceTab riders={filteredRiders} loading={loading} onRefresh={handleLightRefresh} />
           </TabsContent>
         </div>
       </Tabs>
@@ -267,23 +346,38 @@ export function RiderHR() {
         onClose={() => setIsOnboardOpen(false)}
         onSuccess={(newRider) => {
           if (newRider) {
-            const rider: Rider = {
-              id: `r-${Date.now()}`,
-              name: newRider.name,
-              email: newRider.email ?? '',
-              phone: newRider.phone,
-              status: 'onboarding',
-              onboardingStatus: 'invited',
-              trainingStatus: 'not_started',
-              appAccess: 'enabled',
-              deviceAssigned: false,
-              contract: { startDate: new Date().toISOString().slice(0, 10), endDate: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10), renewalDue: false },
-              compliance: { isCompliant: true, lastAuditDate: new Date().toISOString().slice(0, 10), policyViolationsCount: 0 },
-            };
-            localRidersRef.current = [...localRidersRef.current, rider];
-            setRiders(prev => [...prev, rider]);
             setActiveTab('onboarding');
-            loadDashboardData();
+            // Add new rider to local state immediately
+            if (newRider.id) {
+              const newRiderData: Rider = {
+                id: newRider.id,
+                name: newRider.name,
+                email: newRider.email,
+                phone: newRider.phone,
+                status: 'onboarding',
+                onboardingStatus: 'invited',
+                trainingStatus: 'not_started',
+                appAccess: 'disabled',
+                deviceAssigned: false,
+                contract: {
+                  startDate: new Date().toISOString().split('T')[0],
+                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  renewalDue: false,
+                },
+                compliance: {
+                  isCompliant: true,
+                  lastAuditDate: new Date().toISOString().split('T')[0],
+                  policyViolationsCount: 0,
+                },
+              };
+              setRiders(prev => {
+                const exists = prev.find(r => r.id === newRider.id);
+                if (exists) return prev;
+                return [...prev, newRiderData];
+              });
+            }
+            // Background refresh to sync with server (non-blocking)
+            handleLightRefresh().catch(() => {});
           }
         }}
       />

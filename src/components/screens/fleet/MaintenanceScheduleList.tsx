@@ -33,11 +33,28 @@ export function MaintenanceScheduleList({ tasks, loading, onRefresh, onTaskStatu
       await updateMaintenanceTask(id, { status });
       onTaskStatusUpdated?.(id, status);
       toast.success(`Task marked as ${status.replace('_', ' ')}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Update failed");
+    } finally {
       onRefresh();
-    } catch {
-      onTaskStatusUpdated?.(id, status);
-      toast.success(`Task updated to ${status.replace('_', ' ')}`);
+    }
+  };
+
+  const handleReschedule = async (task: MaintenanceTask) => {
+    const current = new Date(task.scheduledDate).toISOString().slice(0, 10);
+    const raw = window.prompt("Reschedule to date (YYYY-MM-DD):", current);
+    if (!raw) return;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      toast.error("Invalid date");
+      return;
+    }
+    try {
+      await updateMaintenanceTask(task.id, { scheduledDate: date.toISOString() });
+      toast.success("Maintenance rescheduled");
       onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Reschedule failed");
     }
   };
 
@@ -105,7 +122,9 @@ export function MaintenanceScheduleList({ tasks, loading, onRefresh, onTaskStatu
                               <CheckCircle className="mr-2 h-4 w-4" /> Mark Completed
                             </DropdownMenuItem>
                          )}
-                         <DropdownMenuItem disabled>Reschedule (Coming Soon)</DropdownMenuItem>
+                         <DropdownMenuItem onClick={() => handleReschedule(task)}>
+                           <CalendarClock className="mr-2 h-4 w-4" /> Reschedule
+                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

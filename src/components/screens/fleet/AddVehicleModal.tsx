@@ -43,25 +43,18 @@ export function AddVehicleModal({ isOpen, onClose, onSuccess }: AddVehicleModalP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const payload = buildVehicle();
     try {
-      const created = await createVehicle(formData);
-      const vehicleToAdd: Vehicle = (created && typeof created === 'object' && 'id' in created && 'vehicleId' in created)
-        ? { ...buildVehicle(), ...created, vehicleId: created.vehicleId || formData.vehicleId, type: (created as Vehicle).type || formData.type }
-        : buildVehicle();
+      const created = await createVehicle(payload);
+      const vehicleToAdd: Vehicle = (created && typeof created === 'object' && 'id' in created)
+        ? { ...payload, ...created }
+        : payload;
       toast.success("Vehicle added successfully");
       onSuccess(vehicleToAdd);
       onClose();
       setFormData({ vehicleId: "", type: "Electric Scooter", fuelType: "EV", pool: "Hub", currentOdometerKm: 0 });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      if (msg.includes('Backend') || msg.includes('offline')) {
-        toast.success("Vehicle added locally. Connect backend to sync.");
-        onSuccess(buildVehicle());
-        onClose();
-        setFormData({ vehicleId: "", type: "Electric Scooter", fuelType: "EV", pool: "Hub", currentOdometerKm: 0 });
-      } else {
-        toast.error("Failed to add vehicle");
-      }
+      toast.error(error instanceof Error ? error.message : "Failed to add vehicle");
     } finally {
       setLoading(false);
     }

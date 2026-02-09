@@ -4,16 +4,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CAMPAIGN_CHART_DATA } from './mockData';
+import { CAMPAIGN_CHART_DATA, CAMPAIGN_DATA } from './mockData';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Percent } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CampaignAnalyticsModal } from '../components/CampaignAnalyticsModal';
 
 export function CampaignPerformance() {
   const [dateRange, setDateRange] = useState('30days');
   const [campaignType, setCampaignType] = useState('all');
   const [campaignData, setCampaignData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -35,12 +38,18 @@ export function CampaignPerformance() {
               redemptionRate: 0,
               roi: item.roi || 0
             })));
+          } else {
+            // Fallback to mock data
+            setCampaignData(CAMPAIGN_DATA);
           }
+        } else {
+          // Fallback to mock data on error
+          setCampaignData(CAMPAIGN_DATA);
         }
       } catch (err) {
         console.error('Failed to load campaign analytics', err);
-        toast.error('Failed to load campaign analytics');
-        setCampaignData([]);
+        // Use mock data as fallback
+        setCampaignData(CAMPAIGN_DATA);
       } finally {
         setLoading(false);
       }
@@ -51,7 +60,19 @@ export function CampaignPerformance() {
   const filteredData = useMemo(() => {
     let data = [...campaignData];
     if (campaignType !== 'all') {
-      data = data.filter(c => c.type.toLowerCase() === campaignType.toLowerCase());
+      const typeMap: Record<string, string> = {
+        'discount': 'Discount',
+        'bundle': 'Bundle',
+        'flash sale': 'Flash Sale',
+        'flashsale': 'Flash Sale'
+      };
+      const normalizedType = campaignType.toLowerCase().replace(/\s+/g, '');
+      const targetType = typeMap[normalizedType] || campaignType;
+      data = data.filter(c => {
+        const campaignTypeNormalized = c.type.toLowerCase().replace(/\s+/g, '');
+        const targetTypeNormalized = targetType.toLowerCase().replace(/\s+/g, '');
+        return campaignTypeNormalized === targetTypeNormalized;
+      });
     }
     return data;
   }, [campaignType, campaignData]);
@@ -66,7 +87,12 @@ export function CampaignPerformance() {
     <div className="space-y-6 flex flex-col min-h-0">
       {/* Filters */}
       <div className="flex flex-wrap gap-3 pb-4 border-b">
-        <Select value={dateRange} onValueChange={setDateRange}>
+        <Select 
+          value={dateRange} 
+          onValueChange={(value) => {
+            setDateRange(value);
+          }}
+        >
             <SelectTrigger className="w-[150px] bg-white text-xs">
                 <SelectValue placeholder="Date Range" />
             </SelectTrigger>
@@ -76,7 +102,12 @@ export function CampaignPerformance() {
                 <SelectItem value="90days">Last Quarter</SelectItem>
             </SelectContent>
         </Select>
-         <Select value={campaignType} onValueChange={setCampaignType}>
+         <Select 
+          value={campaignType} 
+          onValueChange={(value) => {
+            setCampaignType(value);
+          }}
+        >
             <SelectTrigger className="w-[180px] bg-white text-xs">
                 <SelectValue placeholder="Campaign Type" />
             </SelectTrigger>
@@ -87,7 +118,18 @@ export function CampaignPerformance() {
                 <SelectItem value="flash sale">Flash Sale</SelectItem>
             </SelectContent>
         </Select>
-        <Button variant="outline" className="ml-auto text-xs h-8" onClick={handleSavePreset}>Save Preset</Button>
+        <Button 
+          variant="outline" 
+          className="ml-auto text-xs h-8" 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSavePreset();
+          }}
+          type="button"
+        >
+          Save Preset
+        </Button>
       </div>
 
       {/* KPI Strip */}
@@ -188,13 +230,36 @@ export function CampaignPerformance() {
                           <TableCell className="text-right text-green-600 text-xs font-bold">+{campaign.uplift}%</TableCell>
                           <TableCell className="text-right text-xs font-bold">{campaign.roi}x</TableCell>
                           <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" className="h-7 text-xs">Details</Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-xs"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSelectedCampaign(campaign.name);
+                                  setIsDetailsOpen(true);
+                                }}
+                                type="button"
+                              >
+                                Details
+                              </Button>
                           </TableCell>
                       </TableRow>
                   ))}
               </TableBody>
           </Table>
       </div>
+
+      {/* Campaign Details Modal */}
+      <CampaignAnalyticsModal
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedCampaign(null);
+        }}
+        campaignName={selectedCampaign || "Campaign"}
+      />
     </div>
   );
 }

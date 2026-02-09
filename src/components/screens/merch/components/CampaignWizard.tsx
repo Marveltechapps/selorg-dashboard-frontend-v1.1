@@ -20,6 +20,7 @@ import { toast } from "sonner";
 interface CampaignWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialData?: any;
   onComplete?: (data: any) => void;
   onSave?: (data: any) => void;
 }
@@ -34,31 +35,73 @@ const STEPS = [
   { id: 'review', label: 'Review' },
 ];
 
-export function CampaignWizard({ open, onOpenChange, onComplete, onSave }: CampaignWizardProps) {
+export function CampaignWizard({ open, onOpenChange, initialData, onComplete, onSave }: CampaignWizardProps) {
   const [step, setStep] = useState(0);
 
-  // Reset step when wizard closes
+  const getInitialFormData = React.useCallback(() => {
+    if (initialData) {
+      // Parse period to extract dates if available
+      let startDate = new Date();
+      let endDate = new Date();
+      if (initialData.period) {
+        const parts = initialData.period.split(' - ');
+        if (parts.length === 2) {
+          try {
+            startDate = new Date(parts[0]);
+            endDate = new Date(parts[1]);
+          } catch (e) {
+            // Use defaults if parsing fails
+          }
+        }
+      }
+      
+      return {
+        name: initialData.name || '',
+        type: initialData.type?.toLowerCase() || '',
+        description: initialData.tagline || initialData.description || '',
+        owner: initialData.owner?.name || 'Alice L.',
+        startDate: initialData.startDate ? new Date(initialData.startDate) : startDate,
+        endDate: initialData.endDate ? new Date(initialData.endDate) : endDate,
+        region: initialData.scope || initialData.region || 'North America',
+        zones: initialData.zones || [],
+        skus: initialData.skus || ['1', '2', '3'],
+        discountType: initialData.discountType || 'percentage',
+        discountValue: initialData.discountValue || '',
+        minOrderValue: initialData.minOrderValue || '',
+        approvers: initialData.approvers || ['Pricing Manager', 'Regional Head'],
+        target: initialData.target || ''
+      };
+    }
+    
+    return {
+      name: '',
+      type: '',
+      description: '',
+      owner: 'Alice L.',
+      startDate: new Date(),
+      endDate: new Date(),
+      region: 'North America',
+      zones: [] as string[],
+      skus: ['1', '2', '3'] as string[],
+      discountType: 'percentage',
+      discountValue: '',
+      minOrderValue: '',
+      approvers: ['Pricing Manager', 'Regional Head'],
+      target: ''
+    };
+  }, [initialData]);
+
+  const [formData, setFormData] = useState(getInitialFormData());
+
+  // Reset step and form data when wizard closes or initialData changes
   React.useEffect(() => {
     if (!open) {
       setStep(0);
+      setFormData(getInitialFormData());
+    } else if (initialData) {
+      setFormData(getInitialFormData());
     }
-  }, [open]);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    type: '',
-    description: '',
-    owner: 'Alice L.',
-    startDate: new Date(),
-    endDate: new Date(),
-    region: 'North America',
-    zones: [] as string[],
-    skus: ['1', '2', '3'] as string[], // Initial mock SKUs as IDs
-    discountType: 'percentage',
-    discountValue: '',
-    minOrderValue: '',
-    approvers: ['Pricing Manager', 'Regional Head']
-  });
+  }, [open, initialData, getInitialFormData]);
 
   const removeSku = (id: string) => {
     setFormData(prev => ({
@@ -520,7 +563,9 @@ export function CampaignWizard({ open, onOpenChange, onComplete, onSave }: Campa
                 <Plus size={28} className="text-[#7C3AED]" />
               </div>
               <div>
-                <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Launch Campaign</DialogTitle>
+                <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">
+                  {initialData ? 'Edit Campaign' : 'Launch Campaign'}
+                </DialogTitle>
                 <DialogDescription className="text-sm font-bold text-gray-500 mt-0.5">
                   Step {step + 1} of {STEPS.length}: {STEPS[step].label}
           </DialogDescription>

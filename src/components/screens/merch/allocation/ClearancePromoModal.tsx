@@ -1,17 +1,75 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Megaphone } from "lucide-react";
+import { toast } from "sonner";
+import { campaignsApi } from '../merchApi';
 
 interface ClearancePromoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   alert: any;
+  onComplete?: () => void;
 }
 
-export function ClearancePromoModal({ open, onOpenChange, alert }: ClearancePromoModalProps) {
+export function ClearancePromoModal({ open, onOpenChange, alert, onComplete }: ClearancePromoModalProps) {
+  const [campaignName, setCampaignName] = useState('');
+  const [discount, setDiscount] = useState('50');
+  const [duration, setDuration] = useState('3');
+
+  // Reset when modal closes or alert changes
+  useEffect(() => {
+    if (alert) {
+      setCampaignName(`Clearance: ${alert.sku}`);
+      setDiscount('50');
+      setDuration('3');
+    }
+  }, [alert, open]);
+
+  const handleLaunchCampaign = async () => {
+    if (!campaignName || !discount || !duration) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    // Create campaign using campaignsApi (which persists to localStorage)
+    const campaignData = {
+      name: campaignName,
+      tagline: `Clearance: ${alert.sku} - ${discount}% off`,
+      status: 'Active',
+      period: `${new Date().toLocaleDateString()} - ${new Date(Date.now() + parseInt(duration) * 24 * 60 * 60 * 1000).toLocaleDateString()}`,
+      target: alert.sku,
+      scope: 'Local',
+      type: 'Flash Sale',
+      owner: { name: 'System', initial: 'S' },
+      kpi: { label: 'Revenue Uplift', value: '0%', trend: 'neutral' },
+      discount: parseInt(discount),
+      duration: parseInt(duration),
+      batch: alert.batch
+    };
+
+    const result = await campaignsApi.createCampaign(campaignData);
+    
+    if (result.success) {
+      toast.success('Campaign launched', {
+        description: `${campaignName} - ${discount}% off for ${duration} days`
+      });
+      
+      // Call onComplete before closing to ensure parent refreshes
+      if (onComplete) {
+        setTimeout(() => {
+          onComplete();
+        }, 100);
+      }
+    } else {
+      toast.error('Failed to launch campaign');
+    }
+    
+    onOpenChange(false);
+  };
+
   if (!alert) return null;
 
   return (
@@ -29,16 +87,30 @@ export function ClearancePromoModal({ open, onOpenChange, alert }: ClearanceProm
         <div className="p-4 space-y-4">
              <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase text-gray-500">Campaign Name</Label>
-                <Input defaultValue={`Clearance: ${alert.sku}`} className="h-8 text-[11px]" />
+                <Input 
+                  value={campaignName} 
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  className="h-8 text-[11px]" 
+                />
              </div>
              <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase text-gray-500">Discount %</Label>
-                    <Input type="number" defaultValue="50" className="h-8 text-[11px]" />
+                    <Input 
+                      type="number" 
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      className="h-8 text-[11px]" 
+                    />
                  </div>
                  <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase text-gray-500">Duration (Days)</Label>
-                    <Input type="number" defaultValue="3" className="h-8 text-[11px]" />
+                    <Input 
+                      type="number" 
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="h-8 text-[11px]" 
+                    />
                  </div>
              </div>
              <div className="p-2.5 bg-yellow-50 text-yellow-800 rounded-md text-[10px] border border-yellow-100 italic">
@@ -48,7 +120,7 @@ export function ClearancePromoModal({ open, onOpenChange, alert }: ClearanceProm
 
         <DialogFooter className="p-3 bg-gray-50 border-t gap-2">
           <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] h-7 text-[10px] font-bold" onClick={() => onOpenChange(false)}>Launch Campaign</Button>
+          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] h-7 text-[10px] font-bold" onClick={handleLaunchCampaign}>Launch Campaign</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

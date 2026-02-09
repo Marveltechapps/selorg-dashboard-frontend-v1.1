@@ -1,9 +1,11 @@
 /**
  * API Configuration
- * Base URL for backend API
+ * Base URL for backend API.
+ * For server/hosted run: set VITE_API_BASE_URL in .env (e.g. http://65.2.153.16:5000/api/v1).
+ * For local dev with proxy: leave unset to use /api/v1 (proxied by Vite).
  */
 export const API_CONFIG = {
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: (import.meta.env.VITE_API_BASE_URL ?? '').trim() || '/api/v1',
   timeout: 30000, // 30 seconds
 };
 
@@ -92,6 +94,7 @@ export const API_ENDPOINTS = {
     documentHistory: (id: string) => `/rider/hr/documents/${id}/history`,
     riders: '/rider/hr/riders',
     rider: (id: string) => `/rider/hr/riders/${id}`,
+    access: (id: string) => `/rider/hr/access/${id}`,
     remindRider: (id: string) => `/rider/hr/riders/${id}/remind`,
     training: '/rider/hr/training',
     contracts: '/rider/hr/contracts',
@@ -108,6 +111,7 @@ export const API_ENDPOINTS = {
     mapOrders: '/rider/dispatch/map-data/orders',
     recommendedRiders: (orderId: string) => `/rider/dispatch/recommended-riders/${orderId}`,
     orderAssignmentDetails: (orderId: string) => `/rider/dispatch/order/${orderId}/assignment-details`,
+    createOrder: '/rider/dispatch/orders',
     assignOrder: '/rider/dispatch/assign',
     batchAssign: '/rider/dispatch/batch-assign',
     autoAssign: '/rider/dispatch/auto-assign',
@@ -148,14 +152,14 @@ export const API_ENDPOINTS = {
     performance: '/staff/performance',
     incentiveCriteria: '/staff/incentive-criteria',
   },
-  // Communication Hub
+  // Communication Hub (shared routes: /api/v1/shared/communication/...)
   communication: {
-    chats: '/communication/chats',
-    chat: (id: string) => `/communication/chats/${id}`,
-    chatMessages: (id: string) => `/communication/chats/${id}/messages`,
-    markRead: (id: string) => `/communication/chats/${id}/read`,
-    broadcasts: '/communication/broadcasts',
-    flagIssue: (id: string) => `/communication/chats/${id}/flag`,
+    chats: '/shared/communication/chats',
+    chat: (id: string) => `/shared/communication/chats/${id}`,
+    chatMessages: (id: string) => `/shared/communication/chats/${id}/messages`,
+    markRead: (id: string) => `/shared/communication/chats/${id}/read`,
+    broadcasts: '/shared/communication/broadcasts',
+    flagIssue: (id: string) => `/shared/communication/chats/${id}/flag`,
   },
   // System Health
   systemHealth: {

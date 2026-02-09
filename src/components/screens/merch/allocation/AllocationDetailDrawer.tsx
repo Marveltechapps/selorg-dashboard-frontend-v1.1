@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowRightLeft, Truck, AlertCircle, Save } from 'lucide-react';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { allocationApi } from './allocationApi';
+import { toast } from "sonner";
 
 interface AllocationDetailDrawerProps {
   open: boolean;
@@ -16,6 +18,7 @@ interface AllocationDetailDrawerProps {
   sku: any;
   onRebalance: () => void;
   onCreateTransfer: () => void;
+  onUpdate?: () => void;
 }
 
 const MOCK_HISTORY_DATA = [
@@ -26,9 +29,10 @@ const MOCK_HISTORY_DATA = [
   { week: 'W5', demand: 480, stock: 500 },
 ];
 
-export function AllocationDetailDrawer({ open, onOpenChange, sku, onRebalance, onCreateTransfer }: AllocationDetailDrawerProps) {
+export function AllocationDetailDrawer({ open, onOpenChange, sku, onRebalance, onCreateTransfer, onUpdate }: AllocationDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState("location");
   const [editedAllocations, setEditedAllocations] = useState<Record<string, number>>({});
+
 
   if (!sku) return null;
 
@@ -36,9 +40,34 @@ export function AllocationDetailDrawer({ open, onOpenChange, sku, onRebalance, o
     setEditedAllocations({ ...editedAllocations, [locationId]: parseInt(value) || 0 });
   };
 
+  const handleSaveAllocation = () => {
+    // Save all edited allocations to localStorage
+    Object.keys(editedAllocations).forEach(locationId => {
+      const location = sku.locations.find((loc: any) => loc.id === locationId);
+      if (location) {
+        allocationApi.updateSKUAllocation(sku.id, locationId, {
+          allocated: editedAllocations[locationId],
+          target: editedAllocations[locationId],
+          onHand: location.onHand,
+          inTransit: location.inTransit
+        });
+      }
+    });
+
+    toast.success('Allocation plan saved', {
+      description: 'Changes have been saved and will persist after refresh'
+    });
+
+    if (onUpdate) {
+      onUpdate();
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[600px] sm:w-[800px] p-0 flex flex-col h-full bg-white">
+      <SheetContent 
+        className="w-[600px] sm:w-[800px] p-0 flex flex-col h-full bg-white"
+      >
         <SheetHeader className="p-4 border-b bg-gray-50/50">
             <div className="flex justify-between items-start">
                 <div>
@@ -82,48 +111,54 @@ export function AllocationDetailDrawer({ open, onOpenChange, sku, onRebalance, o
                                 <AlertCircle size={12} />
                                 <span>Changes are staged until you save.</span>
                             </div>
-                            <Button size="sm" className="h-7 text-[10px] bg-[#7C3AED] hover:bg-[#6D28D9] gap-1.5 px-3">
+                            <Button 
+                              size="sm" 
+                              className="h-7 text-[10px] bg-[#7C3AED] hover:bg-[#6D28D9] gap-1.5 px-3"
+                              onClick={handleSaveAllocation}
+                            >
                                 <Save size={12} /> Save Allocation Plan
                             </Button>
                         </div>
 
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="h-8">
-                                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Location</TableHead>
-                                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider">On-hand</TableHead>
-                                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider">In-Transit</TableHead>
-                                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider">Safety Stock</TableHead>
-                                    <TableHead className="text-right w-[110px] text-[10px] font-bold uppercase tracking-wider">Target Alloc.</TableHead>
-                                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider">Gap</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sku.locations.map((loc: any) => {
-                                    const currentTarget = editedAllocations[loc.id] ?? loc.target;
-                                    const gap = loc.onHand - currentTarget;
-                                    return (
-                                        <TableRow key={loc.id} className="h-10">
-                                            <TableCell className="font-medium text-[11px] py-2">{loc.name}</TableCell>
-                                            <TableCell className="text-right text-[11px] py-2">{loc.onHand.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right text-gray-500 text-[11px] py-2">{loc.inTransit.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right text-gray-500 text-[11px] py-2">{loc.safetyStock.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right py-2">
-                                                <Input 
-                                                    type="number" 
-                                                    value={currentTarget} 
-                                                    onChange={(e) => handleAllocationChange(loc.id, e.target.value)}
-                                                    className="h-7 w-20 ml-auto text-right text-[11px] px-2"
-                                                />
-                                            </TableCell>
-                                            <TableCell className={`text-right font-bold text-[11px] py-2 ${gap < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                                {gap > 0 ? '+' : ''}{gap.toLocaleString()}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
+                        <div className="overflow-x-auto overflow-y-visible" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+                            <Table className="min-w-[600px]">
+                                <TableHeader>
+                                    <TableRow className="h-8">
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">Location</TableHead>
+                                        <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">On-hand</TableHead>
+                                        <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">In-Transit</TableHead>
+                                        <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">Safety Stock</TableHead>
+                                        <TableHead className="text-right w-[110px] text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">Target Alloc.</TableHead>
+                                        <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">Gap</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sku.locations.map((loc: any) => {
+                                        const currentTarget = editedAllocations[loc.id] ?? loc.target;
+                                        const gap = loc.onHand - currentTarget;
+                                        return (
+                                            <TableRow key={loc.id} className="h-10">
+                                                <TableCell className="font-medium text-[11px] py-2 whitespace-nowrap">{loc.name}</TableCell>
+                                                <TableCell className="text-right text-[11px] py-2 whitespace-nowrap">{loc.onHand.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right text-gray-500 text-[11px] py-2 whitespace-nowrap">{loc.inTransit.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right text-gray-500 text-[11px] py-2 whitespace-nowrap">{loc.safetyStock.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right py-2 whitespace-nowrap">
+                                                    <Input 
+                                                        type="number" 
+                                                        value={currentTarget} 
+                                                        onChange={(e) => handleAllocationChange(loc.id, e.target.value)}
+                                                        className="h-7 w-20 ml-auto text-right text-[11px] px-2"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className={`text-right font-bold text-[11px] py-2 whitespace-nowrap ${gap < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                    {gap > 0 ? '+' : ''}{gap.toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="overview" className="p-4 m-0 space-y-4">

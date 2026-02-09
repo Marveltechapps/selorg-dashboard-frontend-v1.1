@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FinanceAlert, AlertActionPayload } from './financeAlertsApi';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "../../ui/sheet";
 import { Button } from "../../ui/button";
@@ -17,16 +17,35 @@ interface Props {
 
 export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentAlert, setCurrentAlert] = useState<FinanceAlert | null>(alert);
 
-  if (!alert) return null;
+  // Update currentAlert when alert prop changes
+  useEffect(() => {
+      setCurrentAlert(alert);
+  }, [alert]);
+
+  if (!alert || !currentAlert) return null;
 
   const handleAction = async (payload: AlertActionPayload, successMsg: string) => {
       setIsProcessing(true);
       try {
           await onAction(alert.id, payload);
-          toast.success(successMsg);
-          onClose();
+          // Update local state to reflect the change immediately
+          let newStatus: FinanceAlert['status'] = currentAlert.status;
+          if (payload.actionType === 'dismiss') newStatus = 'dismissed';
+          else if (payload.actionType === 'resolve') newStatus = 'resolved';
+          else if (payload.actionType === 'acknowledge') newStatus = 'acknowledged';
+          else if (['check_gateway', 'review_txn', 'reconcile'].includes(payload.actionType)) newStatus = 'in_progress';
+          
+          setCurrentAlert({
+              ...currentAlert,
+              status: newStatus,
+              lastUpdatedAt: new Date().toISOString()
+          });
+          
+          // Don't close drawer immediately - let user see the update
       } catch (e) {
+          console.error('Action failed:', e);
           toast.error("Action failed");
       } finally {
           setIsProcessing(false);
@@ -34,13 +53,14 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
   };
 
   const renderContent = () => {
-      switch (alert.type) {
+      const displayAlert = currentAlert || alert;
+      switch (displayAlert.type) {
           case 'gateway_failure_rate':
-              return <GatewayFailureContent alert={alert} />;
+              return <GatewayFailureContent alert={displayAlert} />;
           case 'high_value_txn':
-              return <HighValueTxnContent alert={alert} />;
+              return <HighValueTxnContent alert={displayAlert} />;
           case 'settlement_mismatch':
-              return <SettlementMismatchContent alert={alert} />;
+              return <SettlementMismatchContent alert={displayAlert} />;
           default:
               return (
                   <div className="p-4 text-sm text-gray-500">
@@ -51,11 +71,18 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
   };
 
   const renderFooterActions = () => {
-      switch (alert.type) {
+      const displayAlert = currentAlert || alert;
+      switch (displayAlert.type) {
           case 'gateway_failure_rate':
               return (
                   <>
-                      <Button variant="outline" className="flex-1" onClick={() => handleAction({ actionType: 'acknowledge' }, "Alert acknowledged")}>
+                      <Button 
+                          variant="outline" 
+                          className="flex-1" 
+                          onClick={() => handleAction({ actionType: 'acknowledge' }, "Alert acknowledged")}
+                          disabled={isProcessing}
+                      >
+                          {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Acknowledge & Watch
                       </Button>
                       <Button 
@@ -71,7 +98,13 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
           case 'high_value_txn':
               return (
                   <>
-                      <Button variant="outline" className="flex-1" onClick={() => handleAction({ actionType: 'add_note' }, "Flagged for manual review")}>
+                      <Button 
+                          variant="outline" 
+                          className="flex-1" 
+                          onClick={() => handleAction({ actionType: 'add_note' }, "Flagged for manual review")}
+                          disabled={isProcessing}
+                      >
+                          {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Flag for Review
                       </Button>
                       <Button 
@@ -87,12 +120,32 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
            case 'settlement_mismatch':
               return (
                   <>
-                      <Button variant="outline" className="flex-1" onClick={() => handleAction({ actionType: 'resolve' }, "Marked adjustment posted")}>
+                      <Button 
+                          variant="outline" 
+                          className="flex-1" 
+                          onClick={() => handleAction({ actionType: 'reconcile' }, "Mark adjustment posted")}
+                          disabled={isProcessing}
+                      >
+                          {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Mark Adjustment Posted
                       </Button>
                       <Button 
                           className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
-                          onClick={() => { toast.info("Navigating to Reconciliation..."); onClose(); }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Trigger navigation event
+                            const event = new CustomEvent('navigateToTab', { detail: { tab: 'reconciliation' } });
+                            window.dispatchEvent(event);
+                            
+                            // Also try postMessage for iframe scenarios
+                            if (window.parent && window.parent !== window) {
+                              window.parent.postMessage({ type: 'navigate', tab: 'reconciliation' }, '*');
+                            }
+                            
+                            toast.success("Navigating to Reconciliation...");
+                            onClose();
+                          }}
                       >
                           <ExternalLink className="mr-2 h-4 w-4" />
                           Open Reconciliation
@@ -123,21 +176,21 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
                 </div>
                 <div>
                     <SheetTitle className="text-xl font-bold text-gray-900 leading-tight">
-                        {alert.title}
+                        {(currentAlert || alert).title}
                     </SheetTitle>
                     <SheetDescription className="mt-1 flex items-center gap-2">
-                         <Badge variant="outline" className="capitalize">{alert.severity}</Badge>
-                         <span className="text-xs text-gray-500">ID: {alert.id.slice(0, 8)}</span>
+                         <Badge variant="outline" className="capitalize">{(currentAlert || alert).severity}</Badge>
+                         <span className="text-xs text-gray-500">ID: {(currentAlert || alert).id.slice(0, 8)}</span>
                     </SheetDescription>
                 </div>
             </div>
         </div>
 
-        <ScrollArea className="flex-1 p-6">
+        <ScrollArea className="flex-1 p-6 overflow-y-auto max-h-[calc(100vh-300px)]">
             <div className="space-y-6">
                 <div>
                     <h4 className="text-sm font-medium text-gray-500 mb-1">Description</h4>
-                    <p className="text-gray-900 text-sm leading-relaxed">{alert.description}</p>
+                    <p className="text-gray-900 text-sm leading-relaxed">{(currentAlert || alert).description}</p>
                 </div>
 
                 <Separator />
@@ -152,15 +205,15 @@ export function AlertDetailsDrawer({ alert, open, onClose, onAction }: Props) {
                              <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
                              <div>
                                  <p className="text-gray-900 font-medium">Alert Created</p>
-                                 <p className="text-xs text-gray-500">{new Date(alert.createdAt).toLocaleString()}</p>
+                                 <p className="text-xs text-gray-500">{new Date((currentAlert || alert).createdAt).toLocaleString()}</p>
                              </div>
                          </div>
-                         {alert.status !== 'open' && (
+                         {(currentAlert || alert).status !== 'open' && (
                              <div className="flex gap-3 text-sm">
                                  <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5" />
                                  <div>
-                                     <p className="text-gray-900 font-medium">Status changed to {alert.status}</p>
-                                     <p className="text-xs text-gray-500">{new Date(alert.lastUpdatedAt).toLocaleString()}</p>
+                                     <p className="text-gray-900 font-medium">Status changed to {(currentAlert || alert).status}</p>
+                                     <p className="text-xs text-gray-500">{new Date((currentAlert || alert).lastUpdatedAt).toLocaleString()}</p>
                                  </div>
                              </div>
                          )}

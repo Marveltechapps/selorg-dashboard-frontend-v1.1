@@ -117,7 +117,35 @@ export function LiveOrderBoard({
 
   const getRiderName = (riderId?: string) => {
     if (!riderId) return null;
-    return riders.find(r => r.id === riderId);
+    // Try exact match first
+    let rider = riders.find(r => r.id === riderId);
+    if (rider) return rider;
+    
+    // Try normalized matching for different ID formats
+    // Handle cases like: RIDER-1 vs RIDER-0001, r1 vs RIDER-1, etc.
+    const normalizeId = (id: string) => {
+      // Remove leading zeros and normalize format
+      const match = id.match(/^(?:r|rider-?)(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return `RIDER-${String(num).padStart(4, '0')}`;
+      }
+      // If already in RIDER-XXXX format, normalize padding
+      const riderMatch = id.match(/^RIDER-(\d+)$/i);
+      if (riderMatch) {
+        const num = parseInt(riderMatch[1], 10);
+        return `RIDER-${String(num).padStart(4, '0')}`;
+      }
+      return id;
+    };
+    
+    const normalizedId = normalizeId(riderId);
+    rider = riders.find(r => {
+      const rNormalized = normalizeId(r.id);
+      return rNormalized === normalizedId || r.id === normalizedId || r.id === riderId;
+    });
+    
+    return rider || null;
   };
 
   return (
@@ -250,11 +278,12 @@ export function LiveOrderBoard({
                                     Assign Rider
                                 </DropdownMenuItem>
                             )}
-                            {order.status !== 'pending' && order.status !== 'delivered' && (
+                            {(order.status !== 'pending' && order.status !== 'delivered' && order.riderId) || 
+                             (order.status === 'assigned' || order.status === 'in_transit' || order.status === 'picked_up') ? (
                                 <DropdownMenuItem onClick={() => onAssignOrder(order)}>
                                     Reassign Rider
                                 </DropdownMenuItem>
-                            )}
+                            ) : null}
                             {isDelayed && (
                                 <>
                                     <DropdownMenuSeparator />

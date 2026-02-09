@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from './types';
+import { alertsApi } from './alertsApi';
 import { toast } from 'sonner';
 
 interface PauseCampaignDialogProps {
@@ -16,10 +17,22 @@ interface PauseCampaignDialogProps {
 export function PauseCampaignDialog({ isOpen, onClose, onResolve, alert }: PauseCampaignDialogProps) {
   const [reason, setReason] = useState('');
 
-  const handleConfirm = () => {
-    toast.success("Campaign Paused", {
-      description: "The campaign has been paused for the selected region."
-    });
+  const handleConfirm = async () => {
+    // Update alert status via API (which persists to localStorage)
+    try {
+      await alertsApi.updateAlert(alert.id, { 
+        status: 'Resolved', 
+        updatedAt: new Date().toISOString() 
+      });
+      toast.success("Campaign Paused", {
+        description: "The campaign has been paused for the selected region. Changes will persist after refresh."
+      });
+    } catch (e) {
+      console.error('Failed to update alert', e);
+      toast.success("Campaign Paused", {
+        description: "The campaign has been paused for the selected region."
+      });
+    }
     onResolve();
     onClose();
   };

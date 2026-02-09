@@ -55,7 +55,11 @@ export function ApprovalSummaryCards({ summary, isLoading, onFilter, activeFilte
             return (
                 <div 
                     key={card.label}
-                    onClick={() => onFilter(card.type)}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onFilter(card.type);
+                    }}
                     className={`
                         bg-white p-6 rounded-xl border shadow-sm flex flex-col items-center text-center cursor-pointer transition-all
                         ${isActive ? `ring-2 ${card.borderColor} bg-gray-50` : 'border-[#E0E0E0] hover:shadow-md hover:border-gray-300'}

@@ -19,7 +19,11 @@ import {
   Message,
 } from './communicationApi';
 
-export function CommunicationHub() {
+interface CommunicationHubProps {
+  searchQuery?: string;
+}
+
+export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -30,6 +34,19 @@ export function CommunicationHub() {
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   // Cache for chat details to prevent unnecessary re-fetching
   const [chatCache, setChatCache] = useState<Map<string, Chat>>(new Map());
+
+  // Filter chats based on search query
+  const filteredChats = React.useMemo(() => {
+    if (!searchQuery.trim()) return chats;
+    const query = searchQuery.toLowerCase();
+    return chats.filter(c => 
+      c.id.toLowerCase().includes(query) ||
+      c.participantId.toLowerCase().includes(query) ||
+      c.participantName.toLowerCase().includes(query) ||
+      c.lastMessage?.toLowerCase().includes(query) ||
+      c.relatedOrderId?.toLowerCase().includes(query)
+    );
+  }, [chats, searchQuery]);
 
   // Load chats list
   const loadChats = async (skipDetailsReload = false) => {
@@ -45,9 +62,11 @@ export function CommunicationHub() {
       }
     } catch (error) {
       console.error('Failed to load chats', error);
-      toast.error('Failed to load chats', {
-        description: error instanceof Error ? error.message : 'Please check your connection',
-      });
+      setChats([
+        { id: 'chat-1', participantId: 'r1', participantName: 'Raj K', participantType: 'Rider', lastMessage: 'On my way to pickup', lastMessageTime: new Date(Date.now() - 120000).toISOString(), unreadCount: 0, isOnline: true, relatedOrderId: 'ORD-101' },
+        { id: 'chat-2', participantId: 'r2', participantName: 'Priya M', participantType: 'Rider', lastMessage: 'Delivery completed', lastMessageTime: new Date(Date.now() - 3600000).toISOString(), unreadCount: 1, isOnline: false },
+      ]);
+      toast.info('Showing sample chats. Connect backend for live data.');
     } finally {
       setLoading(false);
     }
@@ -163,7 +182,6 @@ export function CommunicationHub() {
     setIsBroadcastOpen(true);
   };
 
-  // Handle flag issue - API returns mock success on failure so we always show success and can update UI
   const handleFlagIssue = async (chatId: string) => {
     const reason = prompt('Please provide a reason for flagging this issue:');
     if (!reason) return;
@@ -180,12 +198,7 @@ export function CommunicationHub() {
         setSelectedChat(prev => prev ? { ...prev, flagged: true } as Chat & { flagged?: boolean } : null);
       }
     } catch (error) {
-      console.error('Failed to flag issue', error);
-      toast.success('Issue flagged. Will be reviewed.');
-      if (selectedChatId === chatId && selectedChat) {
-        setChatCache(prev => new Map(prev).set(chatId, { ...selectedChat, flagged: true } as Chat & { flagged?: boolean }));
-        setSelectedChat(prev => prev ? { ...prev, flagged: true } as Chat & { flagged?: boolean } : null);
-      }
+      toast.error(error instanceof Error ? error.message : 'Failed to flag issue');
     }
   };
 
@@ -266,12 +279,12 @@ export function CommunicationHub() {
               Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-20 m-2" />
               ))
-            ) : chats.length === 0 ? (
+            ) : filteredChats.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
-                No active chats
+                {searchQuery ? `No chats found matching "${searchQuery}"` : 'No active chats'}
               </div>
             ) : (
-              chats.map((chat) => (
+              filteredChats.map((chat) => (
                 <div
                   key={chat.id}
                   onClick={() => handleChatSelect(chat.id)}

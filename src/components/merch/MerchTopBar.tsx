@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Search, Globe, ChevronDown, Store, AlertCircle, ShoppingCart, Package } from 'lucide-react';
 import { cn } from "../../lib/utils";
 import {
@@ -29,6 +29,7 @@ export function MerchTopBar({
   currentScope = "Global",
   searchQuery = ""
 }: MerchTopBarProps) {
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'Price Conflict', message: 'SKU #882 has multiple price rules active', time: '2m ago', type: 'alert', icon: <AlertCircle className="text-red-500" size={16} />, unread: true, target: 'pricing' },
     { id: 2, title: 'Campaign Ending', message: 'Summer Sale ends in 3 hours', time: '15m ago', type: 'info', icon: <Package className="text-amber-500" size={16} />, unread: true, target: 'promotions' },
@@ -36,6 +37,11 @@ export function MerchTopBar({
   ]);
 
   const unreadCount = notifications.filter(n => n.unread).length;
+
+  // Sync local state with prop
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
 
   const markAsRead = (id?: number) => {
     if (id) {
@@ -136,8 +142,19 @@ export function MerchTopBar({
             type="text" 
             placeholder="Search campaigns, SKUs..." 
             className="h-9 pl-9 pr-4 rounded-lg bg-[#F5F5F5] border-transparent text-sm focus:bg-white focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent w-48 transition-all focus:w-64 placeholder-[#BDBDBD]"
-            value={searchQuery}
-            onChange={(e) => onSearch?.(e.target.value)}
+            value={localSearchQuery}
+            onChange={(e) => {
+              const value = e.target.value;
+              setLocalSearchQuery(value);
+              onSearch?.(value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+            autoComplete="off"
           />
         </div>
 

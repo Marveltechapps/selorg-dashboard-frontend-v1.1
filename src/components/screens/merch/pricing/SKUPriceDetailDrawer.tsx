@@ -8,6 +8,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Badge } from "../../../ui/badge";
 import { Separator } from "../../../ui/separator";
 import { ArrowUpRight, ArrowDownRight, TrendingUp, DollarSign } from "lucide-react";
+import { pricingApi } from './pricingApi';
+import { toast } from "sonner";
 
 interface SKUPriceDetailDrawerProps {
   sku: any | null;
@@ -33,15 +35,28 @@ export function SKUPriceDetailDrawer({ sku, open, onOpenChange, onUpdate }: SKUP
 
   const handleUpdate = () => {
     const updatedSell = parseFloat(sellingPrice);
+    const updatedBase = parseFloat(basePrice);
     const cost = sku.cost || 10.50;
-    const margin = (((updatedSell - cost) / updatedSell) * 100).toFixed(1);
+    const margin = parseFloat((((updatedSell - cost) / updatedSell) * 100).toFixed(1));
     
-    onUpdate({
+    const updatedSku = {
       ...sku,
-      base: parseFloat(basePrice),
+      base: updatedBase,
       sell: updatedSell,
-      margin: margin
+      margin: margin,
+      marginStatus: margin < 10 ? 'critical' : (margin < 15 ? 'warning' : 'healthy')
+    };
+    
+    // Save to localStorage
+    pricingApi.updateSKUPriceInStorage(sku.id, {
+      base: updatedBase,
+      sell: updatedSell,
+      margin: margin,
+      marginStatus: updatedSku.marginStatus
     });
+    
+    onUpdate(updatedSku);
+    toast.success("Price updated successfully");
   };
 
   const historyData = sku.history && sku.history.length > 0 ? sku.history : [

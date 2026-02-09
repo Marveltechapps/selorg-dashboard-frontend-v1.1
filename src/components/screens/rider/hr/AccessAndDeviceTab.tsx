@@ -20,12 +20,19 @@ export function AccessAndDeviceTab({ riders, loading, onRefresh, onAccessUpdated
   const handleToggleAccess = async (riderId: string, currentStatus: "enabled" | "disabled") => {
     const newStatus = currentStatus === "enabled" ? "disabled" : "enabled";
     setUpdating(riderId);
+    
+    // Optimistic update - update UI immediately
     onAccessUpdated?.(riderId, newStatus);
+    
     try {
       await updateRiderAccess(riderId, newStatus);
       toast.success(`Access ${newStatus}`);
-    } catch {
-      toast.success(`Access ${newStatus} (saved locally)`);
+      // Background refresh to sync with server (non-blocking)
+      onRefresh().catch(() => {});
+    } catch (err) {
+      // Revert optimistic update on error
+      onAccessUpdated?.(riderId, currentStatus);
+      toast.error(err instanceof Error ? err.message : "Update failed");
     } finally {
       setUpdating(null);
     }

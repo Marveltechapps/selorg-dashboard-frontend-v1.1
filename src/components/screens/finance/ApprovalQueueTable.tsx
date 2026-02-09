@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
     Table, 
     TableBody, 
@@ -37,6 +37,32 @@ interface Props {
 }
 
 export function ApprovalQueueTable({ tasks, isLoading, onTaskClick, onQuickApprove, onQuickReject }: Props) {
+  const [filterType, setFilterType] = useState<string>('all');
+  const [sortField, setSortField] = useState<string>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  
+  const filteredAndSortedTasks = useMemo(() => {
+    let filtered = tasks;
+    if (filterType !== 'all') {
+      filtered = filtered.filter(t => t.type === filterType);
+    }
+    
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortField === 'date') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortField === 'amount') {
+        comparison = a.amount - b.amount;
+      } else if (sortField === 'type') {
+        comparison = a.type.localeCompare(b.type);
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+    
+    return sorted;
+  }, [tasks, filterType, sortField, sortDirection]);
   
   if (isLoading) {
       return (
@@ -77,12 +103,127 @@ export function ApprovalQueueTable({ tasks, isLoading, onTaskClick, onQuickAppro
         <div className="p-4 border-b border-[#E0E0E0] bg-[#FAFAFA] flex justify-between items-center">
             <h3 className="font-bold text-[#212121]">Approval Queue</h3>
             <div className="flex gap-2">
-                 <Button variant="outline" size="sm" className="h-8 text-xs font-medium">
-                    <Filter className="h-3.5 w-3.5 mr-1.5" /> Filter
-                 </Button>
-                 <Button variant="outline" size="sm" className="h-8 text-xs font-medium">
-                    <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" /> Sort
-                 </Button>
+                 <DropdownMenu open={showFilterMenu} onOpenChange={setShowFilterMenu}>
+                    <DropdownMenuTrigger asChild>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 text-xs font-medium" 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                        >
+                            <Filter className="h-3.5 w-3.5 mr-1.5" /> Filter
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setFilterType('all'); 
+                                setShowFilterMenu(false);
+                            }}
+                        >
+                            All Types
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setFilterType('refund'); 
+                                setShowFilterMenu(false);
+                            }}
+                        >
+                            Refunds
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setFilterType('invoice'); 
+                                setShowFilterMenu(false);
+                            }}
+                        >
+                            Invoices
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setFilterType('vendor_payment'); 
+                                setShowFilterMenu(false);
+                            }}
+                        >
+                            Vendor Payments
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setFilterType('large_payment'); 
+                                setShowFilterMenu(false);
+                            }}
+                        >
+                            Large Payments
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                 </DropdownMenu>
+                 <DropdownMenu open={showSortMenu} onOpenChange={setShowSortMenu}>
+                    <DropdownMenuTrigger asChild>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 text-xs font-medium" 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                        >
+                            <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" /> Sort
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSortField('date'); 
+                                setSortDirection(sortField === 'date' && sortDirection === 'desc' ? 'asc' : 'desc'); 
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            Date {sortField === 'date' && sortDirection === 'desc' ? '↓' : '↑'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSortField('amount'); 
+                                setSortDirection(sortField === 'amount' && sortDirection === 'desc' ? 'asc' : 'desc'); 
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            Amount {sortField === 'amount' && sortDirection === 'desc' ? '↓' : '↑'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSortField('type'); 
+                                setSortDirection(sortField === 'type' && sortDirection === 'desc' ? 'asc' : 'desc'); 
+                                setShowSortMenu(false);
+                            }}
+                        >
+                            Type {sortField === 'type' && sortDirection === 'desc' ? '↓' : '↑'}
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                 </DropdownMenu>
             </div>
         </div>
 
@@ -97,11 +238,17 @@ export function ApprovalQueueTable({ tasks, isLoading, onTaskClick, onQuickAppro
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tasks.map((task) => (
+                {filteredAndSortedTasks.map((task) => (
                     <TableRow 
                         key={task.id} 
                         className="group cursor-pointer hover:bg-gray-50/80 transition-colors"
-                        onClick={() => onTaskClick(task)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (e.currentTarget === e.target || (e.target as HTMLElement).closest('td')) {
+                            onTaskClick(task);
+                          }
+                        }}
                     >
                         <TableCell className="font-medium">
                             {getTypeBadge(task.type)}
@@ -129,8 +276,13 @@ export function ApprovalQueueTable({ tasks, isLoading, onTaskClick, onQuickAppro
                                     size="icon" 
                                     variant="ghost" 
                                     className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    onClick={() => onQuickApprove(task.id)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onQuickApprove(task.id);
+                                    }}
                                     title="Quick Approve"
+                                    type="button"
                                 >
                                     <CheckCircle2 size={18} />
                                 </Button>
@@ -138,8 +290,13 @@ export function ApprovalQueueTable({ tasks, isLoading, onTaskClick, onQuickAppro
                                     size="icon" 
                                     variant="ghost" 
                                     className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => onQuickReject(task.id)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onQuickReject(task.id);
+                                    }}
                                     title="Quick Reject"
+                                    type="button"
                                 >
                                     <XCircle size={18} />
                                 </Button>

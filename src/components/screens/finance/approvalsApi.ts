@@ -101,8 +101,34 @@ const generateMockTasks = (count: number): ApprovalTask[] => {
     return tasks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 };
 
-let MOCK_TASKS = generateMockTasks(25);
-let APPROVED_TODAY_COUNT = 14; 
+// Load from localStorage or use default
+const loadTasksFromStorage = (): ApprovalTask[] => {
+  try {
+    const stored = localStorage.getItem('approvalTasks');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load tasks from storage', e);
+  }
+  return [];
+};
+
+const saveTasksToStorage = (tasks: ApprovalTask[]) => {
+  try {
+    localStorage.setItem('approvalTasks', JSON.stringify(tasks));
+  } catch (e) {
+    console.error('Failed to save tasks to storage', e);
+  }
+};
+
+let MOCK_TASKS: ApprovalTask[] = loadTasksFromStorage().length > 0 ? loadTasksFromStorage() : generateMockTasks(25);
+let APPROVED_TODAY_COUNT = 14;
+
+// Initialize localStorage if empty
+if (loadTasksFromStorage().length === 0) {
+  saveTasksToStorage(MOCK_TASKS);
+} 
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -140,18 +166,32 @@ export const fetchTaskDetails = async (id: string): Promise<ApprovalTask | null>
 
 export const submitTaskDecision = async (id: string, payload: ApprovalDecisionPayload): Promise<ApprovalTask> => {
     await delay(800);
-    const index = MOCK_TASKS.findIndex(t => t.id === id);
-    if (index === -1) throw new Error("Task not found");
+    
+    // Always load fresh from localStorage first
+    let currentTasks = loadTasksFromStorage();
+    if (currentTasks.length === 0) {
+        currentTasks = MOCK_TASKS;
+    }
+    
+    const index = currentTasks.findIndex(t => t.id === id);
+    if (index === -1) {
+        // Try MOCK_TASKS if not found
+        const mockIndex = MOCK_TASKS.findIndex(t => t.id === id);
+        if (mockIndex === -1) throw new Error("Task not found");
+        currentTasks = [...MOCK_TASKS];
+    }
 
     const updatedTask = {
-        ...MOCK_TASKS[index],
+        ...currentTasks[index],
         status: payload.decision === 'approve' ? 'approved' : 'rejected' as TaskStatus,
         notes: payload.note,
         approvedAt: new Date().toISOString(),
         approverName: 'Current User' // mock
     };
 
-    MOCK_TASKS[index] = updatedTask;
+    currentTasks[index] = updatedTask;
+    MOCK_TASKS = currentTasks;
+    saveTasksToStorage(currentTasks);
 
     if (payload.decision === 'approve') {
         APPROVED_TODAY_COUNT++;

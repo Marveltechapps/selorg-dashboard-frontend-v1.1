@@ -55,7 +55,7 @@ export function WarehouseTopBar() {
           <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#EF4444] border-2 border-white rounded-full shadow-sm" />
         </button>
         {showNotifications && (
-          <div className="absolute top-full right-0 mt-2 min-w-[360px] max-w-[420px] w-[90vw] bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-50 py-2 max-h-[28rem] overflow-y-auto overflow-x-hidden">
+          <div className="absolute top-full right-2 mt-2 min-w-[360px] max-w-[420px] w-[90vw] bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-50 py-2 max-h-[28rem] overflow-y-auto overflow-x-hidden">
             <div className="px-4 py-3 border-b border-[#E2E8F0] font-semibold text-[#1E293B] text-sm whitespace-nowrap">Notifications</div>
             {MOCK_NOTIFICATIONS.map((n) => (
               <button

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Search, Filter, Download } from 'lucide-react';
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -10,11 +10,19 @@ import { VendorInvoiceFilter, Vendor } from './payablesApi';
 interface Props {
   filters: VendorInvoiceFilter;
   vendors: Vendor[];
+  invoices?: any[];
   onFilterChange: (newFilters: VendorInvoiceFilter) => void;
   onExport: () => void;
 }
 
-export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExport }: Props) {
+export function VendorInvoicesFilters({ filters, vendors, invoices = [], onFilterChange, onExport }: Props) {
+  const [searchQuery, setSearchQuery] = React.useState(filters.query || '');
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Sync search query with filters
+  useEffect(() => {
+    setSearchQuery(filters.query || '');
+  }, [filters.query]);
   
   const handleStatusChange = (val: string) => {
       onFilterChange({ ...filters, status: val === 'all' ? undefined : val, page: 1 });
@@ -22,6 +30,36 @@ export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExpo
 
   const handleVendorChange = (val: string) => {
       onFilterChange({ ...filters, vendorId: val === 'all' ? undefined : val, page: 1 });
+  };
+  
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Debounce the search - wait 300ms after user stops typing
+    debounceTimerRef.current = setTimeout(() => {
+      onFilterChange({ ...filters, query: value, page: 1 });
+    }, 300);
+  };
+  
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+  
+  const handleExportClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Call parent export handler which uses filtered invoices
+    onExport();
   };
 
   return (
@@ -31,6 +69,8 @@ export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExpo
         <Input 
           type="text" 
           placeholder="Search invoice #..." 
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full h-9 pl-9 pr-4 rounded-lg bg-[#F5F5F5] border-transparent text-sm focus:bg-white focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition-all shadow-none"
         />
       </div>
@@ -64,7 +104,7 @@ export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExpo
 
       <Popover>
         <PopoverTrigger asChild>
-            <Button variant="outline" className="h-9 gap-2 text-[#757575] border-[#E0E0E0] hover:text-[#212121]">
+            <Button type="button" variant="outline" className="h-9 gap-2 text-[#757575] border-[#E0E0E0] hover:text-[#212121]">
                 <Filter size={16} />
                 Date
             </Button>
@@ -78,7 +118,11 @@ export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExpo
                         id="date-from" 
                         type="date" 
                         className="h-8" 
-                        onChange={(e) => onFilterChange({...filters, dateFrom: e.target.value})}
+                        value={filters.dateFrom || ''}
+                        onChange={(e) => {
+                          e.preventDefault();
+                          onFilterChange({...filters, dateFrom: e.target.value || undefined, page: 1});
+                        }}
                     />
                 </div>
                 <div className="space-y-2">
@@ -87,14 +131,18 @@ export function VendorInvoicesFilters({ filters, vendors, onFilterChange, onExpo
                         id="date-to" 
                         type="date" 
                         className="h-8"
-                        onChange={(e) => onFilterChange({...filters, dateTo: e.target.value})}
+                        value={filters.dateTo || ''}
+                        onChange={(e) => {
+                          e.preventDefault();
+                          onFilterChange({...filters, dateTo: e.target.value || undefined, page: 1});
+                        }}
                     />
                 </div>
             </div>
         </PopoverContent>
       </Popover>
 
-      <Button variant="ghost" className="h-9 w-9 p-0 text-[#757575] hover:text-[#14B8A6]" onClick={onExport} title="Export List">
+      <Button variant="ghost" className="h-9 w-9 p-0 text-[#757575] hover:text-[#14B8A6]" onClick={handleExportClick} title="Export List" type="button">
           <Download size={18} />
       </Button>
     </div>

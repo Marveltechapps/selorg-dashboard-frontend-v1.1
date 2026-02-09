@@ -178,6 +178,7 @@ const MOCK_HR_SUMMARY: HrDashboardSummary = { pendingVerifications: 3, expiredDo
 const MOCK_HR_DOCUMENTS: RiderDocument[] = [
   { id: 'doc-1', riderId: 'r1', riderName: 'Raj K', documentType: 'Driving License', submittedAt: new Date(Date.now() - 2 * 86400000).toISOString(), status: 'pending', fileUrl: '#' },
   { id: 'doc-2', riderId: 'r2', riderName: 'Priya M', documentType: 'ID Proof', submittedAt: new Date(Date.now() - 1 * 86400000).toISOString(), status: 'approved', reviewer: 'Admin', reviewedAt: new Date().toISOString(), fileUrl: '#' },
+  { id: 'doc-3', riderId: 'r1', riderName: 'Raj K', documentType: 'Vehicle RC', submittedAt: new Date(Date.now() - 90 * 86400000).toISOString(), expiresAt: new Date(Date.now() - 5 * 86400000).toISOString(), status: 'expired', fileUrl: '#' },
 ];
 const MOCK_HR_RIDERS: Rider[] = [
   { id: 'r1', name: 'Raj K', phone: '+91 98765 43210', email: 'raj@example.com', status: 'onboarding', onboardingStatus: 'docs_pending', trainingStatus: 'in_progress', appAccess: 'enabled', deviceAssigned: false, contract: { startDate: '2025-01-01', endDate: '2026-01-01', renewalDue: false }, compliance: { isCompliant: true, lastAuditDate: '2025-01-15', policyViolationsCount: 0 } },
@@ -240,19 +241,11 @@ export async function fetchDocumentDetails(documentId: string): Promise<RiderDoc
 }
 
 export async function approveDocument(docId: string, notes?: string): Promise<void> {
-  try {
-    await apiRequest(API_ENDPOINTS.hr.document(docId), { method: 'PUT', body: JSON.stringify({ action: 'approve', notes: notes || null }) });
-  } catch (_) {
-    // Mock success so UI updates locally
-  }
+  await apiRequest(API_ENDPOINTS.hr.document(docId), { method: 'PUT', body: JSON.stringify({ action: 'approve', notes: notes || null }) });
 }
 
 export async function rejectDocument(docId: string, reason: string): Promise<void> {
-  try {
-    await apiRequest(API_ENDPOINTS.hr.document(docId), { method: 'PUT', body: JSON.stringify({ action: 'reject', rejectionReason: reason }) });
-  } catch (_) {
-    // Mock success so UI updates locally
-  }
+  await apiRequest(API_ENDPOINTS.hr.document(docId), { method: 'PUT', body: JSON.stringify({ action: 'reject', rejectionReason: reason }) });
 }
 
 export async function markDocumentResubmitted(docId: string): Promise<void> {
@@ -268,13 +261,9 @@ export async function markDocumentResubmitted(docId: string): Promise<void> {
   );
 }
 
-export async function onboardRider(data: Partial<Rider> & { name?: string; email?: string; phone?: string }): Promise<void> {
-  try {
-    await apiRequest(API_ENDPOINTS.hr.riders, { method: 'POST', body: JSON.stringify(data) });
-  } catch (err) {
-    console.error('[HR API] Onboard rider failed:', err);
-    throw new Error('Backend unavailable. Rider added locally—connect backend to persist.');
-  }
+export async function onboardRider(data: Partial<Rider> & { name?: string; email?: string; phone?: string }): Promise<Rider> {
+  const response = await apiRequest<ApiRider>(API_ENDPOINTS.hr.riders, { method: 'POST', body: JSON.stringify(data) });
+  return transformRider(response);
 }
 
 export async function fetchAllRiders(): Promise<Rider[]> {
@@ -288,28 +277,15 @@ export async function fetchAllRiders(): Promise<Rider[]> {
 }
 
 export async function updateRiderAccess(riderId: string, access: "enabled" | "disabled"): Promise<void> {
-  try {
-    await apiRequest(API_ENDPOINTS.hr.rider(riderId), { method: 'PUT', body: JSON.stringify({ appAccess: access }) });
-  } catch (_) {
-    return;
-  }
+  await apiRequest(API_ENDPOINTS.hr.access(riderId), { method: 'PUT', body: JSON.stringify({ appAccess: access }) });
 }
 
 export async function updateRiderTraining(riderId: string): Promise<void> {
-  try {
-    await apiRequest(`${API_ENDPOINTS.hr.training}/${riderId}`, { method: 'PUT', body: JSON.stringify({ notes: 'Training completed' }) });
-  } catch (_) {
-    return;
-  }
+  await apiRequest(`${API_ENDPOINTS.hr.training}/${riderId}`, { method: 'PUT', body: JSON.stringify({ notes: 'Training completed' }) });
 }
 
 export async function sendReminderToRider(riderId: string): Promise<{ success: boolean; message: string }> {
-  try {
-    const result = await apiRequest<{ success: boolean; message: string; riderName: string }>(API_ENDPOINTS.hr.remindRider(riderId), { method: 'POST' });
-    return result;
-  } catch (_) {
-    return { success: true, message: 'Reminder queued' };
-  }
+  return await apiRequest<{ success: boolean; message: string; riderName: string }>(API_ENDPOINTS.hr.remindRider(riderId), { method: 'POST' });
 }
 
 export async function renewContract(riderId: string): Promise<void> {

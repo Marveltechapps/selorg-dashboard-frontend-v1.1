@@ -1,19 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowRightLeft } from "lucide-react";
+import { toast } from "sonner";
+import { allocationApi } from './allocationApi';
 
 interface SKURebalanceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sku: any;
+  onComplete?: () => void;
 }
 
-export function SKURebalanceModal({ open, onOpenChange, sku }: SKURebalanceModalProps) {
+export function SKURebalanceModal({ open, onOpenChange, sku, onComplete }: SKURebalanceModalProps) {
   const [step, setStep] = useState('strategy'); // strategy -> preview
+  const [selectedStrategy, setSelectedStrategy] = useState('sales');
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+  // Reset when modal closes
+  useEffect(() => {
+    if (!open) {
+      setStep('strategy');
+      setSelectedStrategy('sales');
+      setSelectedLocations([]);
+    }
+  }, [open]);
+
+  const handleConfirmRebalance = () => {
+    if (!sku) return;
+    
+    // Save rebalance to localStorage
+    const rebalance = allocationApi.createRebalance({
+      skuId: sku.id,
+      skuName: sku.name,
+      strategy: selectedStrategy,
+      locations: selectedLocations,
+      timestamp: new Date().toISOString()
+    });
+
+    // Update SKU allocations based on rebalance
+    // Load existing allocations first to preserve all fields
+    const persisted = allocationApi.loadSKUAllocations();
+    
+    if (sku.locations) {
+      sku.locations.forEach((loc: any, index: number) => {
+        const key = `${sku.id}_${loc.id}`;
+        const existing = persisted[key] || {};
+        
+        // Simulate rebalance: adjust allocations
+        const newAllocated = selectedStrategy === 'equal' 
+          ? Math.floor(sku.totalStock / sku.locations.length)
+          : selectedStrategy === 'sales'
+          ? (existing.allocated ?? loc.allocated) + (index === 0 ? 400 : 0) // Simulate increase
+          : existing.allocated ?? loc.allocated;
+        
+        const newInTransit = (existing.inTransit ?? loc.inTransit) + (index === 0 ? 400 : 0);
+        
+        // Update with all fields preserved
+        allocationApi.updateSKUAllocation(sku.id, loc.id, {
+          allocated: newAllocated,
+          target: existing.target ?? loc.target,
+          onHand: existing.onHand ?? loc.onHand,
+          inTransit: newInTransit,
+          safetyStock: existing.safetyStock ?? loc.safetyStock
+        });
+      });
+    }
+
+    toast.success('Rebalance confirmed', {
+      description: `Rebalancing ${sku.name} across selected locations`
+    });
+    
+    // Call onComplete before closing to ensure parent refreshes
+    if (onComplete) {
+      setTimeout(() => {
+        onComplete();
+      }, 100);
+    }
+    onOpenChange(false);
+  };
 
   if (!sku) return null;
 
@@ -32,7 +100,7 @@ export function SKURebalanceModal({ open, onOpenChange, sku }: SKURebalanceModal
         {step === 'strategy' ? (
             <div className="py-4 space-y-4">
                 <Label>Select Rebalancing Strategy</Label>
-                <RadioGroup defaultValue="sales">
+                <RadioGroup value={selectedStrategy} onValueChange={setSelectedStrategy}>
                     <div className="flex items-center space-x-2 p-3 border rounded hover:bg-gray-50">
                         <RadioGroupItem value="sales" id="s1" />
                         <div className="grid gap-1.5 leading-none">
@@ -94,7 +162,7 @@ export function SKURebalanceModal({ open, onOpenChange, sku }: SKURebalanceModal
           ) : (
               <>
                 <Button variant="outline" onClick={() => setStep('strategy')}>Back</Button>
-                <Button className="bg-[#7C3AED]" onClick={() => onOpenChange(false)}>Confirm Rebalance</Button>
+                <Button className="bg-[#7C3AED]" onClick={handleConfirmRebalance}>Confirm Rebalance</Button>
               </>
           )}
         </DialogFooter>

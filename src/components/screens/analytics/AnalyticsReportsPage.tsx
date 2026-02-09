@@ -22,7 +22,11 @@ import { cn } from '@/lib/utils';
 
 type MetricType = 'rider' | 'sla' | 'fleet';
 
-export function AnalyticsReportsPage() {
+interface AnalyticsReportsPageProps {
+  searchQuery?: string;
+}
+
+export function AnalyticsReportsPage({ searchQuery = '' }: AnalyticsReportsPageProps) {
   const [activeMetric, setActiveMetric] = useState<MetricType | null>(null);
   const [granularity, setGranularity] = useState<Granularity>('day');
   const [dateRange, setDateRange] = useState('7d');

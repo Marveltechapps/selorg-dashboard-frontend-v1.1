@@ -22,11 +22,17 @@ interface ApiOrder {
   id: string;
   status: OrderStatus;
   riderId?: string | null;
+  rider_id?: string | null; // Backend might use snake_case
   etaMinutes?: number | null;
+  eta_minutes?: number | null; // Backend might use snake_case
   slaDeadline: string;
+  sla_deadline?: string; // Backend might use snake_case
   pickupLocation: string;
+  pickup_location?: string; // Backend might use snake_case
   dropLocation: string;
+  drop_location?: string; // Backend might use snake_case
   customerName: string;
+  customer_name?: string; // Backend might use snake_case
   items: string[];
   timeline?: { status: OrderStatus; time: string; note?: string }[];
 }
@@ -109,7 +115,27 @@ async function apiRequest<T>(
       } catch {
         error = { message: errorText || 'Request failed' };
       }
-      const errorMessage = error.message || error.error || `HTTP error! status: ${response.status}`;
+      // Extract error message properly - handle nested error objects
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        // Try multiple paths to extract error message
+        errorMessage = error.message || error.error || error.msg || errorMessage;
+        // If still an object, try nested paths
+        if (typeof errorMessage === 'object') {
+          errorMessage = (errorMessage as any)?.message || (error as any)?.error?.message || 'Request failed';
+        }
+        // Ensure it's a string
+        if (typeof errorMessage !== 'string') {
+          errorMessage = String(errorMessage);
+        }
+        // Avoid [object Object] - try to extract meaningful message
+        if (errorMessage === '[object Object]' || errorMessage === '{}' || errorMessage.startsWith('{')) {
+          const nestedMsg = (error as any)?.error?.message || (error as any)?.message?.message || (error as any)?.details?.message;
+          errorMessage = nestedMsg || 'Request failed';
+        }
+      }
       const apiError = new Error(errorMessage);
       (apiError as any).status = response.status;
       (apiError as any).details = error.details || error;
@@ -159,14 +185,15 @@ function transformOrder(apiOrder: ApiOrder): Order {
   return {
     id: apiOrder.id,
     status: apiOrder.status,
-    riderId: apiOrder.riderId || undefined,
-    etaMinutes: apiOrder.etaMinutes || undefined,
-    slaDeadline: typeof apiOrder.slaDeadline === 'string' 
-      ? apiOrder.slaDeadline 
-      : new Date(apiOrder.slaDeadline).toISOString(),
-    pickupLocation: apiOrder.pickupLocation,
-    dropLocation: apiOrder.dropLocation,
-    customerName: apiOrder.customerName,
+    // Handle both camelCase and snake_case from backend
+    riderId: apiOrder.riderId || apiOrder.rider_id || undefined,
+    etaMinutes: apiOrder.etaMinutes || apiOrder.eta_minutes || undefined,
+    slaDeadline: typeof (apiOrder.slaDeadline || apiOrder.sla_deadline) === 'string' 
+      ? (apiOrder.slaDeadline || apiOrder.sla_deadline || '')
+      : new Date(apiOrder.slaDeadline || apiOrder.sla_deadline || Date.now()).toISOString(),
+    pickupLocation: apiOrder.pickupLocation || apiOrder.pickup_location || '',
+    dropLocation: apiOrder.dropLocation || apiOrder.drop_location || '',
+    customerName: apiOrder.customerName || apiOrder.customer_name || '',
     items: apiOrder.items || [],
     timeline,
   };
@@ -255,10 +282,33 @@ export const api = {
       // Or fallback to direct list response { orders: [...], total: ... }
       let ordersArray: ApiOrder[] = [];
       
-      if (data && data.success && Array.isArray(data.data)) {
+      if (!data || typeof data !== 'object') {
+        logger.warn('[RiderAPI] Invalid orders response: not an object', data);
+        return [];
+      }
+      
+      // Check for array response (direct array)
+      if (Array.isArray(data)) {
+        ordersArray = data;
+      } 
+      // Check for { success: true, data: [...] } format
+      else if (data.success && Array.isArray(data.data)) {
         ordersArray = data.data;
-      } else if (data && Array.isArray(data.orders)) {
+      } 
+      // Check for { orders: [...] } format
+      else if (Array.isArray(data.orders)) {
         ordersArray = data.orders;
+      } 
+      // If data is a single object (not an array), log warning but don't crash
+      else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        // Check if it looks like a single order object (has order-like properties)
+        if (data.id && (data.id.startsWith('ORD-') || data.id.startsWith('ord-'))) {
+          // It's a single order, wrap it in an array
+          ordersArray = [data];
+        } else {
+          logger.warn('[RiderAPI] Invalid orders response format: expected array, got object', data);
+          return [];
+        }
       } else {
         logger.warn('[RiderAPI] Invalid orders response format:', data);
         return [];
@@ -267,8 +317,9 @@ export const api = {
       return ordersArray.map(transformOrder).sort((a, b) =>
         (a.etaMinutes ?? 999) - (b.etaMinutes ?? 999)
       );
-    } catch (_) {
-      return MOCK_ORDERS;
+    } catch (e) {
+      logger.warn('[RiderAPI.getOrders] failed', e);
+      return [];
     }
   },
 
@@ -309,20 +360,22 @@ export const api = {
   },
 
   /**
-   * Assign order to rider (with mock success when API fails)
+   * Assign order to rider. Throws on API failure so caller can show error and refetch.
+   * Returns order shape from API so UI shows server-assigned riderId (e.g. RIDER-0001).
    */
-  assignOrder: async (orderId: string, riderId: string): Promise<Order> => {
-    try {
-      await apiRequest<{ orderId: string; riderId: string; status: string }>(
-        API_ENDPOINTS.orders.assign(orderId),
-        { method: 'POST', body: JSON.stringify({ orderId, riderId }) }
-      );
-      const base = MOCK_ORDERS.find(o => o.id === orderId) || MOCK_ORDERS[0];
-      return { ...base, id: orderId, riderId, status: 'assigned' as OrderStatus, etaMinutes: 12, timeline: base.timeline || [] };
-    } catch (_) {
-      const base = MOCK_ORDERS.find(o => o.id === orderId) || MOCK_ORDERS[0];
-      return { ...base, id: orderId, riderId, status: 'assigned' as OrderStatus, etaMinutes: 12, timeline: base.timeline || [] };
-    }
+  assignOrder: async (orderId: string, riderId: string): Promise<{ orderId: string; riderId: string; riderName?: string; status: string; etaMinutes?: number }> => {
+    const res = await apiRequest<{ orderId: string; riderId: string; riderName?: string; status: string; etaMinutes?: number; message?: string }>(
+      API_ENDPOINTS.orders.assign(orderId),
+      { method: 'POST', body: JSON.stringify({ orderId, riderId }) }
+    );
+    // Return the full response so caller can use it
+    return {
+      orderId: res?.orderId ?? orderId,
+      riderId: res?.riderId ?? riderId,
+      riderName: res?.riderName,
+      status: res?.status ?? 'assigned',
+      etaMinutes: res?.etaMinutes ?? 12,
+    };
   },
 
   /**

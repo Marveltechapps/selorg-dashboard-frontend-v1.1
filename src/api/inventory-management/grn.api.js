@@ -70,14 +70,28 @@ export async function completeGRN(grnId, options = {}) {
  * Approve GRN
  */
 export async function approveGRN(grnId, options = {}) {
-  const { notes = '' } = options;
-  return post(`${BASE_PATH}/${grnId}/approve`, { notes });
+  const { notes = '', qualityChecked = false, documentsComplete = false } = options;
+  return post(`${BASE_PATH}/${grnId}/approve`, { notes, qualityChecked, documentsComplete });
 }
 
 /**
  * Reject GRN
  */
-export async function rejectGRN(grnId, reason, options = {}) {
-  const { notes = '' } = options;
-  return post(`${BASE_PATH}/${grnId}/reject`, { reason, notes });
+export async function rejectGRN(grnId, body = {}) {
+  const { reason = 'other', description = '', notes = '' } = body;
+  return post(`${BASE_PATH}/${grnId}/reject`, { reason, description, notes });
+}
+
+/**
+ * Email GRN
+ */
+export async function emailGRN(grnId, recipients = []) {
+  return post(`${BASE_PATH}/${grnId}/email`, { recipients });
+}
+
+/**
+ * Archive GRN
+ */
+export async function archiveGRN(grnId) {
+  return post(`${BASE_PATH}/${grnId}/archive`, {});
 }

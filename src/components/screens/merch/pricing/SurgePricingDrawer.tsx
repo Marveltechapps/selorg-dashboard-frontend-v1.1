@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../../../ui/sheet";
 import { Switch } from "../../../ui/switch";
 import { Button } from "../../../ui/button";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Zap, Clock, TrendingUp, AlertCircle, Plus, Trash2, Edit2, Play, Pause } from "lucide-react";
 import { Card, CardContent } from "../../../ui/card";
 import { toast } from "sonner";
+import { pricingApi } from './pricingApi';
 
 interface SurgePricingDrawerProps {
   open: boolean;
@@ -20,12 +21,39 @@ export function SurgePricingDrawer({ open, onOpenChange }: SurgePricingDrawerPro
   const [isEnabled, setIsEnabled] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingRule, setEditingRule] = useState<any | null>(null);
+  const [rules, setRules] = useState<any[]>([]);
 
-  // Mock data
-  const [rules, setRules] = useState([
-    { id: 1, zone: 'Downtown', trigger: 'Rain > 5mm', multiplier: '1.2x', active: true, minMult: '1.1x', maxMult: '1.3x' },
-    { id: 2, zone: 'North End', trigger: 'Orders > 500/hr', multiplier: '1.15x', active: false, minMult: '1.1x', maxMult: '1.2x' },
-  ]);
+  // Load data when drawer opens
+  useEffect(() => {
+    if (open) {
+      loadData();
+    }
+  }, [open]);
+
+  const loadData = async () => {
+    try {
+      // Load surge enabled state
+      const enabled = pricingApi.getSurgeEnabled();
+      setIsEnabled(enabled);
+      
+      // Load rules
+      const response = await pricingApi.getSurgeRules();
+      if (response.success && response.data) {
+        setRules(response.data);
+      } else {
+        // Default rules if empty
+        const defaultRules = [
+          { id: 1, zone: 'Downtown', trigger: 'Rain > 5mm', multiplier: '1.2x', active: true, minMult: '1.1x', maxMult: '1.3x' },
+          { id: 2, zone: 'North End', trigger: 'Orders > 500/hr', multiplier: '1.15x', active: false, minMult: '1.1x', maxMult: '1.2x' },
+        ];
+        setRules(defaultRules);
+        await pricingApi.createSurgeRule(defaultRules[0]);
+        await pricingApi.createSurgeRule(defaultRules[1]);
+      }
+    } catch (error) {
+      console.error('Error loading surge pricing data:', error);
+    }
+  };
 
   const [newRule, setNewRule] = useState({
     zone: 'downtown',
@@ -34,41 +62,65 @@ export function SurgePricingDrawer({ open, onOpenChange }: SurgePricingDrawerPro
     maxMult: '1.5x'
   });
 
-  const handleDelete = (id: number) => {
-    setRules(rules.filter(r => r.id !== id));
-    toast.error("Surge rule deleted");
+  const handleDelete = async (id: number) => {
+    try {
+      await pricingApi.deleteSurgeRule(id);
+      setRules(rules.filter(r => r.id !== id));
+      toast.success("Surge rule deleted");
+    } catch (error) {
+      console.error('Error deleting rule:', error);
+      toast.error("Failed to delete rule");
+    }
   };
 
-  const toggleRule = (id: number) => {
-    setRules(rules.map(r => r.id === id ? { ...r, active: !r.active } : r));
+  const toggleRule = async (id: number) => {
+    try {
+      const rule = rules.find(r => r.id === id);
+      if (rule) {
+        await pricingApi.updateSurgeRule(id, { ...rule, active: !rule.active });
+        setRules(rules.map(r => r.id === id ? { ...r, active: !r.active } : r));
+        toast.success(`Rule ${!rule.active ? 'activated' : 'paused'}`);
+      }
+    } catch (error) {
+      console.error('Error toggling rule:', error);
+      toast.error("Failed to update rule");
+    }
   };
 
-  const handleCreateOrUpdate = () => {
-    if (editingRule) {
-        setRules(rules.map(r => r.id === editingRule.id ? { 
-            ...r, 
-            zone: newRule.zone.charAt(0).toUpperCase() + newRule.zone.slice(1),
-            trigger: newRule.trigger === 'demand' ? 'Orders > 500/hr' : 'Condition Met',
-            multiplier: newRule.maxMult,
-            minMult: newRule.minMult,
-            maxMult: newRule.maxMult
-        } : r));
-        toast.success("Surge rule updated");
-    } else {
-        const rule = {
-            id: Date.now(),
-            zone: newRule.zone.charAt(0).toUpperCase() + newRule.zone.slice(1),
-            trigger: newRule.trigger === 'demand' ? 'Orders > 500/hr' : 'Condition Met',
-            multiplier: newRule.maxMult,
-            active: true,
-            minMult: newRule.minMult,
-            maxMult: newRule.maxMult
+  const handleCreateOrUpdate = async () => {
+    try {
+      if (editingRule) {
+        const updatedRule = {
+          ...editingRule,
+          zone: newRule.zone.charAt(0).toUpperCase() + newRule.zone.slice(1),
+          trigger: newRule.trigger === 'demand' ? 'Orders > 500/hr' : 'Condition Met',
+          multiplier: newRule.maxMult,
+          minMult: newRule.minMult,
+          maxMult: newRule.maxMult
         };
+        await pricingApi.updateSurgeRule(editingRule.id, updatedRule);
+        setRules(rules.map(r => r.id === editingRule.id ? updatedRule : r));
+        toast.success("Surge rule updated");
+      } else {
+        const rule = {
+          id: Date.now(),
+          zone: newRule.zone.charAt(0).toUpperCase() + newRule.zone.slice(1),
+          trigger: newRule.trigger === 'demand' ? 'Orders > 500/hr' : 'Condition Met',
+          multiplier: newRule.maxMult,
+          active: true,
+          minMult: newRule.minMult,
+          maxMult: newRule.maxMult
+        };
+        await pricingApi.createSurgeRule(rule);
         setRules([...rules, rule]);
         toast.success("Surge rule created");
+      }
+      setShowCreateForm(false);
+      setEditingRule(null);
+    } catch (error) {
+      console.error('Error creating/updating rule:', error);
+      toast.error("Failed to save rule");
     }
-    setShowCreateForm(false);
-    setEditingRule(null);
   };
 
   const handleEditClick = (rule: any) => {
@@ -101,7 +153,14 @@ export function SurgePricingDrawer({ open, onOpenChange }: SurgePricingDrawerPro
                         <h3 className="font-medium text-slate-900">Region Status</h3>
                         <p className="text-sm text-slate-500">{isEnabled ? "Surge pricing is active" : "Surge pricing is disabled"}</p>
                     </div>
-                    <Switch checked={isEnabled} onCheckedChange={setIsEnabled} />
+                    <Switch 
+                      checked={isEnabled} 
+                      onCheckedChange={async (checked) => {
+                        setIsEnabled(checked);
+                        pricingApi.setSurgeEnabled(checked);
+                        toast.success(`Surge pricing ${checked ? 'enabled' : 'disabled'}`);
+                      }} 
+                    />
                 </div>
 
                 <div>

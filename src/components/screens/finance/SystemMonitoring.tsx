@@ -79,15 +79,15 @@ export function SystemMonitoring() {
                 <td className="px-6 py-4 text-right text-[#616161]">1 min ago</td>
               </tr>
               <tr className="hover:bg-[#FAFAFA]">
-                <td className="px-6 py-4 font-bold text-[#212121]">Local Bank API</td>
+                <td className="px-6 py-4 font-bold text-[#212121]">Adyen</td>
                 <td className="px-6 py-4">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEE2E2] text-[#991B1B]">
-                       Degraded
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#DCFCE7] text-[#166534]">
+                       Operational
                     </span>
                 </td>
-                <td className="px-6 py-4 text-[#EF4444]">1200ms</td>
-                <td className="px-6 py-4 text-[#EAB308] font-bold">85%</td>
-                <td className="px-6 py-4 text-right text-[#616161]">30 secs ago</td>
+                <td className="px-6 py-4 text-[#616161]">156ms</td>
+                <td className="px-6 py-4 text-[#16A34A] font-bold">99.7%</td>
+                <td className="px-6 py-4 text-right text-[#616161]">2 mins ago</td>
               </tr>
             </tbody>
         </table>

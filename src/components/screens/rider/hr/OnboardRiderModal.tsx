@@ -24,7 +24,7 @@ import { Loader2 } from "lucide-react";
 interface OnboardRiderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newRider?: { name: string; email: string; phone: string }) => void;
+  onSuccess: (newRider?: { id?: string; name: string; email: string; phone: string }) => void;
 }
 
 export function OnboardRiderModal({ isOpen, onClose, onSuccess }: OnboardRiderModalProps) {
@@ -43,23 +43,30 @@ export function OnboardRiderModal({ isOpen, onClose, onSuccess }: OnboardRiderMo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim() || !formData.phone.trim()) {
+      toast.error("Name and phone number are required");
+      return;
+    }
     setLoading(true);
     try {
-      await onboardRider(formData);
+      // Only send fields that backend expects: name, phone, email
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim() || undefined,
+      };
+      const created = await onboardRider(payload);
       toast.success("Rider onboarded successfully");
-      onSuccess(formData);
+      onSuccess(created);
       onClose();
       setFormData({ name: "", email: "", phone: "", city: "", vehicleType: "" });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      if (msg.includes('Backend unavailable') || msg.includes('connect')) {
-        toast.success("Rider added locally. Connect backend to persist.");
-        onSuccess(formData);
-        onClose();
-        setFormData({ name: "", email: "", phone: "", city: "", vehicleType: "" });
-      } else {
-        toast.error("Failed to onboard rider");
-      }
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : (typeof error === 'object' && error !== null && 'message' in error)
+          ? String(error.message)
+          : "Failed to onboard rider";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

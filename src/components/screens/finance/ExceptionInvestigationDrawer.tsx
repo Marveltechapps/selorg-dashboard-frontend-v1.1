@@ -37,7 +37,7 @@ export function ExceptionInvestigationDrawer({ exception, open, onClose, onResol
              </SheetDescription>
         </div>
 
-        <ScrollArea className="flex-1 bg-gray-50/50">
+        <ScrollArea className="flex-1 bg-gray-50/50 overflow-y-auto max-h-[calc(100vh-200px)]">
             <div className="p-6 space-y-8">
                 {/* Overview Card */}
                 <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm space-y-4">
@@ -113,10 +113,24 @@ export function ExceptionInvestigationDrawer({ exception, open, onClose, onResol
         </ScrollArea>
 
         <div className="p-6 border-t border-gray-100 bg-white flex gap-3">
-             <Button variant="outline" className="flex-1" onClick={onClose}>Close Investigation</Button>
+             <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClose();
+                }}
+             >
+               Close Investigation
+             </Button>
              <Button 
                 className="flex-1 bg-[#14B8A6] hover:bg-[#0D9488]"
-                onClick={() => onResolve(exception)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onResolve(exception);
+                }}
             >
                  <ArrowUpRight size={16} className="mr-2" /> Resolve Issue
              </Button>

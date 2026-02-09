@@ -10,7 +10,11 @@ import { fetchShifts, fetchShiftSummary, Shift, ShiftSummary } from './shiftsApi
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-export function StaffShiftsPage() {
+interface StaffShiftsPageProps {
+  searchQuery?: string;
+}
+
+export function StaffShiftsPage({ searchQuery = '' }: StaffShiftsPageProps) {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [activeFilter, setActiveFilter] = useState<'all' | 'checked-in' | 'absent'>('all');
   
@@ -43,12 +47,27 @@ export function StaffShiftsPage() {
     loadData();
   }, [selectedDate]);
 
+  // Combine search and filter
   const filteredShifts = React.useMemo(() => {
-    if (activeFilter === 'all') return shifts;
-    if (activeFilter === 'checked-in') return shifts.filter(s => s.status === 'active' || s.status === 'completed');
-    if (activeFilter === 'absent') return shifts.filter(s => s.status === 'absent' || s.status === 'late');
-    return shifts;
-  }, [shifts, activeFilter]);
+    let result = shifts;
+    
+    // Apply search filter first
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(s => 
+        s.id.toLowerCase().includes(query) ||
+        s.staffId.toLowerCase().includes(query) ||
+        s.staffName.toLowerCase().includes(query) ||
+        s.role?.toLowerCase().includes(query) ||
+        s.shiftType?.toLowerCase().includes(query)
+      );
+    }
+    
+    // Then apply status filter
+    if (activeFilter === 'checked-in') return result.filter(s => s.status === 'active' || s.status === 'completed');
+    if (activeFilter === 'absent') return result.filter(s => s.status === 'absent' || s.status === 'late');
+    return result;
+  }, [shifts, activeFilter, searchQuery]);
 
   return (
     <div className="space-y-6 pb-12">

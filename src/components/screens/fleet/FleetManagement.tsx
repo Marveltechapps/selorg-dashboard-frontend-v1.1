@@ -19,7 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
-export function FleetManagement() {
+interface FleetManagementProps {
+  searchQuery?: string;
+}
+
+export function FleetManagement({ searchQuery = '' }: FleetManagementProps) {
   // Data State
   const [summary, setSummary] = useState<FleetSummary | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -39,6 +43,30 @@ export function FleetManagement() {
   const localVehiclesRef = useRef<Vehicle[]>([]);
   const localVehicleUpdatesRef = useRef<Record<string, Partial<Vehicle>>>({});
   const localMaintenanceUpdatesRef = useRef<Record<string, MaintenanceTask["status"]>>({});
+
+  // Filter vehicles and maintenance tasks based on search query
+  const filteredVehicles = React.useMemo(() => {
+    if (!searchQuery.trim()) return vehicles;
+    const query = searchQuery.toLowerCase();
+    return vehicles.filter(v => 
+      v.id.toLowerCase().includes(query) ||
+      v.vehicleId.toLowerCase().includes(query) ||
+      v.type.toLowerCase().includes(query) ||
+      v.assignedRiderName?.toLowerCase().includes(query) ||
+      v.fuelType?.toLowerCase().includes(query)
+    );
+  }, [vehicles, searchQuery]);
+
+  const filteredMaintenanceTasks = React.useMemo(() => {
+    if (!searchQuery.trim()) return maintenanceTasks;
+    const query = searchQuery.toLowerCase();
+    return maintenanceTasks.filter(t => 
+      t.id.toLowerCase().includes(query) ||
+      t.vehicleId.toLowerCase().includes(query) ||
+      t.type.toLowerCase().includes(query) ||
+      t.workshopName?.toLowerCase().includes(query)
+    );
+  }, [maintenanceTasks, searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -67,9 +95,15 @@ export function FleetManagement() {
       setMaintenanceTasks(mergedMaint);
     } catch (error) {
       console.error("Failed to load fleet data", error);
-      const mergedVeh = [...localVehiclesRef.current];
+      setSummary({ totalFleet: 45, inMaintenance: 3, evUsagePercent: 62, scheduledServicesNextWeek: 5 });
+      const mergedVeh = localVehiclesRef.current.length > 0 ? [...localVehiclesRef.current] : [
+        { id: 'v1', vehicleId: 'EV-SCOOT-001', type: 'Electric Scooter', fuelType: 'EV', assignedRiderName: 'Raj K', status: 'active', conditionScore: 92, conditionLabel: 'Good', lastServiceDate: new Date(Date.now() - 20 * 86400000).toISOString(), nextServiceDueDate: new Date(Date.now() + 10 * 86400000).toISOString(), currentOdometerKm: 1200, utilizationPercent: 75, documents: { rcValidTill: new Date(Date.now() + 365 * 86400000).toISOString(), insuranceValidTill: new Date(Date.now() + 180 * 86400000).toISOString() }, pool: 'Hub' },
+        { id: 'v2', vehicleId: 'EV-SCOOT-002', type: 'Electric Scooter', fuelType: 'EV', status: 'maintenance', conditionScore: 65, conditionLabel: 'Fair', lastServiceDate: new Date(Date.now() - 90 * 86400000).toISOString(), nextServiceDueDate: new Date().toISOString(), currentOdometerKm: 3400, utilizationPercent: 0, documents: { rcValidTill: new Date(Date.now() + 300 * 86400000).toISOString(), insuranceValidTill: new Date(Date.now() + 200 * 86400000).toISOString() }, pool: 'Hub' },
+      ];
       setVehicles(mergedVeh);
-      setMaintenanceTasks([]);
+      setMaintenanceTasks([
+        { id: 'm1', vehicleId: 'EV-SCOOT-002', vehicleInternalId: 'v2', type: 'Scheduled Service', scheduledDate: new Date(Date.now() + 2 * 86400000).toISOString(), status: 'upcoming', workshopName: 'Hub Garage', notes: 'Annual service due' },
+      ]);
       toast.info("Using sample data. Connect backend for live data.");
     } finally {
       setLoading(false);
@@ -94,15 +128,16 @@ export function FleetManagement() {
   };
 
   const handleUpdateVehicle = async (id: string, updates: Partial<Vehicle>) => {
-    localVehicleUpdatesRef.current[id] = { ...localVehicleUpdatesRef.current[id], ...updates };
-    setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
     try {
       await updateVehicle(id, updates);
+      localVehicleUpdatesRef.current[id] = { ...localVehicleUpdatesRef.current[id], ...updates };
+      setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
       toast.success("Vehicle updated successfully");
     } catch (e) {
-      toast.success("Vehicle updated (saved locally)");
+      toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      loadData();
     }
-    loadData();
   };
 
   const handleScheduleMaintenance = async (task: any) => {
@@ -136,7 +171,7 @@ export function FleetManagement() {
 
       {/* Main Table */}
       <VehicleStatusTable 
-        vehicles={vehicles} 
+        vehicles={filteredVehicles} 
         loading={loading} 
         onViewDetails={handleViewDetails}
         onManage={handleManage}
@@ -146,7 +181,7 @@ export function FleetManagement() {
       {/* Maintenance Section */}
       <div ref={maintenanceSectionRef}>
         <MaintenanceScheduleList 
-          tasks={maintenanceTasks} 
+          tasks={filteredMaintenanceTasks} 
           loading={loading} 
           onRefresh={loadData}
           onTaskStatusUpdated={(taskId, status) => {
@@ -165,7 +200,7 @@ export function FleetManagement() {
 
       <VehicleManageDrawer 
         isOpen={isManageOpen} 
-        onClose={() => setIsManageOpen(false)} 
+        onClose={() => { setIsManageOpen(false); setSelectedVehicle(null); }} 
         vehicle={selectedVehicle} 
         onUpdate={handleUpdateVehicle}
         onScheduleMaintenance={handleScheduleMaintenance}

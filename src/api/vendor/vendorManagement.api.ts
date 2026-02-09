@@ -104,10 +104,22 @@ export const vendorManagementApi = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to delete vendor');
+      // Create error object with status for better error handling
+      const error: any = new Error(`Failed to delete vendor (${response.status})`);
+      error.status = response.status;
+      error.response = response;
+      
+      try {
+        const errorData = await response.json();
+        error.message = errorData.message || errorData.error || `Failed to delete vendor (${response.status})`;
+      } catch {
+        error.message = `Failed to delete vendor (${response.status})`;
+      }
+      
+      throw error;
     }
 
-    return response.json();
+    return response.json().catch(() => ({}));
   },
 
   /**
@@ -163,16 +175,34 @@ export const vendorManagementApi = {
 
     const url = `${API_CONFIG.baseURL}${API_ENDPOINTS.vendor.qc.list}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) {
+      throw new Error('Authentication token not found. Please log in again.');
+    }
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+        'Authorization': `Bearer ${authToken}`,
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch QC checks');
+      let errorMessage = 'Failed to fetch QC checks';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error?.message || errorData.error || `Failed to fetch QC checks (${response.status} ${response.statusText})`;
+      } catch (e) {
+        if (response.status === 403) {
+          errorMessage = 'Access denied. Please check your authentication token or contact support.';
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else {
+          errorMessage = `Failed to fetch QC checks (${response.status} ${response.statusText})`;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -268,6 +298,131 @@ export const vendorManagementApi = {
 
     return response.json();
   },
+
+  /**
+   * Update QC check (approve/reject/appeal)
+   */
+  async updateQCCheck(qcId: string, payload: { status?: string; result?: string; notes?: string }) {
+    console.log('API: updateQCCheck called with:', { qcId, payload });
+    const response = await fetch(`${API_CONFIG.baseURL}/vendor/qc/${qcId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to update QC check';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorData.msg || JSON.stringify(errorData) || errorMessage;
+      } catch (e) {
+        errorMessage = `Failed to update QC check (${response.status} ${response.statusText})`;
+      }
+      console.error('API: updateQCCheck failed:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('API: updateQCCheck success:', result);
+    // Handle both { success: true, data: {...} } and direct object responses
+    return result.data || result;
+  },
+
+  /**
+   * Schedule audit
+   */
+  async scheduleAudit(auditData: { vendorId: string; vendor?: string; auditType?: string; date?: Date }) {
+    if (!auditData.vendorId) {
+      throw new Error('Vendor ID is required to schedule audit');
+    }
+
+    const response = await fetch(`${API_CONFIG.baseURL}/vendor/qc-compliance/audits`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({
+        vendorId: auditData.vendorId,
+        auditType: auditData.auditType || 'Routine',
+        date: auditData.date ? (auditData.date instanceof Date ? auditData.date.toISOString() : auditData.date) : new Date().toISOString(),
+        result: 'Pending',
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to schedule audit';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorData.msg || JSON.stringify(errorData) || errorMessage;
+      } catch (e) {
+        errorMessage = `Failed to schedule audit (${response.status} ${response.statusText})`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update certificate (verify/renew)
+   */
+  async updateCertificate(certId: string, payload: { status?: string; expiresAt?: Date }) {
+    const response = await fetch(`${API_CONFIG.baseURL}/vendor/certificates/${certId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify({
+        ...payload,
+        expiresAt: payload.expiresAt ? (payload.expiresAt instanceof Date ? payload.expiresAt.toISOString() : payload.expiresAt) : undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to update certificate';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorData.msg || JSON.stringify(errorData) || errorMessage;
+      } catch (e) {
+        errorMessage = `Failed to update certificate (${response.status} ${response.statusText})`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update temperature compliance (approve anyway/reject)
+   */
+  async updateTemperatureCompliance(tempId: string, payload: { compliant?: boolean; notes?: string }) {
+    const response = await fetch(`${API_CONFIG.baseURL}/vendor/qc-compliance/temperature/${tempId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to update temperature compliance';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorData.msg || JSON.stringify(errorData) || errorMessage;
+      } catch (e) {
+        errorMessage = `Failed to update temperature compliance (${response.status} ${response.statusText})`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
 };
 
 // Named exports for direct imports
@@ -284,5 +439,9 @@ export const listVendorCertificates = vendorManagementApi.listVendorCertificates
 export const getAudits = vendorManagementApi.getAudits.bind(vendorManagementApi);
 export const getTemperatureCompliance = vendorManagementApi.getTemperatureCompliance.bind(vendorManagementApi);
 export const getVendorRatings = vendorManagementApi.getVendorRatings.bind(vendorManagementApi);
+export const updateQCCheck = vendorManagementApi.updateQCCheck.bind(vendorManagementApi);
+export const scheduleAudit = vendorManagementApi.scheduleAudit.bind(vendorManagementApi);
+export const updateCertificate = vendorManagementApi.updateCertificate.bind(vendorManagementApi);
+export const updateTemperatureCompliance = vendorManagementApi.updateTemperatureCompliance.bind(vendorManagementApi);
 
 export default vendorManagementApi;

@@ -87,8 +87,10 @@ export async function getApprovalSummary(date?: string): Promise<ApprovalSummary
     if (date) queryParams.append('date', date);
     const endpoint = queryParams.toString() ? `${API_ENDPOINTS.approvals.summary}?${queryParams.toString()}` : API_ENDPOINTS.approvals.summary;
     const result = await apiRequest<ApprovalSummary>(endpoint, {}, 'Approvals API');
-    return { ...result, date: transformTimestamp(result.date).split('T')[0] };
-  } catch (_) {
+    return { ...result, date: transformTimestamp(result.date || new Date().toISOString()).split('T')[0] };
+  } catch (error) {
+    console.error('Failed to fetch approval summary:', error);
+    // Return mock data only if backend is truly unavailable
     return MOCK_APPROVAL_SUMMARY;
   }
 }
@@ -105,19 +107,47 @@ export async function listApprovals(filters?: {
 }): Promise<ApprovalRequest[]> {
   try {
     const queryParams = new URLSearchParams();
-    if (filters?.status) queryParams.append('status', filters.status);
+    // Send 'all' to backend - it will handle it correctly by not filtering
+    if (filters?.status !== undefined && filters?.status !== '') {
+      queryParams.append('status', String(filters.status));
+    }
     if (filters?.type) queryParams.append('type', filters.type);
     if (filters?.requestedBy) queryParams.append('requestedBy', filters.requestedBy);
     if (filters?.page) queryParams.append('page', filters.page.toString());
     if (filters?.limit) queryParams.append('limit', filters.limit.toString());
     const queryString = queryParams.toString();
     const endpoint = queryString ? `${API_ENDPOINTS.approvals.queue}?${queryString}` : API_ENDPOINTS.approvals.queue;
+    console.log('[Approvals API] Fetching from:', endpoint);
     const response = await apiRequest<ApiApprovalResponse>(endpoint, {}, 'Approvals API');
-    const list = response?.approvals ?? response?.data ?? [];
-    return Array.isArray(list) ? list.map(transformApproval) : MOCK_APPROVALS;
-  } catch (_) {
-    const filtered = filters?.status && filters.status !== 'all' ? MOCK_APPROVALS.filter(a => a.status === filters.status) : MOCK_APPROVALS;
-    return filtered;
+    console.log('[Approvals API] Raw response:', response);
+    
+    // Handle different response formats
+    let list: any[] = [];
+    if (Array.isArray(response)) {
+      list = response;
+    } else if (response?.approvals && Array.isArray(response.approvals)) {
+      list = response.approvals;
+    } else if (response?.data && Array.isArray(response.data)) {
+      list = response.data;
+    }
+    
+    console.log('[Approvals API] Parsed list length:', list.length);
+    
+    if (list.length > 0) {
+      return list.map(transformApproval);
+    }
+    
+    // If no data returned, return empty array (not mock data)
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch approvals:', error);
+    // Only return mock data if it's a connection error
+    if (error instanceof Error && error.message.includes('Cannot connect')) {
+      const filtered = filters?.status && filters.status !== 'all' ? MOCK_APPROVALS.filter(a => a.status === filters.status) : MOCK_APPROVALS;
+      return filtered;
+    }
+    // For other errors, return empty array to show no data
+    return [];
   }
 }
 
@@ -189,16 +219,17 @@ export async function batchApprove(approvalIds: string[], notes?: string): Promi
   results: Array<{ approvalId: string; status: 'approved' | 'failed'; error?: string }>;
 }> {
   try {
-    return await apiRequest<{ approved: number; failed: number; results: Array<{ approvalId: string; status: 'approved' | 'failed'; error?: string }> }>(
+    console.log('[Approvals API] Batch approving:', approvalIds);
+    const result = await apiRequest<{ approved: number; failed: number; results: Array<{ approvalId: string; status: 'approved' | 'failed'; error?: string }> }>(
       API_ENDPOINTS.approvals.batchApprove,
       { method: 'POST', body: JSON.stringify({ approvalIds, notes: notes || '' }) },
       'Approvals API'
     );
-  } catch (_) {
-    return {
-      approved: approvalIds.length,
-      failed: 0,
-      results: approvalIds.map(approvalId => ({ approvalId, status: 'approved' as const })),
-    };
+    console.log('[Approvals API] Batch approve result:', result);
+    return result;
+  } catch (error) {
+    console.error('[Approvals API] Batch approve error:', error);
+    // Don't return mock data - throw the error so the UI can handle it
+    throw error;
   }
 }

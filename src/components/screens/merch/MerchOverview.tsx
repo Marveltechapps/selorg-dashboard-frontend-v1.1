@@ -445,7 +445,24 @@ export function MerchOverview({ onNavigate, searchQuery = "", onSearchChange }: 
       />
       <PromoUpliftModal 
         isOpen={isPromoUpliftOpen} 
-        onClose={() => setIsPromoUpliftOpen(false)} 
+        onClose={() => setIsPromoUpliftOpen(false)}
+        onOpenPricingChanges={() => {
+          setIsPromoUpliftOpen(false);
+          // Set flag in sessionStorage to open pending updates
+          sessionStorage.setItem('openPendingUpdates', 'true');
+          // Navigate to pricing tab first
+          onNavigate?.('pricing');
+          // Dispatch event multiple times to ensure it's caught
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('openPendingUpdates', { detail: {} }));
+          }, 300);
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('openPendingUpdates', { detail: {} }));
+          }, 600);
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('openPendingUpdates', { detail: {} }));
+          }, 1000);
+        }}
       />
       <StockConflictsModal 
         isOpen={isStockConflictsOpen} 

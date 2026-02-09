@@ -34,10 +34,57 @@ export function RefundQueueTable({
   onReject, 
   onViewDetails 
 }: Props) {
+  const [searchQuery, setSearchQuery] = React.useState(filters.query || '');
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Sync search query with filters
+  React.useEffect(() => {
+    setSearchQuery(filters.query || '');
+  }, [filters.query]);
 
   const handleStatusChange = (val: string) => {
       onFilterChange({ ...filters, status: val === 'all' ? undefined : val, page: 1 });
   };
+  
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Debounce the search - wait 300ms after user stops typing
+    debounceTimerRef.current = setTimeout(() => {
+      onFilterChange({ ...filters, query: value, page: 1 });
+    }, 300);
+  };
+  
+  // Cleanup debounce timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+  
+  // Client-side filtering for immediate feedback (no loading state needed)
+  const filteredData = React.useMemo(() => {
+    let filtered = [...data];
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(r => 
+        r.orderId.toLowerCase().includes(q) ||
+        r.customerName.toLowerCase().includes(q) ||
+        r.customerEmail.toLowerCase().includes(q)
+      );
+    }
+    if (filters.status && filters.status !== 'all') {
+      filtered = filtered.filter(r => r.status === filters.status);
+    }
+    return filtered;
+  }, [data, searchQuery, filters.status]);
 
   const timeAgo = (dateStr: string) => {
       const diff = Date.now() - new Date(dateStr).getTime();
@@ -60,6 +107,8 @@ export function RefundQueueTable({
                 <Input 
                     placeholder="Search Order ID..." 
                     className="h-8 pl-9 bg-white text-xs"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                 />
             </div>
             
@@ -77,11 +126,7 @@ export function RefundQueueTable({
         </div>
       </div>
 
-      {isLoading ? (
-           <div className="p-4 space-y-4">
-               {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
-           </div>
-      ) : data.length === 0 ? (
+      {filteredData.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
               No refund requests match your filters.
           </div>
@@ -100,7 +145,7 @@ export function RefundQueueTable({
                 </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E0E0E0]">
-                {data.map((refund) => (
+                {filteredData.map((refund) => (
                     <tr key={refund.id} className="hover:bg-[#FAFAFA] group transition-colors cursor-pointer" onClick={() => onViewDetails(refund)}>
                         <td className="px-6 py-4 font-mono text-[#616161] font-medium">{refund.orderId}</td>
                         <td className="px-6 py-4">

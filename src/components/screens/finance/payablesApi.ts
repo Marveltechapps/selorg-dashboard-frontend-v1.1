@@ -37,6 +37,7 @@ export interface VendorInvoiceFilter {
   vendorId?: string;
   dateFrom?: string;
   dateTo?: string;
+  query?: string;
   page: number;
   pageSize: number;
 }
@@ -56,7 +57,28 @@ const MOCK_VENDORS: Vendor[] = [
   { id: "v5", name: "Speedy Delivery Partners", email: "invoices@speedy.com", accountNumber: "US3344...556" }
 ];
 
-const MOCK_INVOICES: VendorInvoice[] = [
+// Load from localStorage or use default
+const loadInvoicesFromStorage = (): VendorInvoice[] => {
+  try {
+    const stored = localStorage.getItem('vendorInvoices');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load invoices from storage', e);
+  }
+  return [];
+};
+
+const saveInvoicesToStorage = (invoices: VendorInvoice[]) => {
+  try {
+    localStorage.setItem('vendorInvoices', JSON.stringify(invoices));
+  } catch (e) {
+    console.error('Failed to save invoices to storage', e);
+  }
+};
+
+let MOCK_INVOICES: VendorInvoice[] = loadInvoicesFromStorage().length > 0 ? loadInvoicesFromStorage() : [
   {
     id: "inv_001",
     vendorId: "v1",
@@ -155,6 +177,11 @@ const MOCK_INVOICES: VendorInvoice[] = [
   }
 ];
 
+// Initialize localStorage if empty
+if (loadInvoicesFromStorage().length === 0) {
+  saveInvoicesToStorage(MOCK_INVOICES);
+}
+
 // Helper to simulate network delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -177,7 +204,20 @@ export const fetchPayablesSummary = async (): Promise<VendorPayablesSummary> => 
 
 export const fetchVendorInvoices = async (filter: VendorInvoiceFilter) => {
   await delay(600);
-  let filtered = [...MOCK_INVOICES];
+  // Always use the latest from localStorage if available, otherwise use MOCK_INVOICES
+  const storedInvoices = loadInvoicesFromStorage();
+  const sourceInvoices = storedInvoices.length > 0 ? storedInvoices : MOCK_INVOICES;
+  
+  let filtered = [...sourceInvoices];
+
+  if (filter.query) {
+    const q = filter.query.toLowerCase();
+    filtered = filtered.filter(i => 
+      i.invoiceNumber.toLowerCase().includes(q) ||
+      i.vendorName.toLowerCase().includes(q) ||
+      i.id.toLowerCase().includes(q)
+    );
+  }
 
   if (filter.status && filter.status !== 'all') {
     filtered = filtered.filter(i => i.status === filter.status);
@@ -228,6 +268,7 @@ export const approveInvoice = async (id: string) => {
   const index = MOCK_INVOICES.findIndex(i => i.id === id);
   if (index !== -1) {
     MOCK_INVOICES[index] = { ...MOCK_INVOICES[index], status: "approved" };
+    saveInvoicesToStorage(MOCK_INVOICES);
     return MOCK_INVOICES[index];
   }
   throw new Error("Invoice not found");
@@ -238,6 +279,7 @@ export const rejectInvoice = async (id: string, reason: string) => {
   const index = MOCK_INVOICES.findIndex(i => i.id === id);
   if (index !== -1) {
     MOCK_INVOICES[index] = { ...MOCK_INVOICES[index], status: "rejected", notes: reason };
+    saveInvoicesToStorage(MOCK_INVOICES);
     return MOCK_INVOICES[index];
   }
   throw new Error("Invoice not found");
@@ -248,6 +290,7 @@ export const markInvoicePaid = async (id: string) => {
   const index = MOCK_INVOICES.findIndex(i => i.id === id);
   if (index !== -1) {
     MOCK_INVOICES[index] = { ...MOCK_INVOICES[index], status: "paid" };
+    saveInvoicesToStorage(MOCK_INVOICES);
     return MOCK_INVOICES[index];
   }
   throw new Error("Invoice not found");
@@ -269,16 +312,31 @@ export const uploadInvoice = async (data: Partial<VendorInvoice>) => {
         uploadedAt: new Date().toISOString()
     };
     MOCK_INVOICES.push(newInvoice);
+    saveInvoicesToStorage(MOCK_INVOICES);
     return newInvoice;
 };
 
 export const createPayment = async (request: NewPaymentRequest) => {
     await delay(1500);
+    const paymentId = `pay_${Date.now()}`;
+    // Load from storage first
+    const storedInvoices = loadInvoicesFromStorage();
+    const sourceInvoices = storedInvoices.length > 0 ? [...storedInvoices] : [...MOCK_INVOICES];
+    
     request.invoices.forEach(inv => {
-        const index = MOCK_INVOICES.findIndex(i => i.id === inv.invoiceId);
+        const index = sourceInvoices.findIndex(i => i.id === inv.invoiceId);
         if (index !== -1) {
-            MOCK_INVOICES[index] = { ...MOCK_INVOICES[index], status: "paid", paymentId: `pay_${Date.now()}` };
+            sourceInvoices[index] = { 
+                ...sourceInvoices[index], 
+                status: "scheduled" as const, 
+                paymentId: paymentId,
+                dueDate: request.paymentDate // Update due date to payment date
+            };
         }
     });
-    return { success: true, paymentId: `pay_${Date.now()}` };
+    
+    // Update both MOCK_INVOICES and localStorage
+    MOCK_INVOICES = sourceInvoices;
+    saveInvoicesToStorage(sourceInvoices);
+    return { success: true, paymentId: paymentId, paymentDate: request.paymentDate };
 };

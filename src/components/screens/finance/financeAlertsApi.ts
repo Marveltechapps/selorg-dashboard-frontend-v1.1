@@ -112,7 +112,50 @@ const generateMockAlerts = (count: number): FinanceAlert[] => {
     return alerts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 };
 
-let MOCK_ALERTS = generateMockAlerts(15);
+// Load from localStorage or use default
+const loadAlertsFromStorage = (): FinanceAlert[] => {
+  try {
+    const stored = localStorage.getItem('financeAlerts');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load alerts from storage', e);
+  }
+  return [];
+};
+
+const saveAlertsToStorage = (alerts: FinanceAlert[]) => {
+  try {
+    localStorage.setItem('financeAlerts', JSON.stringify(alerts));
+  } catch (e) {
+    console.error('Failed to save alerts to storage', e);
+  }
+};
+
+// Initialize MOCK_ALERTS - always ensure we have data
+const initializeAlerts = (): FinanceAlert[] => {
+  const stored = loadAlertsFromStorage();
+  if (stored.length > 0) {
+    // Ensure at least some alerts are in 'open' status
+    const hasOpenAlerts = stored.some(a => ['open', 'in_progress', 'acknowledged'].includes(a.status));
+    if (!hasOpenAlerts && stored.length > 0) {
+      // Reset first 5 alerts to 'open' status
+      stored.slice(0, Math.min(5, stored.length)).forEach(alert => {
+        alert.status = 'open';
+        alert.lastUpdatedAt = new Date().toISOString();
+      });
+      saveAlertsToStorage(stored);
+    }
+    return stored;
+  }
+  // Generate fresh mock data
+  const freshAlerts = generateMockAlerts(15);
+  saveAlertsToStorage(freshAlerts);
+  return freshAlerts;
+};
+
+let MOCK_ALERTS: FinanceAlert[] = initializeAlerts();
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -120,10 +163,28 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const fetchAlerts = async (status: AlertStatus | 'all' = 'open'): Promise<FinanceAlert[]> => {
     await delay(600);
+    
+    // Ensure MOCK_ALERTS is initialized
+    if (MOCK_ALERTS.length === 0) {
+        MOCK_ALERTS = initializeAlerts();
+    }
+    
     if (status === 'all') return MOCK_ALERTS;
     // Special handling: if we ask for 'open', we might want in_progress too
     if (status === 'open') {
-        return MOCK_ALERTS.filter(a => ['open', 'in_progress', 'acknowledged'].includes(a.status));
+        const openAlerts = MOCK_ALERTS.filter(a => ['open', 'in_progress', 'acknowledged'].includes(a.status));
+        // If no open alerts, ensure we have at least some data by returning all alerts
+        if (openAlerts.length === 0 && MOCK_ALERTS.length > 0) {
+            // Reset some alerts to 'open' status if all are resolved/dismissed
+            const alertsToReset = MOCK_ALERTS.slice(0, Math.min(5, MOCK_ALERTS.length));
+            alertsToReset.forEach(alert => {
+                alert.status = 'open';
+                alert.lastUpdatedAt = new Date().toISOString();
+            });
+            saveAlertsToStorage(MOCK_ALERTS);
+            return alertsToReset;
+        }
+        return openAlerts;
     }
     return MOCK_ALERTS.filter(a => a.status === status);
 };
@@ -135,10 +196,22 @@ export const fetchAlertDetails = async (id: string): Promise<FinanceAlert | null
 
 export const performAlertAction = async (id: string, payload: AlertActionPayload): Promise<FinanceAlert> => {
     await delay(500);
-    const index = MOCK_ALERTS.findIndex(a => a.id === id);
-    if (index === -1) throw new Error("Alert not found");
+    
+    // Always load fresh from localStorage first
+    let currentAlerts = loadAlertsFromStorage();
+    if (currentAlerts.length === 0) {
+        currentAlerts = MOCK_ALERTS;
+    }
+    
+    const index = currentAlerts.findIndex(a => a.id === id);
+    if (index === -1) {
+        // Try MOCK_ALERTS if not found in stored
+        const mockIndex = MOCK_ALERTS.findIndex(a => a.id === id);
+        if (mockIndex === -1) throw new Error("Alert not found");
+        currentAlerts = [...MOCK_ALERTS];
+    }
 
-    const alert = MOCK_ALERTS[index];
+    const alert = currentAlerts[index];
     let newStatus = alert.status;
 
     switch (payload.actionType) {
@@ -156,6 +229,9 @@ export const performAlertAction = async (id: string, payload: AlertActionPayload
         case 'reconcile':
             newStatus = 'in_progress';
             break;
+        case 'add_note':
+            // For add_note, keep status but update lastUpdatedAt
+            break;
     }
 
     const updatedAlert = {
@@ -163,7 +239,12 @@ export const performAlertAction = async (id: string, payload: AlertActionPayload
         status: newStatus,
         lastUpdatedAt: new Date().toISOString()
     };
-    MOCK_ALERTS[index] = updatedAlert;
+    
+    currentAlerts[index] = updatedAlert;
+    MOCK_ALERTS = currentAlerts;
+    saveAlertsToStorage(currentAlerts);
+    
+    console.log('Alert action performed:', payload.actionType, 'New status:', newStatus);
     return updatedAlert;
 };
 
@@ -174,4 +255,5 @@ export const clearResolvedAlerts = async (): Promise<void> => {
     // Let's just say we don't return them in default fetch anymore if user clears them from view.
     // For the mock, let's actually delete resolved/dismissed ones from the array to simulate "clearing"
     MOCK_ALERTS = MOCK_ALERTS.filter(a => !['resolved', 'dismissed'].includes(a.status));
+    saveAlertsToStorage(MOCK_ALERTS);
 };

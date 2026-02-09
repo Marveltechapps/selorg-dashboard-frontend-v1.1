@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../../ui/dialog";
 import { Button } from "../../../ui/button";
 import { Input } from "../../../ui/input";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Checkbox } from "../../../ui/checkbox";
 import { Download, Wand2, AlertTriangle, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { pricingApi } from './pricingApi';
 
 interface MarginRiskViewProps {
   open: boolean;
@@ -20,12 +21,34 @@ export function MarginRiskView({ open, onOpenChange }: MarginRiskViewProps) {
   const [marginFilter, setMarginFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   
-  // Use state for risks to allow Smart Fix to work
-  const [risks, setRisks] = useState([
-    { id: '1', name: 'Organic Bananas', code: 'FRT-BAN-001', base: 1.20, sell: 1.50, cost: 1.45, margin: 3.3, competitor: 1.48, status: 'Critical', category: 'produce', region: 'east' },
-    { id: '2', name: 'Whole Milk 2L', code: 'DAI-MIL-002', base: 3.50, sell: 3.80, cost: 3.60, margin: 5.2, competitor: 3.75, status: 'Warning', category: 'dairy', region: 'east' },
-    { id: '3', name: 'Sourdough Bread', code: 'BAK-BRE-005', base: 4.00, sell: 4.50, cost: 4.20, margin: 6.6, competitor: 4.40, status: 'Warning', category: 'bakery', region: 'west' },
-  ]);
+  const [risks, setRisks] = useState<any[]>([]);
+
+  // Load data when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadRisks();
+    }
+  }, [open]);
+
+  const loadRisks = () => {
+    try {
+      const response = pricingApi.getMarginRisks();
+      if (response.success && response.data && response.data.length > 0) {
+        setRisks(response.data);
+      } else {
+        // Default risks if empty
+        const defaultRisks = [
+          { id: '1', name: 'Organic Bananas', code: 'FRT-BAN-001', base: 1.20, sell: 1.50, cost: 1.45, margin: 3.3, competitor: 1.48, status: 'Critical', category: 'produce', region: 'east' },
+          { id: '2', name: 'Whole Milk 2L', code: 'DAI-MIL-002', base: 3.50, sell: 3.80, cost: 3.60, margin: 5.2, competitor: 3.75, status: 'Warning', category: 'dairy', region: 'east' },
+          { id: '3', name: 'Sourdough Bread', code: 'BAK-BRE-005', base: 4.00, sell: 4.50, cost: 4.20, margin: 6.6, competitor: 4.40, status: 'Warning', category: 'bakery', region: 'west' },
+        ];
+        setRisks(defaultRisks);
+        pricingApi.updateMarginRisks(defaultRisks);
+      }
+    } catch (error) {
+      console.error('Error loading margin risks:', error);
+    }
+  };
 
   const filteredRisks = risks.filter(sku => {
     const matchesCategory = categoryFilter === 'all' || sku.category === categoryFilter;
@@ -83,9 +106,34 @@ export function MarginRiskView({ open, onOpenChange }: MarginRiskViewProps) {
   };
 
   const handleSmartFix = () => {
-    setRisks(risks.filter(r => !selectedSkus.includes(r.id)));
+    const fixedRisks = risks.filter(r => !selectedSkus.includes(r.id));
+    setRisks(fixedRisks);
+    pricingApi.updateMarginRisks(fixedRisks);
     toast.success(`Smart recommendations applied to ${selectedSkus.length} SKUs. Margins restored to >15% targets.`);
     setSelectedSkus([]);
+  };
+
+  const handleAdjust = (sku: any) => {
+    // Calculate new price to achieve 15% margin
+    const targetMargin = 15;
+    const newPrice = sku.cost / (1 - targetMargin / 100);
+    const updatedRisk = {
+      ...sku,
+      sell: parseFloat(newPrice.toFixed(2)),
+      margin: targetMargin,
+      status: 'Fixed'
+    };
+    const updatedRisks = risks.map(r => r.id === sku.id ? updatedRisk : r);
+    setRisks(updatedRisks);
+    pricingApi.updateMarginRisks(updatedRisks);
+    toast.success(`Price adjusted for ${sku.name} to achieve ${targetMargin}% margin`);
+  };
+
+  const handleMarkReviewed = (sku: any) => {
+    const updatedRisks = risks.filter(r => r.id !== sku.id);
+    setRisks(updatedRisks);
+    pricingApi.updateMarginRisks(updatedRisks);
+    toast.success(`${sku.name} marked as reviewed`);
   };
 
   return (
@@ -192,8 +240,29 @@ export function MarginRiskView({ open, onOpenChange }: MarginRiskViewProps) {
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
-                                        <Button size="sm" variant="outline" onClick={() => toast.info(`Adjusting price for ${sku.name}`)}>Adjust</Button>
-                                        <Button size="sm" variant="ghost" title="Mark Reviewed" onClick={() => toast.success(`Marked ${sku.name} as reviewed`)}><Check size={16} /></Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline" 
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleAdjust(sku);
+                                          }}
+                                        >
+                                          Adjust
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="ghost" 
+                                          title="Mark Reviewed" 
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleMarkReviewed(sku);
+                                          }}
+                                        >
+                                          <Check size={16} />
+                                        </Button>
                                     </div>
                                 </TableCell>
                             </TableRow>

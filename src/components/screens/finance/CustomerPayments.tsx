@@ -36,7 +36,9 @@ export function CustomerPayments() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
+        // fetchCustomerPayments now uses localStorage data internally
         const result = await fetchCustomerPayments(filters);
+        
         setPayments(result.data);
         setTotalCount(result.total);
     } catch (error) {
@@ -76,11 +78,15 @@ export function CustomerPayments() {
           const updated = await retryCustomerPayment(id, amount);
           toast.success("Payment retry initiated successfully");
           
-          // Update local state
+          // Update local state immediately
           setPayments(prev => prev.map(p => p.id === id ? updated : p));
+          
           if (selectedPayment?.id === id) {
               setSelectedPayment(updated);
           }
+          
+          // Reload data to ensure consistency with filters
+          await loadData();
       } catch (e) {
           toast.error("Failed to retry payment");
           throw e; // Let modal handle error state
@@ -111,7 +117,8 @@ export function CustomerPayments() {
       <PaymentDetailsDrawer 
         payment={selectedPayment} 
         open={detailsOpen}
-        onClose={() => setDetailsOpen(false)} 
+        onClose={() => setDetailsOpen(false)}
+        onRetry={handleRetryClick}
       />
 
       <RetryPaymentModal

@@ -27,7 +27,28 @@ export interface CustomerPaymentFilter {
   pageSize: number;
 }
 
-const MOCK_PAYMENTS: CustomerPayment[] = [
+// Load from localStorage or use default
+const loadPaymentsFromStorage = (): CustomerPayment[] => {
+  try {
+    const stored = localStorage.getItem('customerPayments');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load payments from storage', e);
+  }
+  return [];
+};
+
+const savePaymentsToStorage = (payments: CustomerPayment[]) => {
+  try {
+    localStorage.setItem('customerPayments', JSON.stringify(payments));
+  } catch (e) {
+    console.error('Failed to save payments to storage', e);
+  }
+};
+
+let MOCK_PAYMENTS: CustomerPayment[] = loadPaymentsFromStorage().length > 0 ? loadPaymentsFromStorage() : [
   {
     id: "pay_123456789",
     customerName: "Alice Johnson",
@@ -137,11 +158,20 @@ const MOCK_PAYMENTS: CustomerPayment[] = [
   }
 ];
 
+// Initialize localStorage if empty
+if (loadPaymentsFromStorage().length === 0) {
+  savePaymentsToStorage(MOCK_PAYMENTS);
+}
+
 export const fetchCustomerPayments = async (filter: CustomerPaymentFilter) => {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 600));
 
-  let filtered = [...MOCK_PAYMENTS];
+  // Always use the latest from localStorage if available, otherwise use MOCK_PAYMENTS
+  const storedPayments = loadPaymentsFromStorage();
+  const sourcePayments = storedPayments.length > 0 ? storedPayments : MOCK_PAYMENTS;
+  
+  let filtered = [...sourcePayments];
 
   if (filter.query) {
     const q = filter.query.toLowerCase();
@@ -153,8 +183,20 @@ export const fetchCustomerPayments = async (filter: CustomerPaymentFilter) => {
     );
   }
 
-  if (filter.status && filter.status !== 'All Statuses') {
+  if (filter.status && filter.status !== 'all' && filter.status !== 'All Statuses') {
     filtered = filtered.filter(p => p.status.toLowerCase() === filter.status?.toLowerCase());
+  }
+  
+  if (filter.dateFrom) {
+    filtered = filtered.filter(p => new Date(p.createdAt) >= new Date(filter.dateFrom!));
+  }
+  
+  if (filter.dateTo) {
+    filtered = filtered.filter(p => new Date(p.createdAt) <= new Date(filter.dateTo!));
+  }
+  
+  if (filter.methodType) {
+    filtered = filtered.filter(p => p.methodType === filter.methodType);
   }
 
   // Sort by newest
@@ -174,7 +216,10 @@ export const fetchCustomerPayments = async (filter: CustomerPaymentFilter) => {
 
 export const fetchCustomerPaymentDetails = async (id: string) => {
   await new Promise(resolve => setTimeout(resolve, 400));
-  const payment = MOCK_PAYMENTS.find(p => p.id === id);
+  // Check localStorage first, then MOCK_PAYMENTS
+  const storedPayments = loadPaymentsFromStorage();
+  const sourcePayments = storedPayments.length > 0 ? storedPayments : MOCK_PAYMENTS;
+  const payment = sourcePayments.find(p => p.id === id);
   if (!payment) throw new Error("Payment not found");
   return payment;
 };
@@ -184,17 +229,24 @@ export const retryCustomerPayment = async (id: string, amount?: number) => {
   
   // In a real app, this would call the backend
   // Here we just toggle status to pending or captured for demo
-  const paymentIndex = MOCK_PAYMENTS.findIndex(p => p.id === id);
+  // Always work with stored payments or MOCK_PAYMENTS
+  const storedPayments = loadPaymentsFromStorage();
+  const sourcePayments = storedPayments.length > 0 ? [...storedPayments] : [...MOCK_PAYMENTS];
+  
+  const paymentIndex = sourcePayments.findIndex(p => p.id === id);
   if (paymentIndex === -1) throw new Error("Payment not found");
 
   const updatedPayment = {
-    ...MOCK_PAYMENTS[paymentIndex],
+    ...sourcePayments[paymentIndex],
     status: Math.random() > 0.3 ? "captured" as const : "pending" as const, // Random success/pending
-    amount: amount || MOCK_PAYMENTS[paymentIndex].amount,
+    amount: amount || sourcePayments[paymentIndex].amount,
     lastUpdatedAt: new Date().toISOString(),
     retryEligible: false
   };
 
-  MOCK_PAYMENTS[paymentIndex] = updatedPayment;
+  sourcePayments[paymentIndex] = updatedPayment;
+  // Update both MOCK_PAYMENTS and localStorage
+  MOCK_PAYMENTS = sourcePayments;
+  savePaymentsToStorage(sourcePayments);
   return updatedPayment;
 };

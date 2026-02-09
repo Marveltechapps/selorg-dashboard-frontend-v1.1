@@ -25,15 +25,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-export function AlertsExceptionsPage() {
+interface AlertsExceptionsPageProps {
+  searchQuery?: string;
+}
+
+export function AlertsExceptionsPage({ searchQuery: propSearchQuery = '' }: AlertsExceptionsPageProps) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<"all" | "open" | "resolved">("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const isMountedRef = useRef(true);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Use prop search query if provided, otherwise use local state
+  const searchQuery = propSearchQuery || localSearchQuery;
+  
+  // Sync prop search query to local state when it changes
+  React.useEffect(() => {
+    if (propSearchQuery) {
+      setLocalSearchQuery(propSearchQuery);
+    }
+  }, [propSearchQuery]);
 
   // Modal States
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
@@ -100,19 +114,23 @@ export function AlertsExceptionsPage() {
 
   const activeAlert = alerts.find(a => a.id === activeAlertId);
 
-  // Computed alerts list
+  // Computed alerts list - use prop search query if provided
   const visibleAlerts = alerts
     .filter(a => {
       if (filterStatus === "open") return a.status !== "resolved" && a.status !== "dismissed";
       if (filterStatus === "resolved") return a.status === "resolved" || a.status === "dismissed";
       return true;
     })
-    .filter(a => 
-      a.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.source.orderId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.source.riderName?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter(a => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        a.title.toLowerCase().includes(query) || 
+        a.description.toLowerCase().includes(query) ||
+        a.source.orderId?.toLowerCase().includes(query) ||
+        a.source.riderName?.toLowerCase().includes(query)
+      );
+    })
     .sort((a, b) => {
         // Sort critical first, then by date
         const priorityScore = { critical: 3, high: 2, medium: 1, low: 0 };
@@ -400,7 +418,7 @@ export function AlertsExceptionsPage() {
              placeholder="Search alerts..." 
              className="pl-9"
              value={searchQuery}
-             onChange={(e) => setSearchQuery(e.target.value)}
+             onChange={(e) => setLocalSearchQuery(e.target.value)}
           />
         </div>
       </div>

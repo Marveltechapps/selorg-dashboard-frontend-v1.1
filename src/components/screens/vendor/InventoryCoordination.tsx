@@ -624,6 +624,26 @@ export function InventoryCoordination() {
   const [showMonitoringModal, setShowMonitoringModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showAllAlertsModal, setShowAllAlertsModal] = useState(false);
+  const [monitoringSettings, setMonitoringSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('inventoryCoordination.monitoringSettings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Failed to load monitoring settings', e);
+    }
+    return {
+      criticalThreshold: 5,
+      warningThreshold: 10,
+      infoThreshold: 15,
+      agingThreshold: 60,
+      emailNotifications: true,
+      inAppNotifications: true,
+      smsAlerts: false,
+    };
+  });
 
   // Form states
   const [adjustmentReason, setAdjustmentReason] = useState('');
@@ -1088,8 +1108,7 @@ export function InventoryCoordination() {
 
           <button
             onClick={() => {
-              setActiveTab('aging');
-              toast.success('Showing all alerts');
+              setShowAllAlertsModal(true);
             }}
             className="w-full text-center text-xs font-bold text-[#4F46E5] hover:underline mt-4"
           >
@@ -1381,7 +1400,13 @@ export function InventoryCoordination() {
                         {item.status === 'Safe' && (
                           <>
                             <span className="text-xs font-bold text-[#10B981]">Safe</span>
-                            <button className="px-3 py-1.5 bg-[#6B7280] text-white text-xs font-medium rounded-md hover:bg-[#4B5563]">
+                            <button
+                              onClick={() => {
+                                setSelectedAlert(createAgingAlertFromInventory(item));
+                                setShowAgingDetailModal(true);
+                              }}
+                              className="px-3 py-1.5 bg-[#6B7280] text-white text-xs font-medium rounded-md hover:bg-[#4B5563]"
+                            >
                               View
                             </button>
                           </>
@@ -1694,7 +1719,7 @@ export function InventoryCoordination() {
 
       {/* Modal 3: Stock Aging Detail */}
       <Dialog open={showAgingDetailModal} onOpenChange={setShowAgingDetailModal}>
-        <DialogContent className="max-w-[650px] p-0" aria-describedby="stock-aging-details-description">
+        <DialogContent className="max-w-[650px] max-h-[90vh] overflow-y-auto p-0" aria-describedby="stock-aging-details-description">
           <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB]">
             <DialogTitle className="text-lg font-bold text-[#1F2937]">
               Stock Aging Details
@@ -1910,24 +1935,44 @@ export function InventoryCoordination() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-6 py-6 space-y-6">
+          <div className="px-6 py-6 space-y-6 max-h-[60vh] overflow-y-auto">
             <div>
               <h3 className="text-sm font-bold text-[#1F2937] mb-3">Alert Thresholds</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.criticalThreshold <= 5}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, criticalThreshold: e.target.checked ? 5 : 0 }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">Alert when expires in &lt; 5 days (critical)</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.warningThreshold <= 10 && monitoringSettings.warningThreshold > 5}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, warningThreshold: e.target.checked ? 10 : 0 }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">Alert when expires in 5-10 days (warning)</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.infoThreshold <= 15 && monitoringSettings.infoThreshold > 10}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, infoThreshold: e.target.checked ? 15 : 0 }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">Alert when expires in 10-15 days (info)</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.agingThreshold >= 60}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, agingThreshold: e.target.checked ? 60 : 0 }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">Alert when stock is &gt;60 days old</span>
                 </label>
               </div>
@@ -1937,15 +1982,30 @@ export function InventoryCoordination() {
               <h3 className="text-sm font-bold text-[#1F2937] mb-3">Notification Settings</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.emailNotifications}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, emailNotifications: e.target.checked }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">Email notifications</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.inAppNotifications}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, inAppNotifications: e.target.checked }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">In-app notifications</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 text-[#4F46E5] rounded" />
+                  <input
+                    type="checkbox"
+                    checked={monitoringSettings.smsAlerts}
+                    onChange={(e) => setMonitoringSettings(prev => ({ ...prev, smsAlerts: e.target.checked }))}
+                    className="w-4 h-4 text-[#4F46E5] rounded"
+                  />
                   <span className="text-sm text-[#1F2937]">SMS alerts</span>
                 </label>
               </div>
@@ -1961,7 +2021,13 @@ export function InventoryCoordination() {
             </button>
             <button
               onClick={() => {
-                // persist monitoring choice for selected alert if present
+                // Persist monitoring settings to localStorage
+                try {
+                  localStorage.setItem('inventoryCoordination.monitoringSettings', JSON.stringify(monitoringSettings));
+                } catch (e) {
+                  console.warn('Failed to save monitoring settings', e);
+                }
+                // Update selected alert if present
                 if (selectedAlert) {
                   setAgingAlerts((prev) => prev.map((a) => (a.id === selectedAlert.id ? { ...a, monitored: true } : a)));
                 }
@@ -1978,7 +2044,7 @@ export function InventoryCoordination() {
 
       {/* Modal 6: Adjust Inventory */}
       <Dialog open={showAdjustModal} onOpenChange={setShowAdjustModal}>
-        <DialogContent className="max-w-[600px] p-0" aria-describedby="adjust-inventory-description">
+        <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto p-0" aria-describedby="adjust-inventory-description">
           <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB]">
             <DialogTitle className="text-lg font-bold text-[#1F2937]">
               Adjust Inventory
@@ -2173,6 +2239,92 @@ export function InventoryCoordination() {
             </button>
             <button
               onClick={() => setShowDetailsModal(false)}
+              className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6] transition-all duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal 8: View All Alerts */}
+      <Dialog open={showAllAlertsModal} onOpenChange={setShowAllAlertsModal}>
+        <DialogContent className="max-w-[900px] max-h-[90vh] overflow-y-auto p-0" aria-describedby="all-alerts-description">
+          <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB]">
+            <DialogTitle className="text-lg font-bold text-[#1F2937]">
+              All Stock Aging Alerts
+            </DialogTitle>
+            <DialogDescription id="all-alerts-description" className="text-sm text-[#6B7280]">
+              {agingAlerts.length} active alerts
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 py-6">
+            <div className="space-y-4">
+              {agingAlerts.map((alert) => {
+                const colors = getAgingColor(alert.priority);
+                return (
+                  <div
+                    key={alert.id}
+                    onClick={() => {
+                      setSelectedAlert(alert);
+                      setShowAllAlertsModal(false);
+                      setShowAgingDetailModal(true);
+                    }}
+                    className="border border-[#E5E7EB] rounded-lg p-4 hover:bg-[#F9FAFB] cursor-pointer transition-all duration-200"
+                    style={{ borderLeft: `4px solid ${colors.border}` }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <p className="text-sm font-bold text-[#1F2937]">
+                            {alert.product} (Batch {alert.batchId})
+                          </p>
+                          <span
+                            className="px-2 py-1 rounded-full text-xs font-bold"
+                            style={{ backgroundColor: colors.bg, color: colors.text }}
+                          >
+                            {alert.priority}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#6B7280] mb-1">Vendor: {alert.vendor}</p>
+                        <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                          <div>
+                            <p className="text-xs text-[#6B7280]">Quantity</p>
+                            <p className="font-bold text-[#1F2937]">
+                              {alert.quantity} {alert.unit}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#6B7280]">Expiry Date</p>
+                            <p className="font-bold text-[#EF4444]">{alert.expiryDate}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#6B7280]">Value</p>
+                            <p className="font-bold text-[#1F2937]">₹{alert.value.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs font-bold mt-2" style={{ color: colors.text }}>
+                          ⚠ Expires in {alert.daysToExpiry} day{alert.daysToExpiry !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <Clock className="w-5 h-5 flex-shrink-0 ml-4" style={{ color: colors.text }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {agingAlerts.length === 0 && (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-[#9CA3AF] mx-auto mb-4" />
+                  <p className="text-sm text-[#6B7280]">No active aging alerts</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end gap-3">
+            <button
+              onClick={() => setShowAllAlertsModal(false)}
               className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6] transition-all duration-200"
             >
               Close

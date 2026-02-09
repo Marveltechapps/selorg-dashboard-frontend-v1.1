@@ -16,7 +16,7 @@ interface Props {
   vendors: Vendor[];
 }
 
-export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
+export function NewPaymentModal({ open, onClose, onSuccess, vendors, preselectedInvoice }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
@@ -24,17 +24,29 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Reset on open
   useEffect(() => {
     if (open) {
-        setStep(1);
-        setSelectedVendorId('');
-        setAvailableInvoices([]);
-        setSelectedInvoiceIds(new Set());
+        if (preselectedInvoice) {
+          // If invoice is preselected, skip to step 2
+          setSelectedVendorId(preselectedInvoice.vendorId);
+          setStep(2);
+          setAvailableInvoices([preselectedInvoice]);
+          setSelectedInvoiceIds(new Set([preselectedInvoice.id]));
+          // Set payment date to today by default when scheduling
+          setPaymentDate(new Date().toISOString().split('T')[0]);
+        } else {
+          setStep(1);
+          setSelectedVendorId('');
+          setAvailableInvoices([]);
+          setSelectedInvoiceIds(new Set());
+          setPaymentDate(new Date().toISOString().split('T')[0]);
+        }
         setPaymentMethod('bank_transfer');
     }
-  }, [open]);
+  }, [open, preselectedInvoice]);
 
   const handleVendorSelect = async (vendorId: string) => {
       setSelectedVendorId(vendorId);
@@ -73,8 +85,19 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
         .reduce((sum, i) => sum + i.amount, 0);
   };
 
-  const handleSubmit = async () => {
-      if (selectedInvoiceIds.size === 0) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (selectedInvoiceIds.size === 0) {
+        toast.error("Please select at least one invoice");
+        return;
+      }
+      if (!paymentMethod) {
+        toast.error("Please select a payment method");
+        return;
+      }
       
       setIsSubmitting(true);
       try {
@@ -83,15 +106,15 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
               return { invoiceId: id, amount: inv ? inv.amount : 0 };
           });
 
-          await createPayment({
+          const result = await createPayment({
               vendorId: selectedVendorId,
               invoices: invoicesToPay,
-              paymentDate: new Date().toISOString(),
+              paymentDate: paymentDate,
               method: paymentMethod,
               reference: `PAY-${Date.now()}`
           });
 
-          toast.success("Payment processed successfully");
+          toast.success(`Payment scheduled successfully for ${paymentDate}`);
           onSuccess();
           onClose();
       } catch (e) {
@@ -162,6 +185,18 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
 
                     <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-2">
+                             <Label>Payment Date</Label>
+                             <Input 
+                               type="date" 
+                               value={paymentDate}
+                               onChange={(e) => setPaymentDate(e.target.value)}
+                               min={new Date().toISOString().split('T')[0]}
+                             />
+                             {paymentDate && (
+                               <p className="text-xs text-gray-500">Selected: {new Date(paymentDate).toLocaleDateString()}</p>
+                             )}
+                         </div>
+                         <div className="space-y-2">
                              <Label>Payment Method</Label>
                              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                                 <SelectTrigger>
@@ -174,10 +209,6 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
                                     <SelectItem value="wire">Wire Transfer</SelectItem>
                                 </SelectContent>
                              </Select>
-                         </div>
-                         <div className="space-y-2">
-                             <Label>Reference</Label>
-                             <Input placeholder="Optional check # or ref" />
                          </div>
                     </div>
 
@@ -198,9 +229,10 @@ export function NewPaymentModal({ open, onClose, onSuccess, vendors }: Props) {
             <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
             {step === 2 && (
                 <Button 
-                    onClick={handleSubmit} 
+                    onClick={(e) => handleSubmit(e)} 
                     className="bg-[#14B8A6] hover:bg-[#0D9488]"
                     disabled={isSubmitting || selectedInvoiceIds.size === 0}
+                    type="button"
                 >
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Confirm Payment

@@ -20,7 +20,7 @@ function loadStoredDiagnostics(): DiagnosticsReport | null {
     const raw = sessionStorage.getItem(LAST_DIAGNOSTICS_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DiagnosticsReport;
-    return parsed?.reportId ? parsed : null;
+    return parsed && (parsed.reportId || parsed.status === 'completed') ? parsed : null;
   } catch {
     return null;
   }
@@ -103,9 +103,15 @@ export function SystemHealth() {
     }
   };
 
-  // Initial load: summary/devices from API; last report already from sessionStorage (useState init)
+  // Initial load: summary/devices from API; last report from sessionStorage
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Re-hydrate diagnosis report from sessionStorage on mount (so refresh keeps report visible)
+  useEffect(() => {
+    const stored = loadStoredDiagnostics();
+    if (stored) setLastDiagnosticsReport(stored);
   }, []);
 
   // Automatic polling disabled - use manual refresh button instead
@@ -308,14 +314,14 @@ export function SystemHealth() {
                     </td>
                   </tr>
                 ))
-              ) : devices.length === 0 ? (
+              ) : filteredDevices.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    No devices found
+                    {searchQuery ? `No devices found matching "${searchQuery}"` : 'No devices found'}
                   </td>
                 </tr>
               ) : (
-                devices.map((device) => (
+                filteredDevices.map((device) => (
                   <tr key={device.deviceId} className="hover:bg-[#FAFAFA]">
                     <td className="px-6 py-4 font-mono text-[#616161]">{device.deviceId}</td>
                     <td className="px-6 py-4 font-medium text-[#212121]">{device.riderName}</td>

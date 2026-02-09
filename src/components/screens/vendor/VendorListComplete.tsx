@@ -1,14 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, Download, Upload, X, 
   MoreVertical, Eye, Edit, FileText, MessageSquare,
   BarChart3, Pause, XCircle, Trash2, CheckCircle,
-  AlertTriangle, MapPin, Send
+  AlertTriangle, MapPin, Send, Loader2
 } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
 import { VendorProfile } from './VendorProfile';
 import { AddVendorModal } from './AddVendorModal';
 import { PerformanceReportModal } from './PerformanceReportModal';
+import * as vendorApi from '../../../api/vendor/vendorManagement.api';
+import { createPDFBlob, createPDFViewHTML } from '../../../utils/pdfHelper';
 
 interface Vendor {
   id: string;
@@ -48,13 +50,9 @@ interface AddVendorFormData {
 export function VendorList() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [vendors, setVendors] = useState<Vendor[]>([
-    { id: 'VND-0821', name: 'Global Spices Co.', category: 'Spices', phone: '+91-9876543210', email: 'vendor@spices.com', address: '123 Market St, Koyambedu...', complianceStatus: 'Compliant', status: 'Active', statusColor: 'green' },
-    { id: 'VND-0834', name: 'Fresh Farms Inc.', category: 'Vegetables', phone: '+91-9876543211', email: 'hello@freshfarms.com', address: '456 Farm Road, Madras...', complianceStatus: 'Pending', status: 'Active', statusColor: 'green' },
-    { id: 'VND-0845', name: 'Dairy Delights', category: 'Dairy / Perishables', phone: '+91-9876543212', email: 'sales@dairydelights.com', address: '789 Cool Lane, Chennai...', complianceStatus: 'Compliant', status: 'Under Review', statusColor: 'purple' },
-    { id: 'VND-0852', name: 'PackRight Solutions', category: 'Packaging', phone: '+91-9876543213', email: 'info@packright.com', address: '321 Industrial Ave...', complianceStatus: 'Non-Compliant', status: 'Suspended', statusColor: 'yellow' },
-    { id: 'VND-0863', name: 'Organic Greens Ltd.', category: 'Fresh Produce', phone: '+91-9876543214', email: 'contact@organicgreens.com', address: '654 Green Valley...', complianceStatus: 'Compliant', status: 'Active', statusColor: 'green' },
-  ]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -69,8 +67,8 @@ export function VendorList() {
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [activeSection, setActiveSection] = useState<'basic' | 'contact' | 'bank' | 'documents'>('basic');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -106,6 +104,143 @@ export function VendorList() {
     setToast({ type, message });
     setTimeout(() => setToast(null), 5000);
   };
+
+  // Helper function to format address from object or string
+  const formatAddress = (address: any): string => {
+    if (!address) return 'Address not provided';
+    
+    // If address is already a string, return it
+    if (typeof address === 'string') {
+      return address;
+    }
+    
+    // If address is an object, format it
+    if (typeof address === 'object') {
+      const parts: string[] = [];
+      
+      if (address.line1) parts.push(address.line1);
+      if (address.line2) parts.push(address.line2);
+      if (address.city) parts.push(address.city);
+      if (address.state) parts.push(address.state);
+      if (address.pincode) parts.push(address.pincode);
+      if (address.postalCode) parts.push(address.postalCode);
+      
+      return parts.length > 0 ? parts.join(', ') : 'Address not provided';
+    }
+    
+    return 'Address not provided';
+  };
+
+  // Helper function to map API vendor to local Vendor format
+  const mapApiVendorToLocal = (apiVendor: any): Vendor => {
+    // Normalize status - backend uses lowercase, frontend uses title case
+    let status = apiVendor.status || 'pending';
+    if (typeof status === 'string') {
+      const statusLower = status.toLowerCase();
+      // Map backend statuses to frontend statuses
+      if (statusLower === 'pending') {
+        status = 'Under Review';
+      } else if (statusLower === 'active') {
+        status = 'Active';
+      } else if (statusLower === 'inactive') {
+        status = 'Inactive';
+      } else if (statusLower === 'suspended') {
+        status = 'Suspended';
+      } else {
+        // Capitalize first letter for other statuses
+        status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+      }
+    }
+    
+    const statusColor = 
+      status === 'Active' ? 'green' :
+      status === 'Suspended' ? 'yellow' :
+      status === 'Inactive' ? 'red' :
+      'purple';
+    
+    // Handle address - could be string, object, or in metadata
+    let addressValue = 'Address not provided';
+    if (apiVendor.address) {
+      addressValue = formatAddress(apiVendor.address);
+    } else if (apiVendor.metadata?.address) {
+      addressValue = formatAddress(apiVendor.metadata.address);
+    } else if (apiVendor.contact?.address) {
+      addressValue = formatAddress(apiVendor.contact.address);
+    }
+    
+    return {
+      id: apiVendor.id || apiVendor._id || `VND-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: apiVendor.name || 'Unknown Vendor',
+      category: apiVendor.category || apiVendor.metadata?.category || 'General',
+      phone: apiVendor.contactPhone || apiVendor.contact?.phone || apiVendor.phone || 'N/A',
+      email: apiVendor.contactEmail || apiVendor.contact?.email || apiVendor.email || 'N/A',
+      address: addressValue,
+      complianceStatus: apiVendor.complianceStatus || (apiVendor.compliance?.status || 'Pending'),
+      status: status as Vendor['status'],
+      statusColor
+    };
+  };
+
+  // Load vendors from API
+  const loadVendors = async () => {
+    try {
+      setIsLoading(true);
+      const response = await vendorApi.listVendors({ page: 1, pageSize: 100 });
+      
+      // Handle different response formats
+      let vendorList: any[] = [];
+      if (Array.isArray(response)) {
+        vendorList = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        vendorList = response.data;
+      } else if (response?.items && Array.isArray(response.items)) {
+        vendorList = response.items;
+      } else if (response?.vendors && Array.isArray(response.vendors)) {
+        vendorList = response.vendors;
+      }
+      
+      // Filter out deleted vendors (vendors with metadata.deleted === true)
+      const activeVendors = vendorList.filter((v: any) => {
+        // Exclude vendors that are marked as deleted
+        if (v.metadata?.deleted === true) {
+          return false;
+        }
+        // Also exclude if status is inactive and has deleteReason (soft deleted)
+        if (v.status === 'inactive' && v.metadata?.deleteReason) {
+          return false;
+        }
+        return true;
+      });
+      
+      const mappedVendors = activeVendors.map(mapApiVendorToLocal);
+      setVendors(mappedVendors);
+    } catch (error: any) {
+      console.error('Failed to load vendors:', error);
+      sonnerToast.error('Failed to load vendors. Please try again.');
+      // Only set demo data on initial load if we have no vendors
+      setVendors(prevVendors => {
+        if (prevVendors.length === 0 && isInitialLoad) {
+          return [
+            { id: 'VND-0821', name: 'Global Spices Co.', category: 'Spices', phone: '+91-9876543210', email: 'vendor@spices.com', address: '123 Market St, Koyambedu...', complianceStatus: 'Compliant', status: 'Active', statusColor: 'green' },
+            { id: 'VND-0834', name: 'Fresh Farms Inc.', category: 'Vegetables', phone: '+91-9876543211', email: 'hello@freshfarms.com', address: '456 Farm Road, Madras...', complianceStatus: 'Pending', status: 'Active', statusColor: 'green' },
+            { id: 'VND-0845', name: 'Dairy Delights', category: 'Dairy / Perishables', phone: '+91-9876543212', email: 'sales@dairydelights.com', address: '789 Cool Lane, Chennai...', complianceStatus: 'Compliant', status: 'Under Review', statusColor: 'purple' },
+            { id: 'VND-0852', name: 'PackRight Solutions', category: 'Packaging', phone: '+91-9876543213', email: 'info@packright.com', address: '321 Industrial Ave...', complianceStatus: 'Non-Compliant', status: 'Suspended', statusColor: 'yellow' },
+            { id: 'VND-0863', name: 'Organic Greens Ltd.', category: 'Fresh Produce', phone: '+91-9876543214', email: 'contact@organicgreens.com', address: '654 Green Valley...', complianceStatus: 'Compliant', status: 'Active', statusColor: 'green' },
+          ];
+        }
+        return prevVendors;
+      });
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoad(false);
+    }
+  };
+
+  // Load vendors on mount
+  useEffect(() => {
+    loadVendors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleActionClick = (action: string, vendor: Vendor) => {
     setSelectedVendor(vendor);
@@ -157,58 +292,207 @@ export function VendorList() {
     }
   };
 
-  const handleEditSave = (e: React.FormEvent) => {
+  const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedVendor) {
-      setVendors(vendors.map(v => 
-        v.id === selectedVendor.id 
-          ? { ...v, name: editFormData.vendorName, category: editFormData.category, phone: editFormData.phonePrimary, email: editFormData.email, address: editFormData.fullAddress }
-          : v
-      ));
+    if (!selectedVendor) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Parse address
+      let addressObj: any = {};
+      if (editFormData.fullAddress) {
+        if (typeof editFormData.fullAddress === 'string') {
+          addressObj = {
+            line1: editFormData.fullAddress,
+            line2: '',
+            city: '',
+            state: '',
+            pincode: ''
+          };
+        } else {
+          addressObj = editFormData.fullAddress;
+        }
+      }
+      
+      const updatePayload: any = {
+        name: editFormData.vendorName,
+        contact: {
+          name: editFormData.contactPerson || editFormData.vendorName,
+          email: editFormData.email,
+          phone: editFormData.phonePrimary
+        },
+        address: addressObj,
+        metadata: {
+          category: editFormData.category
+        }
+      };
+      
+      await vendorApi.updateVendor(selectedVendor.id, updatePayload);
+      
+      // Reload vendors to get updated data
+      await loadVendors();
+      
       setIsEditModalOpen(false);
-      showToast('success', `✓ Changes saved successfully. "${editFormData.vendorName}" has been updated.`);
+      sonnerToast.success(`✓ Changes saved successfully. "${editFormData.vendorName}" has been updated.`);
       setActiveSection('basic');
+      setSelectedVendor(null);
+    } catch (error: any) {
+      console.error('Failed to update vendor:', error);
+      sonnerToast.error(error.message || 'Failed to update vendor');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsMessageModalOpen(false);
-    showToast('success', `✓ Message sent successfully to "${selectedVendor?.name}".`);
-    setMessageForm({ subject: '', message: '' });
+    if (!selectedVendor || !messageForm.subject.trim() || !messageForm.message.trim()) {
+      sonnerToast.error('Please fill in both subject and message');
+      return;
+    }
+    
+    try {
+      // Here you would typically call an API to send the message
+      // For now, we'll simulate it
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setIsMessageModalOpen(false);
+      sonnerToast.success(`✓ Message sent successfully to "${selectedVendor.name}".`);
+      setMessageForm({ subject: '', message: '' });
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      sonnerToast.error(error.message || 'Failed to send message');
+    }
   };
 
-  const handleSuspend = () => {
-    if (selectedVendor) {
-      setVendors(vendors.map(v => 
-        v.id === selectedVendor.id 
-          ? { ...v, status: 'Suspended', statusColor: 'yellow' }
-          : v
-      ));
+  const handleSuspend = async () => {
+    if (!selectedVendor) return;
+    
+    try {
+      setIsLoading(true);
+      await vendorApi.updateVendor(selectedVendor.id, { 
+        status: 'suspended',
+        metadata: {
+          suspendReason: suspendReason,
+          suspendedAt: new Date().toISOString()
+        }
+      });
+      
+      await loadVendors();
       setIsSuspendDialogOpen(false);
-      showToast('warning', `✓ Vendor suspended successfully. "${selectedVendor.name}" no longer receives new orders.`);
+      sonnerToast.success(`✓ Vendor suspended successfully. "${selectedVendor.name}" no longer receives new orders.`);
+      setSelectedVendor(null);
+      setSuspendReason('');
+    } catch (error: any) {
+      console.error('Failed to suspend vendor:', error);
+      sonnerToast.error(error.message || 'Failed to suspend vendor');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDeactivate = () => {
-    if (selectedVendor) {
-      setVendors(vendors.map(v => 
-        v.id === selectedVendor.id 
-          ? { ...v, status: 'Inactive', statusColor: 'red' }
-          : v
-      ));
+  const handleDeactivate = async () => {
+    if (!selectedVendor) return;
+    
+    try {
+      setIsLoading(true);
+      await vendorApi.updateVendor(selectedVendor.id, { 
+        status: 'inactive',
+        metadata: {
+          deactivateReason: deactivateReason,
+          deactivatedAt: new Date().toISOString()
+        }
+      });
+      
+      await loadVendors();
       setIsDeactivateDialogOpen(false);
-      showToast('warning', `✓ Vendor deactivated successfully. "${selectedVendor.name}" is now inactive.`);
+      sonnerToast.success(`✓ Vendor deactivated successfully. "${selectedVendor.name}" is now inactive.`);
+      setSelectedVendor(null);
+      setDeactivateReason('');
+    } catch (error: any) {
+      console.error('Failed to deactivate vendor:', error);
+      sonnerToast.error(error.message || 'Failed to deactivate vendor');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = () => {
-    if (selectedVendor && deleteConfirmation === selectedVendor.name && deleteReason.trim()) {
-      setVendors(vendors.filter(v => v.id !== selectedVendor.id));
-      setIsDeleteDialogOpen(false);
-      sonnerToast.success(`Vendor "${selectedVendor.name}" deleted permanently`);
-      setDeleteConfirmation('');
-      setDeleteReason('');
+  const handleDelete = async () => {
+    if (!selectedVendor || deleteConfirmation !== selectedVendor.name || !deleteReason.trim()) {
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const vendorId = selectedVendor.id;
+      const vendorName = selectedVendor.name;
+      
+      // Try DELETE first, but expect it might not be available (404)
+      let deleteSuccessful = false;
+      try {
+        await vendorApi.deleteVendor(vendorId);
+        deleteSuccessful = true;
+        sonnerToast.success(`Vendor "${vendorName}" deleted successfully`);
+        // Immediately remove from local state to provide instant feedback
+        setVendors(prev => prev.filter(v => v.id !== vendorId));
+      } catch (deleteError: any) {
+        // Check error status - the API now includes status in the error object
+        const errorStatus = deleteError.status || (deleteError.message?.includes('404') ? 404 : deleteError.message?.includes('405') ? 405 : null);
+        const errorMessage = deleteError.message || '';
+        
+        // If DELETE endpoint doesn't exist (404) or method not allowed (405), use PATCH for soft delete
+        if (errorStatus === 404 || errorStatus === 405 || errorMessage.includes('404') || errorMessage.includes('405') || errorMessage.includes('Method not allowed')) {
+          console.log('DELETE endpoint not available (404/405), using PATCH to mark vendor as deleted');
+          try {
+            await vendorApi.updateVendor(vendorId, {
+              status: 'inactive',
+              metadata: {
+                deleted: true,
+                deletedAt: new Date().toISOString(),
+                deleteReason: deleteReason
+              }
+            });
+            deleteSuccessful = true;
+            sonnerToast.success(`Vendor "${vendorName}" deleted successfully`);
+            
+            // Immediately remove from local state to provide instant feedback
+            setVendors(prev => prev.filter(v => v.id !== vendorId));
+          } catch (updateError: any) {
+            console.error('Failed to update vendor status:', updateError);
+            throw new Error(updateError.message || 'Failed to delete vendor. Please try again.');
+          }
+        } else {
+          // For other errors, re-throw to be handled by outer catch
+          throw deleteError;
+        }
+      }
+      
+      // Only proceed with cleanup if delete was successful
+      if (deleteSuccessful) {
+        // Reload vendors list to ensure consistency with backend
+        await loadVendors();
+        setIsDeleteDialogOpen(false);
+        setSelectedVendor(null);
+        setDeleteConfirmation('');
+        setDeleteReason('');
+      }
+    } catch (error: any) {
+      console.error('Failed to delete vendor:', error);
+      const errorMsg = error.message || error.toString() || 'Failed to delete vendor';
+      
+      // Provide user-friendly error messages
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+        sonnerToast.error('You are not authorized to delete vendors. Please contact your administrator.');
+      } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+        sonnerToast.error('You do not have permission to delete vendors.');
+      } else if (errorMsg.includes('500') || errorMsg.includes('Internal Server Error')) {
+        sonnerToast.error('Server error occurred. Please try again later.');
+      } else {
+        sonnerToast.error(`Failed to delete vendor: ${errorMsg}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -242,31 +526,86 @@ export function VendorList() {
   };
 
   // Handler for AddVendorModal (accepts formData from modal)
-  const handleAddVendorSubmit = (formData: any) => {
-    const newVendorId = `VND-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newVendor: Vendor = {
-      id: newVendorId,
-      name: formData.vendorName,
-      category: Array.isArray(formData.selectedCategories) ? formData.selectedCategories.join(', ') : 'General',
-      phone: formData.phonePrimary,
-      email: formData.email,
-      address: formData.fullAddress || 'Address not provided',
-      complianceStatus: 'Pending',
-      status: 'Under Review',
-      statusColor: 'purple'
-    };
-    setVendors([newVendor, ...vendors]);
-    setIsAddModalOpen(false);
-    sonnerToast.success(`Vendor "${formData.vendorName}" added successfully!`);
+  const handleAddVendorSubmit = async (formData: any) => {
+    try {
+      setIsLoading(true);
+      
+      // Generate vendor code
+      const vendorCode = `VND-${Date.now().toString().slice(-6)}`;
+      
+      // Parse address if it's a string
+      let addressObj: any = {};
+      if (formData.fullAddress) {
+        // Try to parse if it's structured, otherwise use as line1
+        if (typeof formData.fullAddress === 'string') {
+          addressObj = {
+            line1: formData.fullAddress,
+            line2: '',
+            city: formData.city || '',
+            state: formData.state || '',
+            pincode: formData.postalCode || ''
+          };
+        } else {
+          addressObj = formData.fullAddress;
+        }
+      }
+      
+      // Build payload according to backend schema
+      const payload = {
+        name: formData.vendorName,
+        code: vendorCode,
+        status: 'pending',
+        contact: {
+          name: formData.contactPerson || formData.vendorName,
+          email: formData.email || '',
+          phone: formData.phonePrimary || formData.phoneAlternate || ''
+        },
+        address: addressObj,
+        metadata: {
+          category: Array.isArray(formData.selectedCategories) ? formData.selectedCategories[0] : formData.category || 'General',
+          vendorType: formData.vendorType || 'manufacturer',
+          gstNumber: formData.gstNumber || '',
+          panNumber: formData.panNumber || '',
+          bankAccount: formData.bankAccount || '',
+          bankName: formData.bankName || '',
+          ifscCode: formData.ifscCode || '',
+          accountHolder: formData.accountHolder || '',
+          accountType: formData.accountType || '',
+          tier: formData.tier || '',
+          description: formData.description || ''
+        }
+      };
+      
+      const response = await vendorApi.createVendor(payload);
+      
+      // Reload vendors to get the newly created vendor with proper ID
+      await loadVendors();
+      
+      setIsAddModalOpen(false);
+      sonnerToast.success(`Vendor "${formData.vendorName}" added successfully!`);
+    } catch (error: any) {
+      console.error('Failed to create vendor:', error);
+      const errorMessage = error.message || 'Failed to create vendor';
+      sonnerToast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredVendors = vendors.filter(vendor => {
-    const matchesSearch = vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         vendor.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         vendor.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         vendor.phone.includes(searchQuery);
-    const matchesStatus = statusFilter === 'All' || vendor.status === statusFilter;
-    const matchesCategory = categoryFilter === 'All' || vendor.category === categoryFilter;
+    // Exclude deleted vendors from the list (should already be filtered in loadVendors, but double-check)
+    // This is a safety check in case any deleted vendors slip through
+    
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || 
+      vendor.name.toLowerCase().includes(q) ||
+      vendor.id.toLowerCase().includes(q) ||
+      vendor.email.toLowerCase().includes(q) ||
+      vendor.phone.toLowerCase().includes(q);
+    
+    const matchesStatus = statusFilter === 'All Status' || vendor.status === statusFilter;
+    const matchesCategory = categoryFilter === 'All Categories' || vendor.category === categoryFilter;
+    
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
@@ -445,21 +784,35 @@ export function VendorList() {
 
       {/* Results Summary */}
       <div className="text-sm text-[#6B7280]">
-        Showing {filteredVendors.length} of {vendors.length} vendors
+        {isLoading && isInitialLoad ? (
+          <div className="flex items-center gap-2">
+            <Loader2 size={16} className="animate-spin" />
+            <span>Loading vendors...</span>
+          </div>
+        ) : (
+          `Showing ${filteredVendors.length} of ${vendors.length} vendors`
+        )}
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-        {filteredVendors.length === 0 ? (
+        {isLoading && isInitialLoad ? (
+          <div className="py-20 text-center">
+            <Loader2 size={48} className="mx-auto mb-4 text-[#4F46E5] animate-spin" />
+            <p className="text-[#6B7280]">Loading vendors...</p>
+          </div>
+        ) : filteredVendors.length === 0 ? (
           <div className="py-20 text-center">
             <div className="text-6xl mb-4">📦</div>
             <h3 className="font-bold text-[#1F2937] mb-2">No vendors found</h3>
             <p className="text-[#6B7280] text-sm mb-6">
               {searchQuery || statusFilter !== 'All Status' || categoryFilter !== 'All Categories'
                 ? 'Try adjusting your filters'
-                : 'Ready to add your first vendor?'}
+                : vendors.length === 0 
+                  ? 'Ready to add your first vendor?'
+                  : 'No vendors match your filters'}
             </p>
-            {!searchQuery && statusFilter === 'All Status' && categoryFilter === 'All Categories' && (
+            {!searchQuery && statusFilter === 'All Status' && categoryFilter === 'All Categories' && vendors.length === 0 && (
               <button 
                 onClick={() => setIsAddModalOpen(true)}
                 className="px-6 py-2 bg-[#4F46E5] text-white font-medium rounded-lg hover:bg-[#4338CA]"
@@ -469,7 +822,7 @@ export function VendorList() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
             <table className="w-full text-sm">
               <thead className="bg-[#F9FAFB] text-[#6B7280] font-medium border-b border-[#E5E7EB]">
                 <tr>
@@ -786,9 +1139,9 @@ export function VendorList() {
               {documentTab === 'verified' && (
                 <div className="space-y-3">
                   {[
-                    { name: 'GST Certificate', expiry: '2026-01-15' },
-                    { name: 'FSSAI License', expiry: '2025-12-31' },
-                    { name: 'Insurance Certificate', expiry: '2026-06-30' }
+                    { name: 'GST Certificate', expiry: '2026-01-15', url: '#' },
+                    { name: 'FSSAI License', expiry: '2025-12-31', url: '#' },
+                    { name: 'Insurance Certificate', expiry: '2026-06-30', url: '#' }
                   ].map((doc, i) => (
                     <div key={i} className="p-4 border border-[#E5E7EB] rounded-lg hover:border-[#4F46E5] transition-colors">
                       <div className="flex items-center justify-between">
@@ -800,10 +1153,55 @@ export function VendorList() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try {
+                                const content = `Document: ${doc.name}\nValid Until: ${doc.expiry}\n\nThis is a sample document for demonstration purposes.\nIn a production environment, this would be the actual document content.`;
+                                const htmlContent = createPDFViewHTML(doc.name, content);
+                                const blob = new Blob([htmlContent], { type: 'text/html' });
+                                const url = URL.createObjectURL(blob);
+                                const newWindow = window.open(url, '_blank');
+                                if (newWindow) {
+                                  sonnerToast.success(`Opening ${doc.name}...`);
+                                  setTimeout(() => URL.revokeObjectURL(url), 2000);
+                                } else {
+                                  sonnerToast.error('Please allow popups to view documents');
+                                  URL.revokeObjectURL(url);
+                                }
+                              } catch (error) {
+                                console.error('Error viewing document:', error);
+                                sonnerToast.error('Failed to open document');
+                              }
+                            }}
+                            className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded transition-colors flex items-center gap-1"
+                          >
+                            <Eye size={14} />
                             View
                           </button>
-                          <button className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try {
+                                const content = `Document: ${doc.name}\nValid Until: ${doc.expiry}\n\nThis is a sample document for demonstration purposes.`;
+                                const pdfBlob = createPDFBlob(content, doc.name);
+                                const url = URL.createObjectURL(pdfBlob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${doc.name.replace(/\s+/g, '_')}.pdf`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(url), 100);
+                                sonnerToast.success(`Downloaded ${doc.name} as PDF`);
+                              } catch (error) {
+                                console.error('Error downloading document:', error);
+                                sonnerToast.error('Failed to download document');
+                              }
+                            }}
+                            className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded transition-colors flex items-center gap-1"
+                          >
+                            <Download size={14} />
                             Download
                           </button>
                         </div>
@@ -829,12 +1227,32 @@ export function VendorList() {
 
               {documentTab === 'upload' && (
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-[#D1D5DB] rounded-lg p-8 text-center hover:border-[#4F46E5] transition-colors cursor-pointer">
+                  <input
+                    type="file"
+                    id="document-upload"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          sonnerToast.error('File size exceeds 5MB limit');
+                          return;
+                        }
+                        sonnerToast.success(`File "${file.name}" selected. Ready to upload.`);
+                        // In a real app, you would upload the file here
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="document-upload"
+                    className="border-2 border-dashed border-[#D1D5DB] rounded-lg p-8 text-center hover:border-[#4F46E5] transition-colors cursor-pointer block"
+                  >
                     <Upload size={48} className="mx-auto text-[#6B7280] mb-3" />
                     <p className="font-medium text-[#1F2937] mb-1">Drag files here or click to browse</p>
                     <p className="text-xs text-[#6B7280]">Accepted: PDF, JPG, PNG (Max 5MB)</p>
-                  </div>
-                  <select className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm">
+                  </label>
+                  <select className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]">
                     <option>Select document type</option>
                     <option>GST Certificate</option>
                     <option>FSSAI License</option>
@@ -842,6 +1260,20 @@ export function VendorList() {
                     <option>ISO Certificate</option>
                     <option>Insurance Certificate</option>
                   </select>
+                  <button
+                    onClick={() => {
+                      const fileInput = document.getElementById('document-upload') as HTMLInputElement;
+                      if (fileInput?.files?.[0]) {
+                        sonnerToast.success('Document uploaded successfully!');
+                        fileInput.value = '';
+                      } else {
+                        sonnerToast.error('Please select a file first');
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-[#4F46E5] text-white rounded-lg text-sm font-medium hover:bg-[#4338CA] transition-colors"
+                  >
+                    Upload Document
+                  </button>
                 </div>
               )}
             </div>
@@ -1163,6 +1595,10 @@ export function VendorList() {
           onSuspend={() => {
             setIsViewDetailsOpen(false);
             handleActionClick('suspend', selectedVendor);
+          }}
+          onReport={() => {
+            setIsViewDetailsOpen(false);
+            handleActionClick('performance', selectedVendor);
           }}
         />
       )}

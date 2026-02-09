@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Upload, 
   Plus, 
@@ -279,8 +279,39 @@ const StatusBadge: React.FC<{ status: POStatus }> = ({ status }) => {
   );
 };
 
+// Persistence
+const PO_STORAGE_KEY = 'purchase_orders_v1';
+
+function persistPOsToStorage(list: PurchaseOrder[]) {
+  try {
+    localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Failed to save purchase orders to localStorage', e);
+  }
+}
+
+function loadPOsFromStorage(): PurchaseOrder[] {
+  try {
+    const raw = localStorage.getItem(PO_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load purchase orders from localStorage', e);
+  }
+  return [];
+}
+
 // Main Component
 export default function PurchaseOrders() {
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
+    // Load from localStorage first, fallback to mock data
+    const stored = loadPOsFromStorage();
+    return stored.length > 0 ? stored : mockPurchaseOrders;
+  });
   const [statusFilter, setStatusFilter] = useState<string>('Status: All');
   const [vendorFilter, setVendorFilter] = useState<string>('Vendor: All');
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
@@ -301,6 +332,11 @@ export default function PurchaseOrders() {
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [shareEmail, setShareEmail] = useState('');
 
+  // Bulk upload states
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Create PO Form State
   const [createPOForm, setCreatePOForm] = useState({
     vendor: '',
@@ -314,11 +350,17 @@ export default function PurchaseOrders() {
       { sku: '', product: '', quantity: 0, unit: 'kg', unitPrice: 0, total: 0 }
     ],
     notes: '',
+    attachments: [] as File[],
     saveAsDraft: false,
   });
 
+  // Persist to localStorage whenever purchaseOrders changes
+  useEffect(() => {
+    persistPOsToStorage(purchaseOrders);
+  }, [purchaseOrders]);
+
   // Filter purchase orders
-  const filteredOrders = mockPurchaseOrders.filter(po => {
+  const filteredOrders = purchaseOrders.filter(po => {
     const statusMatch = statusFilter === 'Status: All' || po.status === statusFilter.replace('Status: ', '');
     const vendorMatch = vendorFilter === 'Vendor: All' || po.vendor === vendorFilter.replace('Vendor: ', '');
     return statusMatch && vendorMatch;
@@ -407,6 +449,163 @@ export default function PurchaseOrders() {
   };
 
   const totals = calculateTotals();
+
+  // Generate PO number
+  const generatePONumber = () => {
+    const year = new Date().getFullYear();
+    const count = purchaseOrders.length + 1;
+    return `PO-${year}-${String(count).padStart(4, '0')}`;
+  };
+
+  // Handle download template
+  const handleDownloadTemplate = () => {
+    try {
+      // Create a simple Excel-like CSV template
+      const csvContent = `Vendor,PO Type,Category,PO Date,Delivery Due,Payment Terms,SKU,Product,Quantity,Unit,Unit Price,Notes
+Fresh Farms Inc.,Standard,Fruits & Vegetables,2024-10-15,2024-10-20,Net 30,SKU-001,Tomatoes,100,kg,2.50,Please ensure fresh delivery
+Tech Logistics,Standard,Equipment,2024-10-14,2024-10-18,Net 15,SKU-101,Delivery Boxes,500,units,2.00,Standard packaging`;
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'purchase-order-template.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Template downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download template');
+    }
+  };
+
+  // Handle file selection for bulk upload
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type === 'text/csv' || file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        setUploadFile(file);
+        // Simulate preview data
+        setUploadPreview([
+          { vendor: 'Fresh Farms Inc.', items: 3, total: 4500.00 },
+          { vendor: 'Tech Logistics', items: 2, total: 1200.00 },
+        ]);
+        toast.success(`File selected: ${file.name}`);
+      } else {
+        toast.error('Please select a CSV or Excel file');
+      }
+    }
+  };
+
+  // Handle bulk upload
+  const handleBulkUpload = () => {
+    if (!uploadFile) {
+      toast.error('Please select a file first');
+      return;
+    }
+    // Simulate upload
+    toast.success(`Successfully uploaded ${uploadPreview.length} purchase orders`);
+    setShowBulkUploadModal(false);
+    setUploadFile(null);
+    setUploadPreview([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle file attachment for create PO
+  const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setCreatePOForm(prev => ({
+        ...prev,
+        attachments: [...prev.attachments, ...files]
+      }));
+      toast.success(`${files.length} file(s) attached`);
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = (index: number) => {
+    setCreatePOForm(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Handle create PO
+  const handleCreatePO = (send: boolean = false) => {
+    // Validation
+    if (!createPOForm.vendor) {
+      toast.error('Please select a vendor');
+      return;
+    }
+    if (!createPOForm.category) {
+      toast.error('Please select a category');
+      return;
+    }
+    if (!createPOForm.poDate || !createPOForm.deliveryDue) {
+      toast.error('Please select PO date and delivery due date');
+      return;
+    }
+    if (createPOForm.lineItems.length === 0 || createPOForm.lineItems.every(item => !item.product || item.quantity === 0)) {
+      toast.error('Please add at least one line item');
+      return;
+    }
+
+    // Create new PO
+    const newPO: PurchaseOrder = {
+      id: `po-${Date.now()}`,
+      poNumber: generatePONumber(),
+      vendor: createPOForm.vendor,
+      vendorContact: 'Contact Person', // Would come from vendor data
+      vendorEmail: 'vendor@example.com', // Would come from vendor data
+      vendorPhone: '+1 234 567 8900', // Would come from vendor data
+      createdDate: createPOForm.poDate ? new Date(createPOForm.poDate).toLocaleDateString() : new Date().toLocaleDateString(),
+      deliveryDue: createPOForm.deliveryDue ? new Date(createPOForm.deliveryDue).toLocaleDateString() : new Date().toLocaleDateString(),
+      totalValue: totals.total,
+      status: send ? 'Sent' : (createPOForm.saveAsDraft ? 'Pending Approval' : 'Pending Approval'),
+      poType: createPOForm.poType as POType,
+      category: createPOForm.category,
+      referenceNumber: createPOForm.referenceNumber || undefined,
+      paymentTerms: createPOForm.paymentTerms,
+      lineItems: createPOForm.lineItems.filter(item => item.product && item.quantity > 0),
+      notes: createPOForm.notes || undefined,
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      createdBy: 'Current User', // Would come from auth
+      sentDate: send ? new Date().toLocaleDateString() : undefined,
+    };
+
+    // Add to purchase orders
+    setPurchaseOrders(prev => [newPO, ...prev]);
+    
+    // Reset form
+    setCreatePOForm({
+      vendor: '',
+      poType: 'Standard',
+      category: '',
+      referenceNumber: '',
+      poDate: '',
+      deliveryDue: '',
+      paymentTerms: 'Net 30',
+      lineItems: [
+        { sku: '', product: '', quantity: 0, unit: 'kg', unitPrice: 0, total: 0 }
+      ],
+      notes: '',
+      attachments: [],
+      saveAsDraft: false,
+    });
+    
+    setShowCreateModal(false);
+    toast.success(send ? `Purchase order ${newPO.poNumber} created and sent successfully` : `Purchase order ${newPO.poNumber} saved as draft`);
+  };
+
+  // Handle save draft
+  const handleSaveDraft = () => {
+    handleCreatePO(false);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -600,7 +799,7 @@ export default function PurchaseOrders() {
                               <button 
                                 onClick={() => {
                                   setSelectedPO(po);
-                                  setShowSendToVendorModal(true);
+                                  setShowDetailsModal(true);
                                   setShowMoreMenu(null);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm text-[#1F2937] hover:bg-[#F9FAFB] flex items-center gap-2"
@@ -784,108 +983,110 @@ export default function PurchaseOrders() {
               <h3 className="text-base font-bold text-[#1F2937] mb-2">Line Items</h3>
               <p className="text-xs text-[#6B7280] mb-4">Add products/items to this PO</p>
               
-              <div className="overflow-x-auto border border-[#E5E7EB] rounded-lg">
-                <table className="w-full">
-                  <thead className="bg-[#F9FAFB]">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Item SKU</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Product</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Quantity</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Unit</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Unit Price</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-[#6B7280] uppercase">Total</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E7EB]">
-                    {createPOForm.lineItems.map((item, index) => (
-                      <tr key={index}>
-                        <td className="px-3 py-2">
-                          <input
-                            type="text"
-                            value={item.sku}
-                            onChange={(e) => {
-                              const newItems = [...createPOForm.lineItems];
-                              newItems[index].sku = e.target.value;
-                              setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
-                            }}
-                            placeholder="SKU-001"
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded text-xs focus:outline-none focus:border-[#4F46E5]"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="text"
-                            value={item.product}
-                            onChange={(e) => {
-                              const newItems = [...createPOForm.lineItems];
-                              newItems[index].product = e.target.value;
-                              setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
-                            }}
-                            placeholder="Product name"
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded text-xs focus:outline-none focus:border-[#4F46E5]"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            value={item.quantity || ''}
-                            onChange={(e) => {
-                              const newItems = [...createPOForm.lineItems];
-                              newItems[index].quantity = Number(e.target.value);
-                              newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
-                              setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
-                            }}
-                            placeholder="0"
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded text-xs focus:outline-none focus:border-[#4F46E5]"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={item.unit}
-                            onChange={(e) => {
-                              const newItems = [...createPOForm.lineItems];
-                              newItems[index].unit = e.target.value;
-                              setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
-                            }}
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded text-xs focus:outline-none focus:border-[#4F46E5]"
-                          >
-                            <option value="kg">kg</option>
-                            <option value="L">L</option>
-                            <option value="units">units</option>
-                            <option value="boxes">boxes</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.unitPrice || ''}
-                            onChange={(e) => {
-                              const newItems = [...createPOForm.lineItems];
-                              newItems[index].unitPrice = Number(e.target.value);
-                              newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
-                              setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
-                            }}
-                            placeholder="0.00"
-                            className="w-full h-8 px-2 bg-white border border-[#D1D5DB] rounded text-xs focus:outline-none focus:border-[#4F46E5]"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-xs font-medium text-[#1F2937]">
-                          ${item.total.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => removeLineItem(index)}
-                            className="p-1 text-[#6B7280] hover:text-[#EF4444] hover:bg-[#FEE2E2] rounded transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </td>
+              <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                  <table className="w-full min-w-[700px]">
+                    <thead className="bg-[#F9FAFB] sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Item SKU</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Unit</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Unit Price</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase">Total</th>
+                        <th className="px-4 py-3"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E7EB] bg-white">
+                      {createPOForm.lineItems.map((item, index) => (
+                        <tr key={index} className="hover:bg-[#F9FAFB]">
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.sku}
+                              onChange={(e) => {
+                                const newItems = [...createPOForm.lineItems];
+                                newItems[index].sku = e.target.value;
+                                setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
+                              }}
+                              placeholder="SKU-001"
+                              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.product}
+                              onChange={(e) => {
+                                const newItems = [...createPOForm.lineItems];
+                                newItems[index].product = e.target.value;
+                                setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
+                              }}
+                              placeholder="Product name"
+                              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              value={item.quantity || ''}
+                              onChange={(e) => {
+                                const newItems = [...createPOForm.lineItems];
+                                newItems[index].quantity = Number(e.target.value);
+                                newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
+                                setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
+                              }}
+                              placeholder="0"
+                              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={item.unit}
+                              onChange={(e) => {
+                                const newItems = [...createPOForm.lineItems];
+                                newItems[index].unit = e.target.value;
+                                setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
+                              }}
+                              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5]"
+                            >
+                              <option value="kg">kg</option>
+                              <option value="L">L</option>
+                              <option value="units">units</option>
+                              <option value="boxes">boxes</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.unitPrice || ''}
+                              onChange={(e) => {
+                                const newItems = [...createPOForm.lineItems];
+                                newItems[index].unitPrice = Number(e.target.value);
+                                newItems[index].total = newItems[index].quantity * newItems[index].unitPrice;
+                                setCreatePOForm(prev => ({ ...prev, lineItems: newItems }));
+                              }}
+                              placeholder="0.00"
+                              className="w-full h-10 px-3 bg-white border border-[#D1D5DB] rounded text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5]"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-[#1F2937]">
+                            ${item.total.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => removeLineItem(index)}
+                              className="p-2 text-[#6B7280] hover:text-[#EF4444] hover:bg-[#FEE2E2] rounded transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <button
@@ -935,11 +1136,37 @@ export default function PurchaseOrders() {
                 <label className="block text-xs font-bold text-[#6B7280] uppercase mb-2">
                   Attachments (Optional)
                 </label>
-                <div className="bg-[#F9FAFB] border-2 border-dashed border-[#D1D5DB] rounded-lg p-8 text-center">
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png"
+                  onChange={handleAttachmentChange}
+                  className="hidden"
+                  id="po-attachments"
+                />
+                <label
+                  htmlFor="po-attachments"
+                  className="bg-[#F9FAFB] border-2 border-dashed border-[#D1D5DB] rounded-lg p-8 text-center cursor-pointer hover:border-[#4F46E5] hover:bg-[#F3F4F6] transition-colors block"
+                >
                   <CloudUpload className="w-8 h-8 text-[#D1D5DB] mx-auto mb-2" />
                   <p className="text-xs text-[#6B7280]">Drag files here or click to upload</p>
                   <p className="text-xs text-[#9CA3AF] mt-1">PDF, Excel, images • Max 10MB per file</p>
-                </div>
+                </label>
+                {createPOForm.attachments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {createPOForm.attachments.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-[#F9FAFB] p-2 rounded text-sm">
+                        <span className="text-[#1F2937]">{file.name}</span>
+                        <button
+                          onClick={() => removeAttachment(idx)}
+                          className="text-[#EF4444] hover:text-[#DC2626]"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -958,17 +1185,36 @@ export default function PurchaseOrders() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreatePOForm({
+                    vendor: '',
+                    poType: 'Standard',
+                    category: '',
+                    referenceNumber: '',
+                    poDate: '',
+                    deliveryDue: '',
+                    paymentTerms: 'Net 30',
+                    lineItems: [
+                      { sku: '', product: '', quantity: 0, unit: 'kg', unitPrice: 0, total: 0 }
+                    ],
+                    notes: '',
+                    attachments: [],
+                    saveAsDraft: false,
+                  });
+                }}
                 className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6] transition-all duration-200"
               >
                 Cancel
               </button>
               <button
+                onClick={handleSaveDraft}
                 className="px-6 py-2.5 bg-[#6B7280] text-white text-sm font-medium rounded-md hover:bg-[#4B5563] transition-all duration-200"
               >
                 Save Draft
               </button>
               <button
+                onClick={() => handleCreatePO(true)}
                 className="px-6 py-2.5 bg-[#4F46E5] text-white text-sm font-medium rounded-md hover:bg-[#4338CA] transition-all duration-200"
               >
                 Create & Send
@@ -1265,8 +1511,8 @@ export default function PurchaseOrders() {
 
       {/* Modal 3: Bulk Upload */}
       <Dialog open={showBulkUploadModal} onOpenChange={setShowBulkUploadModal}>
-        <DialogContent className="max-w-[600px] p-0">
-          <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB]">
+        <DialogContent className="max-w-[600px] max-h-[90vh] p-0 flex flex-col">
+          <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB] flex-shrink-0">
             <DialogTitle className="text-lg font-bold text-[#1F2937]">
               Bulk Upload Purchase Orders
             </DialogTitle>
@@ -1275,14 +1521,17 @@ export default function PurchaseOrders() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-6 py-6 space-y-6">
+          <div className="px-6 py-6 space-y-6 overflow-y-auto flex-1">
             {/* Step 1 */}
             <div>
               <h3 className="text-base font-bold text-[#1F2937] mb-2">Step 1: Download Template</h3>
               <p className="text-sm text-[#6B7280] mb-3">
                 Download the Excel template to fill with your PO data
               </p>
-              <button className="px-6 py-2.5 bg-[#4F46E5] text-white text-sm font-medium rounded-md hover:bg-[#4338CA] transition-all duration-200 flex items-center gap-2">
+              <button 
+                onClick={handleDownloadTemplate}
+                className="px-6 py-2.5 bg-[#4F46E5] text-white text-sm font-medium rounded-md hover:bg-[#4338CA] transition-all duration-200 flex items-center gap-2"
+              >
                 <Download className="w-4 h-4" />
                 Download Template
               </button>
@@ -1294,32 +1543,67 @@ export default function PurchaseOrders() {
               <p className="text-sm text-[#6B7280] mb-3">
                 Select your filled Excel file
               </p>
-              <div className="bg-[#F9FAFB] border-2 border-dashed border-[#D1D5DB] rounded-lg p-12 text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="bulk-upload-file"
+              />
+              <label
+                htmlFor="bulk-upload-file"
+                className="bg-[#F9FAFB] border-2 border-dashed border-[#D1D5DB] rounded-lg p-12 text-center cursor-pointer hover:border-[#4F46E5] hover:bg-[#F3F4F6] transition-colors block"
+              >
                 <CloudUpload className="w-12 h-12 text-[#D1D5DB] mx-auto mb-3" />
                 <p className="text-xs text-[#6B7280] mb-1">Drag file here or click to browse</p>
-                <p className="text-xs text-[#9CA3AF]">Excel files only (.xlsx, .xls)</p>
-              </div>
+                <p className="text-xs text-[#9CA3AF]">CSV, Excel files only (.csv, .xlsx, .xls)</p>
+                {uploadFile && (
+                  <p className="text-xs text-[#10B981] font-medium mt-2">Selected: {uploadFile.name}</p>
+                )}
+              </label>
             </div>
 
             {/* Step 3 - Preview */}
-            <div>
-              <h3 className="text-base font-bold text-[#1F2937] mb-2">Step 3: Preview & Validation</h3>
-              <div className="bg-[#DCFCE7] border border-[#86EFAC] rounded-lg p-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-[#166534]" />
-                <span className="text-sm text-[#166534] font-medium">✓ 50 POs ready to upload</span>
+            {uploadFile && uploadPreview.length > 0 && (
+              <div>
+                <h3 className="text-base font-bold text-[#1F2937] mb-2">Step 3: Preview & Validation</h3>
+                <div className="bg-[#DCFCE7] border border-[#86EFAC] rounded-lg p-4 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-[#166534]" />
+                  <span className="text-sm text-[#166534] font-medium">✓ {uploadPreview.length} POs ready to upload</span>
+                </div>
+                <div className="mt-3 space-y-2 max-h-[200px] overflow-y-auto">
+                  {uploadPreview.map((preview, idx) => (
+                    <div key={idx} className="bg-[#F9FAFB] p-3 rounded text-sm">
+                      <p className="font-medium text-[#1F2937]">{preview.vendor}</p>
+                      <p className="text-xs text-[#6B7280]">{preview.items} items • ${preview.total.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end gap-3">
+          <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end gap-3 flex-shrink-0">
             <button
-              onClick={() => setShowBulkUploadModal(false)}
+              onClick={() => {
+                setShowBulkUploadModal(false);
+                setUploadFile(null);
+                setUploadPreview([]);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }}
               className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6] transition-all duration-200"
             >
               Cancel
             </button>
-            <button className="px-6 py-2.5 bg-[#10B981] text-white text-sm font-medium rounded-md hover:bg-[#059669] transition-all duration-200">
+            <button 
+              onClick={handleBulkUpload}
+              disabled={!uploadFile}
+              className="px-6 py-2.5 bg-[#10B981] text-white text-sm font-medium rounded-md hover:bg-[#059669] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Upload POs
             </button>
           </div>

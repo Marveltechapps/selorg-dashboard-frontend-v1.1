@@ -4,7 +4,7 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { UploadCloud, Loader2 } from 'lucide-react';
+import { UploadCloud, Loader2, FileText } from 'lucide-react';
 import { uploadInvoice, Vendor } from './payablesApi';
 import { toast } from 'sonner';
 
@@ -17,6 +17,9 @@ interface Props {
 
 export function UploadInvoiceModal({ open, onClose, onSuccess, vendors }: Props) {
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
       vendorId: '',
       invoiceNumber: '',
@@ -25,8 +28,62 @@ export function UploadInvoiceModal({ open, onClose, onSuccess, vendors }: Props)
       amount: '',
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please select a PDF, PNG, or JPG file');
+        return;
+      }
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      setSelectedFile(file);
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFilePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please select a PDF, PNG, or JPG file');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFilePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      
+      if (!formData.vendorId || !formData.invoiceNumber || !formData.invoiceDate || !formData.dueDate || !formData.amount) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+      
       setIsLoading(true);
       try {
           const vendor = vendors.find(v => v.id === formData.vendorId);
@@ -37,13 +94,24 @@ export function UploadInvoiceModal({ open, onClose, onSuccess, vendors }: Props)
               invoiceDate: formData.invoiceDate,
               dueDate: formData.dueDate,
               amount: parseFloat(formData.amount),
-              currency: 'USD'
+              currency: 'USD',
+              attachment: selectedFile ? {
+                name: selectedFile.name,
+                size: selectedFile.size,
+                type: selectedFile.type,
+                url: filePreview || ''
+              } : undefined
           });
           toast.success("Invoice uploaded successfully");
-          onSuccess();
-          onClose();
           // Reset form
           setFormData({ vendorId: '', invoiceNumber: '', invoiceDate: '', dueDate: '', amount: '' });
+          setSelectedFile(null);
+          setFilePreview(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          onSuccess();
+          onClose();
       } catch (e) {
           toast.error("Failed to upload invoice");
       } finally {
@@ -127,10 +195,50 @@ export function UploadInvoiceModal({ open, onClose, onSuccess, vendors }: Props)
 
                 <div className="col-span-2">
                     <Label>Attachment</Label>
-                    <div className="mt-2 border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                        <UploadCloud className="h-8 w-8 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600 font-medium">Click to upload file</p>
-                        <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <div 
+                      className="mt-2 border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                      onDrop={handleFileDrop}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                        {selectedFile ? (
+                          <div className="text-center">
+                            <FileText className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600 font-medium">{selectedFile.name}</p>
+                            <p className="text-xs text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedFile(null);
+                                setFilePreview(null);
+                                if (fileInputRef.current) {
+                                  fileInputRef.current.value = '';
+                                }
+                              }}
+                              className="mt-2 text-xs text-red-600 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <UploadCloud className="h-8 w-8 text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-600 font-medium">Click to upload file</p>
+                            <p className="text-xs text-gray-500">PDF, PNG, JPG up to 10MB</p>
+                          </>
+                        )}
                     </div>
                 </div>
             </div>

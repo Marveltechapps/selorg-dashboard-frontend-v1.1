@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CreditCard, 
   DollarSign, 
@@ -35,6 +35,8 @@ import { PageHeader } from '../../ui/page-header';
 import { EmptyState } from '../../ui/ux-components';
 import { LineChart, Line, BarChart, Bar, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from 'recharts';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { exportToCSV } from '../../../utils/csvExport';
 
 // Mock data generators
 const generateFinancialSummary = () => ({
@@ -344,9 +346,36 @@ const generateVendorPayments = () => [
   }
 ];
 
+// Load invoices from localStorage or use default
+const loadInvoicesFromStorage = () => {
+  try {
+    const saved = localStorage.getItem('vendorFinance_invoices');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load invoices from localStorage', e);
+  }
+  return null;
+};
+
+const saveInvoicesToStorage = (invoices: any[]) => {
+  try {
+    localStorage.setItem('vendorFinance_invoices', JSON.stringify(invoices));
+  } catch (e) {
+    console.warn('Failed to save invoices to localStorage', e);
+  }
+};
+
 export function VendorFinance() {
   const [summary, setSummary] = useState(generateFinancialSummary());
-  const [invoices, setInvoices] = useState(generateInvoices());
+  
+  // Load invoices from localStorage or use default
+  const [invoices, setInvoices] = useState(() => {
+    const saved = loadInvoicesFromStorage();
+    return saved || generateInvoices();
+  });
+  
   const [paymentHistory, setPaymentHistory] = useState(generatePaymentHistory());
   const [categoryData, setCategoryData] = useState(generatePaymentByCategory());
   const [vendorPayments, setVendorPayments] = useState(generateVendorPayments());
@@ -355,9 +384,25 @@ export function VendorFinance() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState('all');
-  const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  
+  // Modal states
+  const [showUploadInvoiceModal, setShowUploadInvoiceModal] = useState(false);
+  const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
+  const [showVendorPaymentDetailsModal, setShowVendorPaymentDetailsModal] = useState(false);
+  const [selectedVendorPayment, setSelectedVendorPayment] = useState<any>(null);
+  
+  // Upload invoice form state
+  const [uploadForm, setUploadForm] = useState({
+    vendorId: '',
+    invoiceNumber: '',
+    amount: '',
+    file: null as File | null,
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-refresh
   useEffect(() => {
@@ -399,31 +444,318 @@ export function VendorFinance() {
   });
 
   const handleApproveInvoice = (invoiceId: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, status: 'approved' } : inv
-    ));
+    setInvoices(prev => {
+      const updated = prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, status: 'approved' } : inv
+      );
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
     toast.success(`Invoice ${invoiceId} approved successfully`);
   };
 
   const handleSchedulePayment = (invoiceId: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, status: 'scheduled' } : inv
-    ));
+    setInvoices(prev => {
+      const updated = prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, status: 'scheduled' } : inv
+      );
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
     toast.success(`Payment scheduled for ${invoiceId}`);
   };
 
   const handleMarkAsPaid = (invoiceId: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, status: 'paid', paymentDate: new Date().toISOString().split('T')[0] } : inv
-    ));
+    setInvoices(prev => {
+      const updated = prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, status: 'paid', paymentDate: new Date().toISOString().split('T')[0] } : inv
+      );
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
     toast.success(`Invoice ${invoiceId} marked as paid`);
   };
 
   const handleDispute = (invoiceId: string) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, status: 'disputed' } : inv
-    ));
+    setInvoices(prev => {
+      const updated = prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, status: 'disputed' } : inv
+      );
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
     toast.error(`Invoice ${invoiceId} disputed`);
+  };
+  
+  const handleShareInvoice = (invoiceId: string) => {
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (invoice) {
+      // Copy invoice details to clipboard or open share dialog
+      const shareText = `Invoice ${invoiceId}\nVendor: ${invoice.vendorName}\nAmount: $${invoice.totalAmount.toLocaleString()}\nStatus: ${invoice.status}`;
+      navigator.clipboard.writeText(shareText).then(() => {
+        toast.success('Invoice details copied to clipboard');
+      }).catch(() => {
+        toast.info('Share: ' + shareText);
+      });
+    }
+  };
+  
+  const handleCancelInvoice = (invoiceId: string) => {
+    setInvoices(prev => {
+      const updated = prev.map(inv => 
+        inv.id === invoiceId ? { ...inv, status: 'disputed' } : inv
+      );
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
+    toast.success(`Invoice ${invoiceId} cancelled`);
+  };
+  
+  const handleDownloadInvoice = (invoice: any) => {
+    try {
+      const csvData: (string | number)[][] = [
+        ['Invoice Details'],
+        [''],
+        ['Invoice ID', invoice.id],
+        ['Vendor ID', invoice.vendorId],
+        ['Vendor Name', invoice.vendorName],
+        ['Amount', `$${invoice.amount.toFixed(2)}`],
+        ['Tax', `$${invoice.tax.toFixed(2)}`],
+        ['Total Amount', `$${invoice.totalAmount.toFixed(2)}`],
+        ['Currency', invoice.currency],
+        ['Issue Date', invoice.issueDate],
+        ['Due Date', invoice.dueDate],
+        ['Payment Date', invoice.paymentDate || 'N/A'],
+        ['Status', invoice.status],
+        ['Payment Method', invoice.paymentMethod],
+        ['Category', invoice.category],
+        ['PO Reference', invoice.poReference],
+        ['Description', invoice.description],
+        ['Attachments', invoice.attachments],
+      ];
+      exportToCSV(csvData, `invoice-${invoice.id}`);
+      toast.success('Invoice downloaded');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download invoice');
+    }
+  };
+  
+  const handleDownloadReceipt = (invoice: any) => {
+    try {
+      const csvData: (string | number)[][] = [
+        ['Payment Receipt'],
+        [''],
+        ['Transaction ID', `TXN-${Math.random().toString(36).substr(2, 9).toUpperCase()}`],
+        ['Invoice ID', invoice.id],
+        ['Vendor', invoice.vendorName],
+        ['Payment Date', invoice.paymentDate || new Date().toISOString().split('T')[0]],
+        ['Amount Paid', `$${invoice.totalAmount.toFixed(2)}`],
+        ['Payment Method', invoice.paymentMethod],
+        ['Status', 'Paid'],
+        [''],
+        ['Thank you for your payment!'],
+      ];
+      exportToCSV(csvData, `receipt-${invoice.id}-${new Date().toISOString().split('T')[0]}`);
+      toast.success('Receipt downloaded');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download receipt');
+    }
+  };
+  
+  const handleExportReport = () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+      
+      const csvData: (string | number)[][] = [
+        ['Finance Integration Report', `Date: ${today}`, `Time: ${timestamp}`],
+        [''],
+        
+        // Financial Summary
+        ['=== FINANCIAL SUMMARY ==='],
+        ['Pending Payouts', `$${(summary.pendingPayouts / 1000).toFixed(1)}k`],
+        ['Approved Invoices', summary.approvedInvoices],
+        ['Disputed Amount', `$${(summary.disputedAmount / 1000).toFixed(1)}k`],
+        ['Paid This Month', `$${(summary.paidThisMonth / 1000).toFixed(0)}k`],
+        ['Avg Payment Cycle', `${summary.avgPaymentCycle} days`],
+        ['Outstanding Balance', `$${(summary.outstandingBalance / 1000).toFixed(0)}k`],
+        ['Credit Limit', `$${(summary.creditLimit / 1000).toFixed(0)}k`],
+        ['Available Credit', `$${(summary.availableCredit / 1000).toFixed(0)}k`],
+        [''],
+        
+        // Invoices
+        ['=== INVOICES ==='],
+        ['Invoice ID', 'Vendor', 'Amount', 'Tax', 'Total', 'Issue Date', 'Due Date', 'Status', 'Payment Method', 'Category', 'PO Reference'],
+        ...invoices.map(inv => [
+          inv.id,
+          inv.vendorName,
+          `$${inv.amount.toFixed(2)}`,
+          `$${inv.tax.toFixed(2)}`,
+          `$${inv.totalAmount.toFixed(2)}`,
+          inv.issueDate,
+          inv.dueDate,
+          inv.status,
+          inv.paymentMethod,
+          inv.category,
+          inv.poReference,
+        ]),
+        [''],
+        
+        // Vendor Payments
+        ['=== VENDOR PAYMENTS ==='],
+        ['Vendor ID', 'Vendor Name', 'Total Paid', 'Pending Amount', 'Invoice Count', 'Avg Payment Days', 'Credit Rating', 'Last Payment'],
+        ...vendorPayments.map(vp => [
+          vp.vendorId,
+          vp.vendorName,
+          `$${(vp.totalPaid / 1000).toFixed(1)}k`,
+          `$${(vp.pendingAmount / 1000).toFixed(1)}k`,
+          vp.invoiceCount,
+          vp.avgPaymentDays,
+          vp.creditRating,
+          vp.lastPayment,
+        ]),
+        [''],
+        
+        // Payment History
+        ['=== PAYMENT HISTORY (Last 12 Months) ==='],
+        ['Month', 'Paid', 'Pending', 'Disputed'],
+        ...paymentHistory.map(ph => [
+          ph.month,
+          `$${ph.paid.toLocaleString()}`,
+          `$${ph.pending.toLocaleString()}`,
+          `$${ph.disputed.toLocaleString()}`,
+        ]),
+      ];
+      
+      exportToCSV(csvData, `finance-integration-report-${today}-${timestamp.replace(/:/g, '-')}`);
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
+    }
+  };
+  
+  const handleUploadInvoice = () => {
+    // Reset form when opening modal
+    setUploadForm({
+      vendorId: '',
+      invoiceNumber: '',
+      amount: '',
+      file: null,
+    });
+    setShowUploadInvoiceModal(true);
+  };
+  
+  const handleFileSelect = (file: File) => {
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Please upload PDF, JPG, or PNG files only.');
+      return;
+    }
+    
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > maxSize) {
+      toast.error('File size exceeds 10MB limit.');
+      return;
+    }
+    
+    setUploadForm(prev => ({ ...prev, file }));
+    toast.success('File selected: ' + file.name);
+  };
+  
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+  
+  const handleUploadSubmit = () => {
+    // Validate form
+    if (!uploadForm.vendorId || uploadForm.vendorId === 'Select vendor...') {
+      toast.error('Please select a vendor');
+      return;
+    }
+    if (!uploadForm.invoiceNumber.trim()) {
+      toast.error('Please enter invoice number');
+      return;
+    }
+    if (!uploadForm.amount || parseFloat(uploadForm.amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (!uploadForm.file) {
+      toast.error('Please select a file to upload');
+      return;
+    }
+    
+    // Find vendor name
+    const vendor = vendorPayments.find(vp => vp.vendorId === uploadForm.vendorId);
+    const vendorName = vendor?.vendorName || 'Unknown Vendor';
+    
+    // Create new invoice
+    const newInvoice = {
+      id: uploadForm.invoiceNumber || `INV-${Date.now()}`,
+      vendorId: uploadForm.vendorId,
+      vendorName: vendorName,
+      amount: parseFloat(uploadForm.amount),
+      tax: parseFloat(uploadForm.amount) * 0.1, // 10% tax
+      totalAmount: parseFloat(uploadForm.amount) * 1.1,
+      currency: 'USD',
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+      paymentDate: null,
+      status: 'pending',
+      paymentMethod: 'Bank Transfer',
+      category: 'Other',
+      poReference: `PO-${Date.now()}`,
+      description: `Uploaded invoice - ${uploadForm.file.name}`,
+      attachments: 1
+    };
+    
+    // Add to invoices and save
+    setInvoices(prev => {
+      const updated = [newInvoice, ...prev];
+      saveInvoicesToStorage(updated);
+      return updated;
+    });
+    
+    toast.success(`Invoice ${newInvoice.id} uploaded successfully`);
+    setShowUploadInvoiceModal(false);
+    
+    // Reset form
+    setUploadForm({
+      vendorId: '',
+      invoiceNumber: '',
+      amount: '',
+      file: null,
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -448,11 +780,17 @@ export function VendorFinance() {
               <RefreshCw size={16} className={autoRefresh ? 'animate-spin' : ''} />
               Auto Refresh
             </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2">
+            <button 
+              onClick={handleUploadInvoice}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2"
+            >
               <Upload size={16} />
               Upload Invoice
             </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-[#4F46E5] text-white hover:bg-[#4338CA] transition-colors flex items-center gap-2">
+            <button 
+              onClick={handleExportReport}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[#4F46E5] text-white hover:bg-[#4338CA] transition-colors flex items-center gap-2"
+            >
               <Download size={16} />
               Export Report
             </button>
@@ -682,15 +1020,27 @@ export function VendorFinance() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {invoice.status === 'pending' && (
+                            {/* Share button */}
+                            <button
+                              onClick={() => handleShareInvoice(invoice.id)}
+                              className="p-1.5 hover:bg-[#F5F7FA] rounded text-[#616161] transition-colors"
+                              title="Share"
+                            >
+                              <Send size={16} />
+                            </button>
+                            
+                            {/* Cancel button */}
+                            {invoice.status !== 'paid' && invoice.status !== 'disputed' && (
                               <button
-                                onClick={() => handleApproveInvoice(invoice.id)}
-                                className="p-1.5 hover:bg-[#E0E7FF] rounded text-[#4F46E5] transition-colors"
-                                title="Approve"
+                                onClick={() => handleCancelInvoice(invoice.id)}
+                                className="p-1.5 hover:bg-[#FEE2E2] rounded text-[#991B1B] transition-colors"
+                                title="Cancel"
                               >
-                                <CheckCircle2 size={16} />
+                                <XCircle size={16} />
                               </button>
                             )}
+                            
+                            {/* Schedule Payment button */}
                             {invoice.status === 'approved' && (
                               <button
                                 onClick={() => handleSchedulePayment(invoice.id)}
@@ -700,31 +1050,22 @@ export function VendorFinance() {
                                 <Calendar size={16} />
                               </button>
                             )}
-                            {invoice.status === 'scheduled' && (
-                              <button
-                                onClick={() => handleMarkAsPaid(invoice.id)}
-                                className="p-1.5 hover:bg-[#DCFCE7] rounded text-[#166534] transition-colors"
-                                title="Mark as Paid"
-                              >
-                                <Send size={16} />
-                              </button>
-                            )}
-                            {invoice.status !== 'paid' && invoice.status !== 'disputed' && (
-                              <button
-                                onClick={() => handleDispute(invoice.id)}
-                                className="p-1.5 hover:bg-[#FEE2E2] rounded text-[#991B1B] transition-colors"
-                                title="Dispute"
-                              >
-                                <XCircle size={16} />
-                              </button>
-                            )}
+                            
+                            {/* View Details button */}
                             <button
+                              onClick={() => {
+                                setSelectedInvoice(invoice);
+                                setShowInvoiceDetailsModal(true);
+                              }}
                               className="p-1.5 hover:bg-[#F5F7FA] rounded text-[#616161] transition-colors"
                               title="View Details"
                             >
                               <Eye size={16} />
                             </button>
+                            
+                            {/* Download button */}
                             <button
+                              onClick={() => handleDownloadInvoice(invoice)}
                               className="p-1.5 hover:bg-[#F5F7FA] rounded text-[#616161] transition-colors"
                               title="Download"
                             >
@@ -834,7 +1175,10 @@ export function VendorFinance() {
                         </code>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="text-[#4F46E5] hover:underline text-xs font-medium flex items-center gap-1 ml-auto">
+                        <button 
+                          onClick={() => handleDownloadReceipt(invoice)}
+                          className="text-[#4F46E5] hover:underline text-xs font-medium flex items-center gap-1 ml-auto"
+                        >
                           <Download size={14} />
                           Download
                         </button>
@@ -869,7 +1213,13 @@ export function VendorFinance() {
                       <p className="text-xs text-[#757575]">Credit Rating</p>
                       <p className="text-sm font-bold text-[#22C55E]">{vendor.creditRating}</p>
                     </div>
-                    <button className="px-3 py-1.5 bg-[#4F46E5] text-white rounded-lg text-xs font-medium hover:bg-[#4338CA] transition-colors">
+                    <button 
+                      onClick={() => {
+                        setSelectedVendorPayment(vendor);
+                        setShowVendorPaymentDetailsModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-[#4F46E5] text-white rounded-lg text-xs font-medium hover:bg-[#4338CA] transition-colors"
+                    >
                       View Details
                     </button>
                   </div>
@@ -1049,6 +1399,301 @@ export function VendorFinance() {
           </div>
         </>
       )}
+
+      {/* Upload Invoice Modal */}
+      <Dialog open={showUploadInvoiceModal} onOpenChange={setShowUploadInvoiceModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Invoice</DialogTitle>
+            <DialogDescription>
+              Upload a new invoice document
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Vendor</label>
+              <select 
+                value={uploadForm.vendorId}
+                onChange={(e) => setUploadForm(prev => ({ ...prev, vendorId: e.target.value }))}
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              >
+                <option value="">Select vendor...</option>
+                {vendorPayments.map(vp => (
+                  <option key={vp.vendorId} value={vp.vendorId}>{vp.vendorName}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Invoice Number</label>
+              <input 
+                type="text" 
+                value={uploadForm.invoiceNumber}
+                onChange={(e) => setUploadForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                placeholder="INV-2024-XXXX"
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Amount</label>
+              <input 
+                type="number" 
+                value={uploadForm.amount}
+                onChange={(e) => setUploadForm(prev => ({ ...prev, amount: e.target.value }))}
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Upload File</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  isDragging 
+                    ? 'border-[#4F46E5] bg-[#E0E7FF]' 
+                    : uploadForm.file 
+                    ? 'border-[#10B981] bg-[#DCFCE7]' 
+                    : 'border-[#E0E0E0] hover:border-[#4F46E5] hover:bg-[#F5F7FA]'
+                }`}
+              >
+                {uploadForm.file ? (
+                  <>
+                    <CheckCircle2 size={24} className="mx-auto text-[#10B981] mb-2" />
+                    <p className="text-sm font-medium text-[#212121]">{uploadForm.file.name}</p>
+                    <p className="text-xs text-[#757575] mt-1">
+                      {(uploadForm.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUploadForm(prev => ({ ...prev, file: null }));
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                      className="mt-2 text-xs text-[#EF4444] hover:underline"
+                    >
+                      Remove file
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={24} className="mx-auto text-[#757575] mb-2" />
+                    <p className="text-sm text-[#757575]">Click to upload or drag and drop</p>
+                    <p className="text-xs text-[#757575] mt-1">PDF, JPG, PNG (Max 10MB)</p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button 
+                onClick={() => {
+                  setShowUploadInvoiceModal(false);
+                  setUploadForm({
+                    vendorId: '',
+                    invoiceNumber: '',
+                    amount: '',
+                    file: null,
+                  });
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                  }
+                }}
+                className="px-4 py-2 bg-white text-[#616161] border border-[#E0E0E0] rounded-lg hover:bg-[#F5F7FA] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleUploadSubmit}
+                className="px-4 py-2 bg-[#4F46E5] text-white rounded-lg hover:bg-[#4338CA] transition-colors"
+              >
+                Upload Invoice
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Details Modal */}
+      <Dialog open={showInvoiceDetailsModal} onOpenChange={setShowInvoiceDetailsModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invoice Details</DialogTitle>
+            <DialogDescription>
+              Complete information for {selectedInvoice?.id}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInvoice && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Invoice ID</p>
+                  <p className="font-medium text-[#212121]">{selectedInvoice.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Vendor</p>
+                  <p className="font-medium text-[#212121]">{selectedInvoice.vendorName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Amount</p>
+                  <p className="font-medium text-[#212121]">${selectedInvoice.amount.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Tax</p>
+                  <p className="font-medium text-[#212121]">${selectedInvoice.tax.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Total Amount</p>
+                  <p className="text-lg font-bold text-[#212121]">${selectedInvoice.totalAmount.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedInvoice.status).bg} ${getStatusColor(selectedInvoice.status).text}`}>
+                    {selectedInvoice.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Issue Date</p>
+                  <p className="font-medium text-[#212121]">{new Date(selectedInvoice.issueDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Due Date</p>
+                  <p className="font-medium text-[#212121]">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                </div>
+                {selectedInvoice.paymentDate && (
+                  <div>
+                    <p className="text-sm text-[#757575] mb-1">Payment Date</p>
+                    <p className="font-medium text-[#212121]">{new Date(selectedInvoice.paymentDate).toLocaleDateString()}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Payment Method</p>
+                  <p className="font-medium text-[#212121]">{selectedInvoice.paymentMethod}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Category</p>
+                  <p className="font-medium text-[#212121]">{selectedInvoice.category}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">PO Reference</p>
+                  <p className="font-medium text-[#212121]">{selectedInvoice.poReference}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-[#757575] mb-1">Description</p>
+                <p className="font-medium text-[#212121] bg-[#F5F7FA] p-3 rounded-lg">{selectedInvoice.description}</p>
+              </div>
+              <div>
+                <p className="text-sm text-[#757575] mb-1">Attachments</p>
+                <p className="font-medium text-[#212121]">{selectedInvoice.attachments} file(s)</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-4 border-t border-[#E0E0E0]">
+                <button 
+                  onClick={() => handleDownloadInvoice(selectedInvoice)}
+                  className="px-4 py-2 bg-white text-[#616161] border border-[#E0E0E0] rounded-lg hover:bg-[#F5F7FA] transition-colors flex items-center gap-2"
+                >
+                  <Download size={16} />
+                  Download Invoice
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Vendor Payment Details Modal */}
+      <Dialog open={showVendorPaymentDetailsModal} onOpenChange={setShowVendorPaymentDetailsModal}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Vendor Payment Details</DialogTitle>
+            <DialogDescription>
+              Payment history and details for {selectedVendorPayment?.vendorName}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedVendorPayment && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Vendor ID</p>
+                  <p className="font-medium text-[#212121]">{selectedVendorPayment.vendorId}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Vendor Name</p>
+                  <p className="font-medium text-[#212121]">{selectedVendorPayment.vendorName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Total Paid (YTD)</p>
+                  <p className="text-lg font-bold text-[#212121]">${(selectedVendorPayment.totalPaid / 1000).toFixed(1)}k</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Pending Amount</p>
+                  <p className="text-lg font-bold text-[#F59E0B]">${(selectedVendorPayment.pendingAmount / 1000).toFixed(1)}k</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Total Invoices</p>
+                  <p className="font-medium text-[#212121]">{selectedVendorPayment.invoiceCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Avg Payment Days</p>
+                  <p className="font-medium text-[#212121]">{selectedVendorPayment.avgPaymentDays} days</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Credit Rating</p>
+                  <p className="text-lg font-bold text-[#22C55E]">{selectedVendorPayment.creditRating}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Last Payment</p>
+                  <p className="font-medium text-[#212121]">{new Date(selectedVendorPayment.lastPayment).toLocaleDateString()}</p>
+                </div>
+              </div>
+              
+              {/* Related Invoices */}
+              <div>
+                <p className="text-sm font-medium text-[#212121] mb-3">Related Invoices</p>
+                <div className="border border-[#E0E0E0] rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[#F5F7FA] text-[#757575] font-medium">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Invoice ID</th>
+                          <th className="px-4 py-2 text-left">Amount</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                          <th className="px-4 py-2 text-left">Due Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E0E0E0]">
+                        {invoices.filter(inv => inv.vendorId === selectedVendorPayment.vendorId).slice(0, 5).map(inv => (
+                          <tr key={inv.id} className="hover:bg-[#FAFAFA]">
+                            <td className="px-4 py-2 font-medium text-[#212121]">{inv.id}</td>
+                            <td className="px-4 py-2 text-[#616161]">${inv.totalAmount.toLocaleString()}</td>
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(inv.status).bg} ${getStatusColor(inv.status).text}`}>
+                                {inv.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-[#616161]">{new Date(inv.dueDate).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

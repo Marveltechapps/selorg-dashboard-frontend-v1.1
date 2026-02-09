@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -6,16 +6,66 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Truck } from "lucide-react";
+import { toast } from "sonner";
+import { allocationApi } from './allocationApi';
 
 interface AllocateStockModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   alert: any;
+  onComplete?: () => void;
 }
 
-export function AllocateStockModal({ open, onOpenChange, alert }: AllocateStockModalProps) {
+export function AllocateStockModal({ open, onOpenChange, alert, onComplete }: AllocateStockModalProps) {
   const [selectedSources, setSelectedSources] = useState<Record<string, boolean>>({ 'central': true });
   const [quantities, setQuantities] = useState<Record<string, number>>({ 'central': 50 });
+
+  // Reset when modal closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedSources({ 'central': true });
+      setQuantities({ 'central': 50 });
+    }
+  }, [open]);
+
+  const handleConfirmTransfer = () => {
+    const totalQty = Object.keys(selectedSources).reduce((acc, key) => 
+      selectedSources[key] ? acc + (quantities[key] || 0) : acc, 0
+    );
+    
+    if (totalQty === 0) {
+      toast.error('Please select at least one source and enter a quantity');
+      return;
+    }
+
+    // Save stock allocation to localStorage
+    const allocation = allocationApi.createStockAllocation({
+      alertId: alert.id,
+      sku: alert.sku,
+      location: alert.location,
+      quantity: totalQty,
+      sources: Object.keys(selectedSources).filter(key => selectedSources[key]).map(key => ({
+        location: key === 'central' ? 'Central Warehouse' : 'South Hub',
+        quantity: quantities[key] || 0
+      })),
+      status: 'pending'
+    });
+
+    // Dismiss the alert so it doesn't reappear after refresh
+    allocationApi.dismissAlert(alert.id);
+
+    toast.success('Transfer confirmed', {
+      description: `Transferring ${totalQty} units of ${alert.sku} to ${alert.location}`
+    });
+    
+    // Call onComplete before closing to ensure parent refreshes
+    if (onComplete) {
+      setTimeout(() => {
+        onComplete();
+      }, 100);
+    }
+    onOpenChange(false);
+  };
 
   if (!alert) return null;
 
@@ -103,7 +153,7 @@ export function AllocateStockModal({ open, onOpenChange, alert }: AllocateStockM
 
         <DialogFooter className="p-3 bg-gray-50 border-t gap-2">
           <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] h-7 text-[10px] font-bold" onClick={() => onOpenChange(false)}>Confirm Transfer</Button>
+          <Button className="bg-[#7C3AED] hover:bg-[#6D28D9] h-7 text-[10px] font-bold" onClick={handleConfirmTransfer}>Confirm Transfer</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
