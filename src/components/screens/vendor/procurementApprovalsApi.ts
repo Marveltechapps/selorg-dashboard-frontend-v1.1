@@ -116,9 +116,85 @@ const generateMockProcurementTasks = (count: number): ProcurementApprovalTask[] 
     });
 };
 
-let MOCK_TASKS = generateMockProcurementTasks(25);
-let APPROVED_TODAY_COUNT = 8;
-let REJECTED_TODAY_COUNT = 2;
+// Load from localStorage or generate new
+const loadTasksFromStorage = (): ProcurementApprovalTask[] => {
+    try {
+        const saved = localStorage.getItem('procurementApprovalTasks');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            // Ensure we have some approved/rejected tasks if counts are set
+            const approvedCount = parseInt(localStorage.getItem('procurementApprovedTodayCount') || '8', 10);
+            const rejectedCount = parseInt(localStorage.getItem('procurementRejectedTodayCount') || '2', 10);
+            const approved = parsed.filter((t: ProcurementApprovalTask) => t.status === 'approved');
+            const rejected = parsed.filter((t: ProcurementApprovalTask) => t.status === 'rejected');
+            
+            // If we don't have enough approved/rejected tasks, create some from pending
+            if (approved.length < approvedCount) {
+                const pending = parsed.filter((t: ProcurementApprovalTask) => t.status === 'pending');
+                const toApprove = Math.min(approvedCount - approved.length, pending.length);
+                for (let i = 0; i < toApprove; i++) {
+                    const task = pending[i];
+                    if (task) {
+                        task.status = 'approved';
+                        task.approvedAt = new Date().toISOString();
+                        task.decisionNote = 'Approved';
+                    }
+                }
+            }
+            
+            if (rejected.length < rejectedCount) {
+                const pending = parsed.filter((t: ProcurementApprovalTask) => t.status === 'pending');
+                const toReject = Math.min(rejectedCount - rejected.length, pending.length);
+                for (let i = 0; i < toReject; i++) {
+                    const task = pending[i];
+                    if (task) {
+                        task.status = 'rejected';
+                        task.approvedAt = new Date().toISOString();
+                        task.rejectionReason = 'Rejected';
+                    }
+                }
+            }
+            
+            // Save updated tasks
+            try {
+                localStorage.setItem('procurementApprovalTasks', JSON.stringify(parsed));
+            } catch (e) {
+                console.warn('Failed to save tasks to localStorage', e);
+            }
+            
+            return parsed;
+        }
+    } catch (e) {
+        console.warn('Failed to load tasks from localStorage', e);
+    }
+    const newTasks = generateMockProcurementTasks(25);
+    // Initialize some approved/rejected tasks
+    const approvedCount = 8;
+    const rejectedCount = 2;
+    for (let i = 0; i < approvedCount && i < newTasks.length; i++) {
+        newTasks[i].status = 'approved';
+        newTasks[i].approvedAt = new Date().toISOString();
+        newTasks[i].decisionNote = 'Approved';
+    }
+    for (let i = approvedCount; i < approvedCount + rejectedCount && i < newTasks.length; i++) {
+        newTasks[i].status = 'rejected';
+        newTasks[i].approvedAt = new Date().toISOString();
+        newTasks[i].rejectionReason = 'Rejected';
+    }
+    return newTasks;
+};
+
+const saveTasksToStorage = (tasks: ProcurementApprovalTask[]) => {
+    try {
+        localStorage.setItem('procurementApprovalTasks', JSON.stringify(tasks));
+    } catch (e) {
+        console.warn('Failed to save tasks to localStorage', e);
+    }
+};
+
+let MOCK_TASKS = loadTasksFromStorage();
+let APPROVED_TODAY_COUNT = parseInt(localStorage.getItem('procurementApprovedTodayCount') || '8', 10);
+let REJECTED_TODAY_COUNT = parseInt(localStorage.getItem('procurementRejectedTodayCount') || '2', 10);
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -126,16 +202,41 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const fetchProcurementSummary = async (): Promise<ProcurementApprovalSummary> => {
     await delay(500);
+    // Reload from localStorage to get latest data
+    MOCK_TASKS = loadTasksFromStorage();
+    APPROVED_TODAY_COUNT = parseInt(localStorage.getItem('procurementApprovedTodayCount') || '8', 10);
+    REJECTED_TODAY_COUNT = parseInt(localStorage.getItem('procurementRejectedTodayCount') || '2', 10);
+    
     const pending = MOCK_TASKS.filter(t => t.status === 'pending');
+    const approvedToday = MOCK_TASKS.filter(t => {
+        if (t.status !== 'approved' || !t.approvedAt) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const approvedDate = new Date(t.approvedAt);
+        approvedDate.setHours(0, 0, 0, 0);
+        return approvedDate.getTime() === today.getTime();
+    });
+    const rejectedToday = MOCK_TASKS.filter(t => {
+        if (t.status !== 'rejected' || !t.approvedAt) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const rejectedDate = new Date(t.approvedAt);
+        rejectedDate.setHours(0, 0, 0, 0);
+        return rejectedDate.getTime() === today.getTime();
+    });
+    
     return {
         pendingRequestsCount: pending.length,
-        approvedTodayCount: APPROVED_TODAY_COUNT,
-        rejectedTodayCount: REJECTED_TODAY_COUNT
+        approvedTodayCount: approvedToday.length || APPROVED_TODAY_COUNT,
+        rejectedTodayCount: rejectedToday.length || REJECTED_TODAY_COUNT
     };
 };
 
 export const fetchProcurementTasks = async (status: ProcurementTaskStatus = 'pending', type?: string, minValue?: number): Promise<ProcurementApprovalTask[]> => {
     await delay(600);
+    // Reload from localStorage to get latest data
+    MOCK_TASKS = loadTasksFromStorage();
+    
     let tasks = MOCK_TASKS.filter(t => t.status === status);
     
     if (type && type !== 'all') {
@@ -168,11 +269,16 @@ export const submitTaskDecision = async (id: string, payload: ProcurementApprova
     };
 
     MOCK_TASKS[index] = updatedTask;
+    
+    // Persist to localStorage
+    saveTasksToStorage(MOCK_TASKS);
 
     if (payload.decision === 'approve') {
         APPROVED_TODAY_COUNT++;
+        localStorage.setItem('procurementApprovedTodayCount', APPROVED_TODAY_COUNT.toString());
     } else {
         REJECTED_TODAY_COUNT++;
+        localStorage.setItem('procurementRejectedTodayCount', REJECTED_TODAY_COUNT.toString());
     }
 
     return updatedTask;

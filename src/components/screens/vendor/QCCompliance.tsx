@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-import * as vendorManagementApi from '../../../api/vendor/vendorManagement.api';
+import vendorManagementApi from '../../../api/vendor/vendorManagement.api';
 
 // Types
 type QCResult = 'Pass' | 'Fail' | 'Pending';
@@ -284,10 +284,71 @@ export function QCCompliance() {
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
   const [selectedTemp, setSelectedTemp] = useState<TemperatureCompliance | null>(null);
   // Local mutable state for optimistic updates
-  const [checks, setChecks] = useState<QCCheck[]>(mockQCChecks);
-  const [audits, setAudits] = useState<Audit[]>(mockAudits);
-  const [certificates, setCertificates] = useState<Certificate[]>(mockCertificates);
-  const [temps, setTemps] = useState<TemperatureCompliance[]>(mockTemperatureData);
+  // Load from localStorage on initial mount
+  const loadChecksFromStorage = (): QCCheck[] => {
+    try {
+      const saved = localStorage.getItem('qcChecks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load QC checks from localStorage', e);
+    }
+    return mockQCChecks;
+  };
+
+  const loadCertificatesFromStorage = (): Certificate[] => {
+    try {
+      const saved = localStorage.getItem('certificates');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load certificates from localStorage', e);
+    }
+    return mockCertificates;
+  };
+
+  const loadTempsFromStorage = (): TemperatureCompliance[] => {
+    try {
+      const saved = localStorage.getItem('temperatureCompliance');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load temperature compliance from localStorage', e);
+    }
+    return mockTemperatureData;
+  };
+
+  const loadAuditsFromStorage = (): Audit[] => {
+    try {
+      const saved = localStorage.getItem('audits');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load audits from localStorage', e);
+    }
+    return mockAudits;
+  };
+
+  const [checks, setChecks] = useState<QCCheck[]>(loadChecksFromStorage);
+  const [audits, setAudits] = useState<Audit[]>(loadAuditsFromStorage);
+  const [certificates, setCertificates] = useState<Certificate[]>(loadCertificatesFromStorage);
+  const [temps, setTemps] = useState<TemperatureCompliance[]>(loadTempsFromStorage);
   const [ratings, setRatings] = useState<VendorRating[]>(mockRatings);
   const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
   const [alerts, setAlerts] = useState<
@@ -304,25 +365,169 @@ export function QCCompliance() {
         setLoadingChecks(true);
         const vendorId = localStorage.getItem('selectedVendorId');
         const resp = vendorId
-          ? await vendorManagementApi.listVendorQCChecks(vendorId, { page: 1, perPage: 25 })
+          ? await vendorManagementApi.listVendorQCChecks(vendorId)
           : await vendorManagementApi.listQCChecks({ page: 1, perPage: 25 });
         if (!mounted) return;
-        const items = resp.data || resp.items || resp;
-        setChecks(Array.isArray(items) ? items : (items.data || items.items || []));
+        // Handle different response structures
+        let items: any[] = [];
+        if (Array.isArray(resp)) {
+          items = resp;
+        } else if (resp.data && Array.isArray(resp.data)) {
+          items = resp.data;
+        } else if (resp.items && Array.isArray(resp.items)) {
+          items = resp.items;
+        } else if (resp.pagination && resp.data) {
+          items = Array.isArray(resp.data) ? resp.data : [];
+        }
+        // Transform items to match QCCheck interface
+        let transformedChecks = items.map((item: any) => ({
+          id: item._id?.toString() || item.id,
+          checkId: item.checkId || item.id || `QC-${item._id?.toString().substring(0, 8)}`,
+          batchId: item.batchId || 'N/A',
+          product: item.product || 'Unknown',
+          vendor: item.vendor || item.vendorId || 'Unknown',
+          checkType: item.checkType || 'Visual',
+          result: item.result || (item.status === 'approved' || item.status === 'passed' ? 'Pass' : item.status === 'rejected' || item.status === 'failed' ? 'Fail' : 'Pending'),
+          inspector: item.inspector || item.inspectorId || 'N/A',
+          date: item.date || item.createdAt,
+          actualReading: item.actualReading,
+          requirement: item.requirement,
+          severity: item.severity,
+          status: item.status === 'approved' || item.status === 'passed' ? 'Approved' : item.status === 'rejected' || item.status === 'failed' ? 'Rejected' : item.status === 'appealed' ? 'Appealed' : 'Pending',
+          stage: item.stage || 'Review',
+        }));
+        
+        // Merge with localStorage data - prefer localStorage for items that exist in both
+        const savedChecks = loadChecksFromStorage();
+        if (savedChecks.length > 0) {
+          // Create a map of saved checks by id
+          const savedMap = new Map(savedChecks.map(c => [c.id, c]));
+          // Merge: use saved check if it exists and has been updated (status changed), otherwise use API data
+          transformedChecks = transformedChecks.map(apiCheck => {
+            const savedCheck = savedMap.get(apiCheck.id);
+            if (savedCheck) {
+              // If saved check has a different status than the default, prefer saved (it was updated)
+              const apiStatus = apiCheck.status;
+              const savedStatus = savedCheck.status;
+              if (savedStatus !== 'Pending' && savedStatus !== apiStatus) {
+                // Saved check was updated, prefer it
+                return savedCheck;
+              }
+            }
+            return apiCheck;
+          });
+          // Add any saved checks that aren't in API response
+          transformedChecks.forEach(savedCheck => {
+            if (!transformedChecks.find(c => c.id === savedCheck.id)) {
+              transformedChecks.push(savedCheck);
+            }
+          });
+        }
+        
+        // Use mock data as fallback if backend returns no data and no saved data
+        if (transformedChecks.length === 0) {
+          transformedChecks = mockQCChecks;
+        }
+        
+        setChecks(transformedChecks);
+        // Save to localStorage for persistence
+        localStorage.setItem('qcChecks', JSON.stringify(transformedChecks));
         if (vendorId) {
           try {
             const certResp = await vendorManagementApi.listVendorCertificates(vendorId);
-            const certs = certResp.items || certResp || [];
-            if (mounted) setCertificates(Array.isArray(certs) ? certs : (certs.items || []));
+            const certs = Array.isArray(certResp) ? certResp : (certResp.items || certResp.data || []);
+            if (mounted) {
+              let transformedCerts = certs.map((c: any) => ({
+                id: c._id?.toString() || c.id,
+                certificateType: c.type || c.certificateType || 'Unknown',
+                vendor: c.vendor || c.vendorName || c.vendorId || 'Unknown',
+                issuedDate: c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+                expiryDate: c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+                status: c.status === 'valid' ? 'Valid' : c.status === 'expired' ? 'Expired' : c.status === 'pending_renewal' ? 'Pending Renewal' : c.status === 'expiring_soon' ? 'Expiring Soon' : 'Valid',
+                daysToExpiry: c.expiresAt ? Math.ceil((new Date(c.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
+                licenseNumber: c.licenseNumber || c.metadata?.licenseNumber,
+              }));
+              
+              // Merge with localStorage data - prefer localStorage for updated items
+              const savedCerts = loadCertificatesFromStorage();
+              if (savedCerts.length > 0) {
+                const savedMap = new Map(savedCerts.map(c => [c.id, c]));
+                transformedCerts = transformedCerts.map(apiCert => {
+                  const savedCert = savedMap.get(apiCert.id);
+                  if (savedCert && (savedCert.status === 'Valid' || savedCert.status === 'Pending Renewal')) {
+                    // Prefer saved if it was updated
+                    return savedCert;
+                  }
+                  return apiCert;
+                });
+                // Add saved certs not in API
+                savedCerts.forEach(savedCert => {
+                  if (!transformedCerts.find(c => c.id === savedCert.id)) {
+                    transformedCerts.push(savedCert);
+                  }
+                });
+              }
+              
+              // If no data from backend, use localStorage
+              if (transformedCerts.length === 0 && savedCerts.length > 0) {
+                transformedCerts = savedCerts;
+              }
+              
+              setCertificates(transformedCerts);
+              // Save to localStorage for persistence
+              localStorage.setItem('certificates', JSON.stringify(transformedCerts));
+            }
           } catch (e) {
             console.warn('Failed to load certificates', e);
+            // Try to load from localStorage if API fails
+            const savedCerts = localStorage.getItem('certificates');
+            if (savedCerts && mounted) {
+              try {
+                setCertificates(JSON.parse(savedCerts));
+              } catch (parseErr) {
+                console.warn('Failed to parse saved certificates', parseErr);
+              }
+            }
           }
           
           // Load audits
           try {
             const auditsResp = await vendorManagementApi.getAudits({ vendorId });
-            const auditsData = auditsResp.data || auditsResp || [];
-            if (mounted) setAudits(Array.isArray(auditsData) ? auditsData : []);
+            const auditsData = Array.isArray(auditsResp.data) ? auditsResp.data : (Array.isArray(auditsResp) ? auditsResp : []);
+            if (mounted) {
+              const transformedAudits = auditsData.map((a: any) => ({
+                id: a._id?.toString() || a.id,
+                auditId: a.auditId || a.id,
+                vendor: a.vendor || a.vendorName || a.vendorId || 'N/A',
+                vendorId: a.vendorId || vendorId || '', // Preserve vendorId - use from data first, then fallback
+                date: a.date || new Date(a.createdAt || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+                auditType: a.auditType || 'Routine',
+                result: a.result || 'Pending',
+                score: a.score || 0,
+              }));
+              
+              // Merge with localStorage data to preserve vendorId
+              const savedAudits = loadAuditsFromStorage();
+              if (savedAudits.length > 0) {
+                const savedMap = new Map(savedAudits.map(a => [a.id, a]));
+                transformedAudits.forEach(apiAudit => {
+                  const savedAudit = savedMap.get(apiAudit.id);
+                  if (savedAudit && savedAudit.vendorId) {
+                    apiAudit.vendorId = savedAudit.vendorId; // Preserve vendorId from saved
+                  }
+                });
+                // Add saved audits not in API
+                savedAudits.forEach(savedAudit => {
+                  if (!transformedAudits.find(a => a.id === savedAudit.id)) {
+                    transformedAudits.push(savedAudit);
+                  }
+                });
+              }
+              
+              setAudits(transformedAudits);
+              // Save to localStorage for persistence
+              localStorage.setItem('audits', JSON.stringify(transformedAudits));
+            }
           } catch (e) {
             console.warn('Failed to load audits', e);
           }
@@ -330,24 +535,90 @@ export function QCCompliance() {
           // Load temperature compliance
           try {
             const tempResp = await vendorManagementApi.getTemperatureCompliance({ vendorId });
-            const tempData = tempResp.data || tempResp || [];
-            if (mounted) setTemps(Array.isArray(tempData) ? tempData : []);
+            const tempData = Array.isArray(tempResp.data) ? tempResp.data : (Array.isArray(tempResp) ? tempResp : []);
+            if (mounted) {
+              let transformedTemps = tempData.map((t: any) => ({
+                id: t._id?.toString() || t.id,
+                shipmentId: t.shipmentId || 'N/A',
+                product: t.product || t.productName || 'Unknown',
+                vendor: t.vendor || t.vendorName || t.vendorId || 'Unknown',
+                requirement: t.requirement || 'N/A',
+                avgTemp: t.avgTemp || 0,
+                minTemp: t.minTemp || 0,
+                maxTemp: t.maxTemp || 0,
+                compliant: t.compliant !== undefined ? t.compliant : true,
+              }));
+              
+              // Merge with localStorage data - prefer localStorage for updated items
+              const savedTemps = loadTempsFromStorage();
+              if (savedTemps.length > 0) {
+                const savedMap = new Map(savedTemps.map(t => [t.id, t]));
+                transformedTemps = transformedTemps.map(apiTemp => {
+                  const savedTemp = savedMap.get(apiTemp.id);
+                  if (savedTemp && savedTemp.compliant !== apiTemp.compliant) {
+                    // Prefer saved if it was updated
+                    return savedTemp;
+                  }
+                  return apiTemp;
+                });
+                // Add saved temps not in API
+                savedTemps.forEach(savedTemp => {
+                  if (!transformedTemps.find(t => t.id === savedTemp.id)) {
+                    transformedTemps.push(savedTemp);
+                  }
+                });
+              }
+              
+              // If no data from backend, use localStorage
+              if (transformedTemps.length === 0 && savedTemps.length > 0) {
+                transformedTemps = savedTemps;
+              }
+              
+              setTemps(transformedTemps);
+              localStorage.setItem('temperatureCompliance', JSON.stringify(transformedTemps));
+            }
           } catch (e) {
             console.warn('Failed to load temperature compliance', e);
+            // Try to load from localStorage if API fails
+            const savedTemps = localStorage.getItem('temperatureCompliance');
+            if (savedTemps && mounted) {
+              try {
+                setTemps(JSON.parse(savedTemps));
+              } catch (parseErr) {
+                console.warn('Failed to parse saved temperature compliance', parseErr);
+              }
+            }
           }
           
           // Load vendor ratings
           try {
             const ratingsResp = await vendorManagementApi.getVendorRatings(vendorId);
-            const ratingsData = ratingsResp.data || ratingsResp || [];
-            if (mounted) setRatings(Array.isArray(ratingsData) ? ratingsData : []);
+            const ratingsData = Array.isArray(ratingsResp.data) ? ratingsResp.data : (Array.isArray(ratingsResp) ? ratingsResp : []);
+            if (mounted) {
+              const transformedRatings = ratingsData.map((r: any) => ({
+                id: r._id?.toString() || r.id || r.vendorId,
+                vendor: r.vendor || r.vendorName || r.vendorId || 'Unknown',
+                overallRating: r.overallRating || 0,
+                qcPassRate: r.qcPassRate || 0,
+                complianceScore: r.complianceScore || 0,
+                auditScore: r.auditScore || 0,
+                trend: r.trend || 'stable',
+              }));
+              setRatings(transformedRatings);
+            }
           } catch (e) {
             console.warn('Failed to load vendor ratings', e);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load QC checks', err);
-        toast.error('Failed to load QC checks');
+        const errorMsg = err.message || 'Failed to load QC checks';
+        // Show user-friendly error message
+        if (errorMsg.includes('Authentication') || errorMsg.includes('token') || errorMsg.includes('Access denied') || errorMsg.includes('403')) {
+          toast.error('Authentication failed. Please log in again.');
+        } else {
+          toast.error(errorMsg);
+        }
       } finally {
         setLoadingChecks(false);
       }
@@ -362,6 +633,24 @@ export function QCCompliance() {
 
   // Optimistic handlers
   const approveCheck = async (id: string) => {
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId && (id === '1' || id === '2' || id === '3' || id.length < 10)) {
+      // This is likely mock data - just update locally
+      setChecks(prev =>
+        prev.map(c => {
+          if (c.id === id) {
+            return { ...c, status: 'Approved', result: 'Pass' };
+          }
+          return c;
+        })
+      );
+      toast.success('Check approved');
+      setAlerts(prev => prev.filter(a => a.checkId !== id));
+      setShowQCDetailModal(false);
+      return;
+    }
+    
     setLoadingFor(id, true);
     // capture previous state for rollback
     let previous: QCCheck | undefined;
@@ -375,10 +664,48 @@ export function QCCompliance() {
       })
     );
     try {
-      await new Promise(res => setTimeout(res, 600));
+      await vendorManagementApi.updateQCCheck(id, {
+        status: 'approved',
+        result: 'Pass',
+      });
       toast.success('Check approved');
       // remove any existing alerts for this check (acknowledge)
       setAlerts(prev => prev.filter(a => a.checkId !== id));
+      // Reload checks to get updated data
+      const vendorId = localStorage.getItem('selectedVendorId');
+      const resp = vendorId
+        ? await vendorManagementApi.listVendorQCChecks(vendorId)
+        : await vendorManagementApi.listQCChecks({ page: 1, perPage: 25 });
+      // Handle different response structures
+      let items: any[] = [];
+      if (Array.isArray(resp)) {
+        items = resp;
+      } else if (resp.data && Array.isArray(resp.data)) {
+        items = resp.data;
+      } else if (resp.items && Array.isArray(resp.items)) {
+        items = resp.items;
+      } else if (resp.pagination && resp.data) {
+        items = Array.isArray(resp.data) ? resp.data : [];
+      }
+      // Transform items to match QCCheck interface
+      const transformedChecks = items.map((item: any) => ({
+        id: item._id?.toString() || item.id,
+        checkId: item.checkId || item.id || `QC-${item._id?.toString().substring(0, 8)}`,
+        batchId: item.batchId || 'N/A',
+        product: item.product || 'Unknown',
+        vendor: item.vendor || item.vendorId || 'Unknown',
+        vendorId: item.vendorId || vendorId || '', // Preserve vendorId for persistence
+        checkType: item.checkType || 'Visual',
+        result: item.result || (item.status === 'approved' || item.status === 'passed' ? 'Pass' : item.status === 'rejected' || item.status === 'failed' ? 'Fail' : 'Pending'),
+        inspector: item.inspector || item.inspectorId || 'N/A',
+        date: item.date || item.createdAt,
+        actualReading: item.actualReading,
+        requirement: item.requirement,
+        severity: item.severity,
+        status: item.status === 'approved' || item.status === 'passed' ? 'Approved' : item.status === 'rejected' || item.status === 'failed' ? 'Rejected' : item.status === 'appealed' ? 'Appealed' : 'Pending',
+        stage: item.stage || 'Review',
+      }));
+      setChecks(transformedChecks);
     } catch (err) {
       // rollback
       setChecks(prev => prev.map(c => (c.id === id && previous ? previous : c)));
@@ -390,6 +717,28 @@ export function QCCompliance() {
   };
 
   const rejectCheck = async (id: string) => {
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId && (id === '1' || id === '2' || id === '3' || id.length < 10)) {
+      // This is likely mock data - just update locally
+      setChecks(prev =>
+        prev.map(c => {
+          if (c.id === id) {
+            return { ...c, status: 'Rejected', result: 'Fail' };
+          }
+          return c;
+        })
+      );
+      toast.error('Check rejected');
+      const alertId = `alert-reject-${id}-${Date.now()}`;
+      setAlerts(prev => [
+        { id: alertId, checkId: id, message: `Check ${id} rejected — action required`, type: 'critical', acknowledged: false, ts: Date.now() },
+        ...prev,
+      ]);
+      setShowQCDetailModal(false);
+      return;
+    }
+    
     setLoadingFor(id, true);
     let previous: QCCheck | undefined;
     setChecks(prev =>
@@ -402,7 +751,10 @@ export function QCCompliance() {
       })
     );
     try {
-      await new Promise(res => setTimeout(res, 600));
+      await vendorManagementApi.updateQCCheck(id, {
+        status: 'rejected',
+        result: 'Fail',
+      });
       toast.error('Check rejected');
       // create an in-app alert for rejected checks
       const alertId = `alert-reject-${id}-${Date.now()}`;
@@ -410,6 +762,41 @@ export function QCCompliance() {
         { id: alertId, checkId: id, message: `Check ${id} rejected — action required`, type: 'critical', acknowledged: false, ts: Date.now() },
         ...prev,
       ]);
+      // Reload checks to get updated data
+      const vendorId = localStorage.getItem('selectedVendorId');
+      const resp = vendorId
+        ? await vendorManagementApi.listVendorQCChecks(vendorId)
+        : await vendorManagementApi.listQCChecks({ page: 1, perPage: 25 });
+      // Handle different response structures
+      let items: any[] = [];
+      if (Array.isArray(resp)) {
+        items = resp;
+      } else if (resp.data && Array.isArray(resp.data)) {
+        items = resp.data;
+      } else if (resp.items && Array.isArray(resp.items)) {
+        items = resp.items;
+      } else if (resp.pagination && resp.data) {
+        items = Array.isArray(resp.data) ? resp.data : [];
+      }
+      // Transform items to match QCCheck interface
+      const transformedChecks = items.map((item: any) => ({
+        id: item._id?.toString() || item.id,
+        checkId: item.checkId || item.id || `QC-${item._id?.toString().substring(0, 8)}`,
+        batchId: item.batchId || 'N/A',
+        product: item.product || 'Unknown',
+        vendor: item.vendor || item.vendorId || 'Unknown',
+        vendorId: item.vendorId || vendorId || '', // Preserve vendorId for persistence
+        checkType: item.checkType || 'Visual',
+        result: item.result || (item.status === 'approved' || item.status === 'passed' ? 'Pass' : item.status === 'rejected' || item.status === 'failed' ? 'Fail' : 'Pending'),
+        inspector: item.inspector || item.inspectorId || 'N/A',
+        date: item.date || item.createdAt,
+        actualReading: item.actualReading,
+        requirement: item.requirement,
+        severity: item.severity,
+        status: item.status === 'approved' || item.status === 'passed' ? 'Approved' : item.status === 'rejected' || item.status === 'failed' ? 'Rejected' : item.status === 'appealed' ? 'Appealed' : 'Pending',
+        stage: item.stage || 'Review',
+      }));
+      setChecks(transformedChecks);
     } catch (err) {
       setChecks(prev => prev.map(c => (c.id === id && previous ? previous : c)));
       toast.error('Failed to reject check');
@@ -420,6 +807,25 @@ export function QCCompliance() {
   };
 
   const appealCheck = async (id: string) => {
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId && (id === '1' || id === '2' || id === '3' || id.length < 10)) {
+      // This is likely mock data - just update locally
+      setChecks(prev =>
+        prev.map(c => {
+          if (c.id === id) {
+            return { ...c, status: 'Appealed' };
+          }
+          return c;
+        })
+      );
+      toast.success('Appeal submitted');
+      const alertId = `alert-appeal-${id}-${Date.now()}`;
+      setAlerts(prev => [{ id: alertId, checkId: id, message: `Appeal submitted for ${id}`, type: 'info', acknowledged: false, ts: Date.now() }, ...prev]);
+      setShowQCDetailModal(false);
+      return;
+    }
+    
     setLoadingFor(id, true);
     let previous: QCCheck | undefined;
     setChecks(prev =>
@@ -432,11 +838,49 @@ export function QCCompliance() {
       })
     );
     try {
-      await new Promise(res => setTimeout(res, 700));
+      await vendorManagementApi.updateQCCheck(id, {
+        status: 'appealed',
+        notes: 'Appeal submitted',
+      });
       toast.success('Appeal submitted');
       // add informational alert
       const alertId = `alert-appeal-${id}-${Date.now()}`;
       setAlerts(prev => [{ id: alertId, checkId: id, message: `Appeal submitted for ${id}`, type: 'info', acknowledged: false, ts: Date.now() }, ...prev]);
+      // Reload checks to get updated data
+      const vendorId = localStorage.getItem('selectedVendorId');
+      const resp = vendorId
+        ? await vendorManagementApi.listVendorQCChecks(vendorId)
+        : await vendorManagementApi.listQCChecks({ page: 1, perPage: 25 });
+      // Handle different response structures
+      let items: any[] = [];
+      if (Array.isArray(resp)) {
+        items = resp;
+      } else if (resp.data && Array.isArray(resp.data)) {
+        items = resp.data;
+      } else if (resp.items && Array.isArray(resp.items)) {
+        items = resp.items;
+      } else if (resp.pagination && resp.data) {
+        items = Array.isArray(resp.data) ? resp.data : [];
+      }
+      // Transform items to match QCCheck interface
+      const transformedChecks = items.map((item: any) => ({
+        id: item._id?.toString() || item.id,
+        checkId: item.checkId || item.id || `QC-${item._id?.toString().substring(0, 8)}`,
+        batchId: item.batchId || 'N/A',
+        product: item.product || 'Unknown',
+        vendor: item.vendor || item.vendorId || 'Unknown',
+        vendorId: item.vendorId || vendorId || '', // Preserve vendorId for persistence
+        checkType: item.checkType || 'Visual',
+        result: item.result || (item.status === 'approved' || item.status === 'passed' ? 'Pass' : item.status === 'rejected' || item.status === 'failed' ? 'Fail' : 'Pending'),
+        inspector: item.inspector || item.inspectorId || 'N/A',
+        date: item.date || item.createdAt,
+        actualReading: item.actualReading,
+        requirement: item.requirement,
+        severity: item.severity,
+        status: item.status === 'approved' || item.status === 'passed' ? 'Approved' : item.status === 'rejected' || item.status === 'failed' ? 'Rejected' : item.status === 'appealed' ? 'Appealed' : 'Pending',
+        stage: item.stage || 'Review',
+      }));
+      setChecks(transformedChecks);
     } catch (err) {
       setChecks(prev => prev.map(c => (c.id === id && previous ? previous : c)));
       toast.error('Failed to submit appeal');
@@ -448,6 +892,32 @@ export function QCCompliance() {
  
   // Next Report workflow actions (Approve / Reject as a workflow step)
   const handleNextReportAction = async (id: string, action: 'approve' | 'reject') => {
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    if (!isValidObjectId && (id === '1' || id === '2' || id === '3' || id.length < 10)) {
+      // This is likely mock data - just update locally
+      setChecks(prev =>
+        prev.map(c => {
+          if (c.id === id) {
+            return {
+              ...c,
+              stage: 'Reported',
+              status: action === 'approve' ? 'Approved' : 'Rejected',
+              result: action === 'approve' ? 'Pass' : 'Fail',
+            };
+          }
+          return c;
+        })
+      );
+      toast.success(`Report ${action === 'approve' ? 'approved' : 'rejected'}`);
+      setOpenReportMenuId(null);
+      if (action === 'reject') {
+        const alertId = `alert-report-reject-${id}-${Date.now()}`;
+        setAlerts(prev => [{ id: alertId, checkId: id, message: `Report for ${id} was rejected`, type: 'warning', acknowledged: false, ts: Date.now() }, ...prev]);
+      }
+      return;
+    }
+    
     setLoadingFor(id, true);
     let previous: QCCheck | undefined;
     setChecks(prev =>
@@ -465,7 +935,12 @@ export function QCCompliance() {
       })
     );
     try {
-      await new Promise(res => setTimeout(res, 600));
+      console.log('Updating QC check:', { id, action });
+      const updateResult = await vendorManagementApi.updateQCCheck(id, {
+        status: action === 'approve' ? 'approved' : 'rejected',
+        result: action === 'approve' ? 'Pass' : 'Fail',
+      });
+      console.log('QC check update result:', updateResult);
       toast.success(`Report ${action === 'approve' ? 'approved' : 'rejected'}`);
       // close menu
       setOpenReportMenuId(null);
@@ -473,9 +948,126 @@ export function QCCompliance() {
         const alertId = `alert-report-reject-${id}-${Date.now()}`;
         setAlerts(prev => [{ id: alertId, checkId: id, message: `Report for ${id} was rejected`, type: 'warning', acknowledged: false, ts: Date.now() }, ...prev]);
       }
-    } catch (err) {
+      // Wait a bit to ensure backend has saved, then reload checks to get updated data
+      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('Reloading QC checks after update...');
+      const vendorId = localStorage.getItem('selectedVendorId');
+      const resp = vendorId
+        ? await vendorManagementApi.listVendorQCChecks(vendorId)
+        : await vendorManagementApi.listQCChecks({ page: 1, perPage: 25 });
+      console.log('Reloaded QC checks response:', resp);
+      // Handle different response structures
+      let items: any[] = [];
+      if (Array.isArray(resp)) {
+        items = resp;
+      } else if (resp.data && Array.isArray(resp.data)) {
+        items = resp.data;
+      } else if (resp.items && Array.isArray(resp.items)) {
+        items = resp.items;
+      } else if (resp.pagination && resp.data) {
+        items = Array.isArray(resp.data) ? resp.data : [];
+      }
+      
+      // Check if the updated item is in the response
+      const updatedItem = items.find((item: any) => {
+        const itemId = item._id?.toString() || item.id;
+        return itemId === id;
+      });
+      console.log('Updated item found in reload:', updatedItem);
+      
+      // Transform items to match QCCheck interface
+      let transformedChecks = items.map((item: any) => {
+        const itemId = item._id?.toString() || item.id;
+        // Map backend status to frontend status
+        let frontendStatus = 'Pending';
+        if (item.status === 'approved' || item.status === 'passed') {
+          frontendStatus = 'Approved';
+        } else if (item.status === 'rejected' || item.status === 'failed') {
+          frontendStatus = 'Rejected';
+        } else if (item.status === 'appealed') {
+          frontendStatus = 'Appealed';
+        }
+        
+        return {
+          id: itemId,
+          checkId: item.checkId || item.id || `QC-${itemId.substring(0, 8)}`,
+          batchId: item.batchId || 'N/A',
+          product: item.product || 'Unknown',
+          vendor: item.vendor || item.vendorId || 'Unknown',
+          vendorId: item.vendorId || vendorId || '', // Preserve vendorId for persistence
+          checkType: item.checkType || 'Visual',
+          result: item.result || (item.status === 'approved' || item.status === 'passed' ? 'Pass' : item.status === 'rejected' || item.status === 'failed' ? 'Fail' : 'Pending'),
+          inspector: item.inspector || item.inspectorId || 'N/A',
+          date: item.date || item.createdAt,
+          actualReading: item.actualReading,
+          requirement: item.requirement,
+          severity: item.severity,
+          status: frontendStatus,
+          stage: item.stage || 'Review',
+        };
+      });
+      
+      // Merge with current checks to preserve optimistic updates
+      const currentChecks = checks;
+      const currentCheck = currentChecks.find(c => c.id === id);
+      
+      if (transformedChecks.length > 0) {
+        // Merge API data with current state, preserving optimistic update
+        const mergedChecks = transformedChecks.map(apiCheck => {
+          if (apiCheck.id === id && currentCheck) {
+            // Prefer optimistic update if it exists
+            return {
+              ...apiCheck,
+              status: currentCheck.status,
+              result: currentCheck.result,
+              stage: currentCheck.stage || apiCheck.stage,
+            };
+          }
+          return apiCheck;
+        });
+        
+        // Add any current checks not in API response
+        currentChecks.forEach(currentCheck => {
+          if (!mergedChecks.find(c => c.id === currentCheck.id)) {
+            mergedChecks.push(currentCheck);
+          }
+        });
+        
+        setChecks(mergedChecks);
+        localStorage.setItem('qcChecks', JSON.stringify(mergedChecks));
+      } else {
+        // Backend returned empty - keep optimistic update and ensure it persists
+        console.log('Backend returned empty, keeping optimistic update');
+        const updatedChecks = currentChecks.map(c => {
+          if (c.id === id) {
+            return {
+              ...c,
+              status: action === 'approve' ? 'Approved' : 'Rejected',
+              result: action === 'approve' ? 'Pass' : 'Fail',
+              stage: 'Reported',
+            };
+          }
+          return c;
+        });
+        setChecks(updatedChecks);
+        localStorage.setItem('qcChecks', JSON.stringify(updatedChecks));
+      }
+      
+      // Ensure data persists even if component unmounts
+      // Force a re-read from localStorage on next load
+      const finalChecks = checks.find(c => c.id === id) ? 
+        checks.map(c => c.id === id ? {
+          ...c,
+          status: action === 'approve' ? 'Approved' : 'Rejected',
+          result: action === 'approve' ? 'Pass' : 'Fail',
+          stage: 'Reported',
+        } : c) : checks;
+      localStorage.setItem('qcChecks', JSON.stringify(finalChecks));
+    } catch (err: any) {
       setChecks(prev => prev.map(c => (c.id === id && previous ? previous : c)));
-      toast.error('Failed to process report action');
+      const errorMessage = err.message || 'Failed to process report action';
+      toast.error(errorMessage);
+      console.error('Report action error:', err);
     } finally {
       setLoadingFor(id, false);
     }
@@ -488,36 +1080,280 @@ export function QCCompliance() {
   const scheduleAudit = async (auditId?: string) => {
     const id = auditId || `sch-${Date.now()}`;
     setLoadingFor(id, true);
-    const newAudit: Audit = {
-      id,
-      auditId: `SCH-${Math.floor(1000 + Math.random() * 9000)}`,
-      vendor: selectedAudit?.vendor || 'N/A',
-      date: new Date().toLocaleDateString(),
-      auditType: 'Routine',
-      result: 'Scheduled',
-      score: 0
-    };
-    // optimistic add
-    setAudits(prev => [newAudit, ...prev]);
     try {
-      await new Promise(res => setTimeout(res, 800));
+      // Get vendorId - prefer from selectedAudit if available, otherwise from localStorage
+      let vendorId = '';
+      let vendorName = 'N/A';
+      
+      // Priority order: selectedAudit.vendorId > auditId lookup > localStorage > first audit
+      if (selectedAudit) {
+        // First priority: Use vendorId from selectedAudit if available
+        const auditVendorId = (selectedAudit as any).vendorId;
+        if (auditVendorId && auditVendorId.trim() !== '') {
+          vendorId = auditVendorId;
+        } else {
+          // Fallback to localStorage if selectedAudit doesn't have vendorId
+          vendorId = localStorage.getItem('selectedVendorId') || '';
+        }
+        vendorName = selectedAudit.vendor || 'N/A';
+      } else if (auditId) {
+        // If auditId is provided, find the audit to get vendorId
+        const audit = audits.find(a => a.id === auditId);
+        if (audit) {
+          const auditVendorId = (audit as any).vendorId;
+          if (auditVendorId && auditVendorId.trim() !== '') {
+            vendorId = auditVendorId;
+          } else {
+            vendorId = localStorage.getItem('selectedVendorId') || '';
+          }
+          vendorName = audit.vendor || 'N/A';
+        } else {
+          vendorId = localStorage.getItem('selectedVendorId') || '';
+        }
+      } else {
+        // Try localStorage first
+        vendorId = localStorage.getItem('selectedVendorId') || '';
+        // If still no vendorId, try to get from the first audit in the list
+        if (!vendorId && audits.length > 0) {
+          const firstAudit = audits[0];
+          const auditVendorId = (firstAudit as any).vendorId;
+          if (auditVendorId && auditVendorId.trim() !== '') {
+            vendorId = auditVendorId;
+          }
+          if (!vendorName || vendorName === 'N/A') {
+            vendorName = firstAudit.vendor || 'N/A';
+          }
+        }
+      }
+      
+      // Final fallback: if still no vendorId, try multiple strategies
+      if (!vendorId || vendorId.trim() === '') {
+        // Strategy 1: Try to get vendorId from the vendor name in selectedAudit by looking up in audits
+        if (selectedAudit && selectedAudit.vendor && selectedAudit.vendor !== 'N/A') {
+          const auditWithVendorId = audits.find(a => a.vendor === selectedAudit.vendor && (a as any).vendorId);
+          if (auditWithVendorId) {
+            vendorId = (auditWithVendorId as any).vendorId;
+          }
+        }
+        
+        // Strategy 2: Try localStorage again
+        if (!vendorId || vendorId.trim() === '') {
+          const storedVendorId = localStorage.getItem('selectedVendorId');
+          if (storedVendorId && storedVendorId.trim() !== '') {
+            vendorId = storedVendorId;
+          }
+        }
+        
+        // Strategy 3: Try to find any audit with a vendorId
+        if (!vendorId || vendorId.trim() === '') {
+          const auditWithVendorId = audits.find(a => (a as any).vendorId && (a as any).vendorId.trim() !== '');
+          if (auditWithVendorId) {
+            vendorId = (auditWithVendorId as any).vendorId;
+            vendorName = auditWithVendorId.vendor || 'N/A';
+          }
+        }
+        
+        // Strategy 4: Last resort - use vendor name to create a vendorId (for demo)
+        if (!vendorId || vendorId.trim() === '') {
+          if (selectedAudit && selectedAudit.vendor && selectedAudit.vendor !== 'N/A') {
+            vendorId = `vendor-${selectedAudit.vendor.toLowerCase().replace(/\s+/g, '-')}`;
+            console.warn('Using generated vendorId for demo:', vendorId);
+          } else if (audits.length > 0 && audits[0].vendor && audits[0].vendor !== 'N/A') {
+            vendorId = `vendor-${audits[0].vendor.toLowerCase().replace(/\s+/g, '-')}`;
+            vendorName = audits[0].vendor;
+            console.warn('Using generated vendorId from first audit for demo:', vendorId);
+          } else {
+            const errorMsg = 'Vendor ID is required to schedule audit. Please select a vendor first.';
+            toast.error(errorMsg);
+            console.error('No vendorId found. selectedAudit:', selectedAudit, 'audits:', audits);
+            throw new Error(errorMsg);
+          }
+        }
+      }
+      
+      // Get vendor name if we don't have it
+      if (!vendorName || vendorName === 'N/A') {
+        try {
+          const vendorResp = await vendorManagementApi.getVendorById(vendorId);
+          vendorName = vendorResp.data?.name || vendorResp.name || vendorResp.data?.vendorName || 'N/A';
+        } catch (e) {
+          console.warn('Failed to fetch vendor name', e);
+          // Try to use vendorId as name if fetch fails
+          vendorName = vendorId;
+        }
+      }
+      
+      const auditData = {
+        vendorId: vendorId,
+        auditType: 'Routine',
+        date: new Date(),
+      };
+      
+      const response = await vendorManagementApi.scheduleAudit(auditData);
+      const newAudit: Audit = {
+        id: response.data?._id?.toString() || response.data?.id || id,
+        auditId: response.data?.auditId || `SCH-${Math.floor(1000 + Math.random() * 9000)}`,
+        vendor: vendorName,
+        vendorId: vendorId, // Ensure vendorId is included
+        date: response.data?.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        auditType: response.data?.auditType || 'Routine',
+        result: response.data?.result || 'Pending',
+        score: response.data?.score || 0
+      };
+      // optimistic add
+      setAudits(prev => {
+        const updated = [newAudit, ...prev];
+        localStorage.setItem('audits', JSON.stringify(updated));
+        return updated;
+      });
       toast.success('Audit scheduled');
-    } catch (err) {
-      setAudits(prev => prev.filter(a => a.id !== id));
-      toast.error('Failed to schedule audit');
+      // Reload audits to get updated data
+      const vendorIdForReload = localStorage.getItem('selectedVendorId') || vendorId;
+      if (vendorIdForReload) {
+        const auditsResp = await vendorManagementApi.getAudits({ vendorId: vendorIdForReload });
+        const auditsData = auditsResp.data || auditsResp || [];
+        const transformedAudits = Array.isArray(auditsData) ? auditsData.map((a: any) => ({
+          id: a._id?.toString() || a.id,
+          auditId: a.auditId || a.id,
+          vendor: a.vendor || a.vendorName || a.vendorId || 'N/A',
+          vendorId: a.vendorId || vendorIdForReload || '', // Preserve vendorId
+          date: a.date || new Date(a.createdAt || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          auditType: a.auditType || 'Routine',
+          result: a.result || 'Pending',
+          score: a.score || 0,
+        })) : [];
+        
+        // Merge with localStorage to preserve vendorId and newly scheduled audits
+        const savedAudits = loadAuditsFromStorage();
+        if (savedAudits.length > 0) {
+          const savedMap = new Map(savedAudits.map(a => [a.id, a]));
+          transformedAudits.forEach(apiAudit => {
+            const savedAudit = savedMap.get(apiAudit.id);
+            if (savedAudit && savedAudit.vendorId) {
+              apiAudit.vendorId = savedAudit.vendorId;
+            }
+          });
+          // Add saved audits not in API (newly scheduled)
+          savedAudits.forEach(savedAudit => {
+            if (!transformedAudits.find(a => a.id === savedAudit.id)) {
+              transformedAudits.push(savedAudit);
+            }
+          });
+        }
+        
+        setAudits(transformedAudits);
+        localStorage.setItem('audits', JSON.stringify(transformedAudits));
+      }
+    } catch (err: any) {
+      console.error('Schedule audit error:', err);
+      // Extract error message properly
+      let errorMessage = 'Failed to schedule audit';
+      if (err) {
+        if (typeof err === 'string') {
+          errorMessage = err;
+        } else if (err.message) {
+          errorMessage = err.message;
+        } else if (err.error) {
+          errorMessage = typeof err.error === 'string' ? err.error : err.error.message || 'Failed to schedule audit';
+        } else if (err.data) {
+          errorMessage = typeof err.data === 'string' ? err.data : err.data.message || 'Failed to schedule audit';
+        } else {
+          errorMessage = JSON.stringify(err);
+        }
+      }
+      // Ensure errorMessage is always a string
+      const finalErrorMessage = typeof errorMessage === 'string' ? errorMessage : 'Failed to schedule audit';
+      toast.error(finalErrorMessage);
+      // Don't throw here, just show error
     } finally {
       setLoadingFor(id, false);
     }
   };
 
   const verifyCertificate = async (certId: string) => {
-    setLoadingFor(certId, true);
-    setCertificates(prev => prev.map(c => c.id === certId ? { ...c, status: 'Valid' } : c));
-    try {
-      await new Promise(res => setTimeout(res, 600));
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(certId);
+    if (!isValidObjectId && (certId === '1' || certId === '2' || certId === '3' || certId.length < 10)) {
+      // This is likely mock data - just update locally
+      setCertificates(prev => prev.map(c => c.id === certId ? { ...c, status: 'Valid' } : c));
       toast.success('Certificate verified');
-    } catch (err) {
-      toast.error('Verification failed');
+      setShowCertificateModal(false);
+      return;
+    }
+    
+    setLoadingFor(certId, true);
+    const currentCertificates = certificates;
+    // Optimistic update - save immediately
+    setCertificates(prev => {
+      const updated = prev.map(c => c.id === certId ? { ...c, status: 'Valid' } : c);
+      localStorage.setItem('certificates', JSON.stringify(updated));
+      return updated;
+    });
+    try {
+      await vendorManagementApi.updateCertificate(certId, {
+        status: 'valid',
+      });
+      toast.success('Certificate verified');
+      // Wait a bit to ensure backend has saved, then reload certificates to get updated data
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const vendorId = localStorage.getItem('selectedVendorId');
+      try {
+        if (vendorId) {
+          const certResp = await vendorManagementApi.listVendorCertificates(vendorId);
+          const certs = Array.isArray(certResp) ? certResp : (certResp.items || certResp.data || []);
+          if (certs.length > 0) {
+            const transformedCerts = certs.map((c: any) => ({
+              id: c._id?.toString() || c.id,
+              certificateType: c.type || c.certificateType || 'Unknown',
+              vendor: c.vendor || c.vendorName || c.vendorId || 'Unknown',
+              issuedDate: c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+              expiryDate: c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+              status: c.status === 'valid' ? 'Valid' : c.status === 'expired' ? 'Expired' : c.status === 'pending_renewal' ? 'Pending Renewal' : c.status === 'expiring_soon' ? 'Expiring Soon' : 'Valid',
+              daysToExpiry: c.expiresAt ? Math.ceil((new Date(c.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
+              licenseNumber: c.licenseNumber || c.metadata?.licenseNumber,
+            }));
+            
+            // Merge with current state to preserve optimistic update
+            const currentCert = currentCertificates.find(c => c.id === certId);
+            const mergedCerts = transformedCerts.map(apiCert => {
+              if (apiCert.id === certId && currentCert && currentCert.status === 'Valid') {
+                return currentCert; // Prefer optimistic update
+              }
+              return apiCert;
+            });
+            
+            // Add any current certs not in API
+            currentCertificates.forEach(currentCert => {
+              if (!mergedCerts.find(c => c.id === currentCert.id)) {
+                mergedCerts.push(currentCert);
+              }
+            });
+            
+            setCertificates(mergedCerts);
+            localStorage.setItem('certificates', JSON.stringify(mergedCerts));
+          } else {
+            // Backend returned empty - keep optimistic update
+            console.log('Backend returned empty certificates, keeping optimistic update');
+            const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Valid' } : c);
+            setCertificates(updated);
+            localStorage.setItem('certificates', JSON.stringify(updated));
+          }
+        } else {
+          console.warn('No vendorId found, keeping optimistic update');
+          const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Valid' } : c);
+          setCertificates(updated);
+          localStorage.setItem('certificates', JSON.stringify(updated));
+        }
+      } catch (reloadErr) {
+        console.error('Failed to reload certificates after verification:', reloadErr);
+        // Keep the optimistic update
+        const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Valid' } : c);
+        setCertificates(updated);
+        localStorage.setItem('certificates', JSON.stringify(updated));
+      }
+    } catch (err: any) {
+      console.error('Verify certificate error:', err);
+      toast.error(err.message || 'Verification failed');
     } finally {
       setLoadingFor(certId, false);
       setShowCertificateModal(false);
@@ -525,13 +1361,98 @@ export function QCCompliance() {
   };
 
   const renewCertificate = async (certId: string) => {
-    setLoadingFor(certId, true);
-    setCertificates(prev => prev.map(c => c.id === certId ? { ...c, status: 'Pending Renewal' } : c));
-    try {
-      await new Promise(res => setTimeout(res, 800));
+    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(certId);
+    if (!isValidObjectId && (certId === '1' || certId === '2' || certId === '3' || certId.length < 10)) {
+      // This is likely mock data - just update locally and save to localStorage
+      setCertificates(prev => {
+        const updated = prev.map(c => c.id === certId ? { ...c, status: 'Pending Renewal' } : c);
+        localStorage.setItem('certificates', JSON.stringify(updated));
+        return updated;
+      });
       toast.success('Renewal scheduled');
-    } catch (err) {
-      toast.error('Failed to schedule renewal');
+      return;
+    }
+    
+    setLoadingFor(certId, true);
+    const currentCertificates = certificates;
+    const cert = currentCertificates.find(c => c.id === certId);
+    const newExpiryDate = new Date();
+    newExpiryDate.setFullYear(newExpiryDate.getFullYear() + 1); // Renew for 1 year
+    const newExpiryDateStr = newExpiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    
+    // Optimistic update - save immediately
+    setCertificates(prev => {
+      const updated = prev.map(c => c.id === certId ? { ...c, status: 'Pending Renewal', expiryDate: newExpiryDateStr } : c);
+      localStorage.setItem('certificates', JSON.stringify(updated));
+      return updated;
+    });
+    try {
+      
+      await vendorManagementApi.updateCertificate(certId, {
+        status: 'valid',
+        expiresAt: newExpiryDate,
+      });
+      toast.success('Renewal scheduled');
+      // Wait a bit to ensure backend has saved, then reload certificates to get updated data
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const vendorId = localStorage.getItem('selectedVendorId');
+      try {
+        if (vendorId) {
+          const certResp = await vendorManagementApi.listVendorCertificates(vendorId);
+          const certs = Array.isArray(certResp) ? certResp : (certResp.items || certResp.data || []);
+          if (certs.length > 0) {
+            const transformedCerts = certs.map((c: any) => ({
+              id: c._id?.toString() || c.id,
+              certificateType: c.type || c.certificateType || 'Unknown',
+              vendor: c.vendor || c.vendorName || c.vendorId || 'Unknown',
+              issuedDate: c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+              expiryDate: c.expiresAt ? new Date(c.expiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+              status: c.status === 'valid' ? 'Valid' : c.status === 'expired' ? 'Expired' : c.status === 'pending_renewal' ? 'Pending Renewal' : c.status === 'expiring_soon' ? 'Expiring Soon' : 'Valid',
+              daysToExpiry: c.expiresAt ? Math.ceil((new Date(c.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
+              licenseNumber: c.licenseNumber || c.metadata?.licenseNumber,
+            }));
+            // Merge with current state to preserve optimistic update
+            const currentCert = currentCertificates.find(c => c.id === certId);
+            const mergedCerts = transformedCerts.map(apiCert => {
+              if (apiCert.id === certId && currentCert && currentCert.status === 'Pending Renewal') {
+                return currentCert; // Prefer optimistic update
+              }
+              return apiCert;
+            });
+            
+            // Add any current certs not in API
+            currentCertificates.forEach(currentCert => {
+              if (!mergedCerts.find(c => c.id === currentCert.id)) {
+                mergedCerts.push(currentCert);
+              }
+            });
+            
+            setCertificates(mergedCerts);
+            localStorage.setItem('certificates', JSON.stringify(mergedCerts));
+          } else {
+            // Backend returned empty - keep optimistic update
+            console.log('Backend returned empty certificates, keeping optimistic update');
+            const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Pending Renewal', expiryDate: newExpiryDateStr } : c);
+            setCertificates(updated);
+            localStorage.setItem('certificates', JSON.stringify(updated));
+          }
+        } else {
+          console.warn('No vendorId found, keeping optimistic update');
+          const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Pending Renewal', expiryDate: newExpiryDateStr } : c);
+          setCertificates(updated);
+          localStorage.setItem('certificates', JSON.stringify(updated));
+        }
+      } catch (reloadErr) {
+        console.error('Failed to reload certificates after renewal:', reloadErr);
+        // Keep the optimistic update
+        const updated = currentCertificates.map(c => c.id === certId ? { ...c, status: 'Pending Renewal', expiryDate: newExpiryDateStr } : c);
+        setCertificates(updated);
+        localStorage.setItem('certificates', JSON.stringify(updated));
+      }
+    } catch (err: any) {
+      console.error('Renew certificate error:', err);
+      toast.error(err.message || 'Failed to schedule renewal');
     } finally {
       setLoadingFor(certId, false);
     }
@@ -603,23 +1524,24 @@ export function QCCompliance() {
   };
 
   const exportSampleTestReport = () => {
-    if (!selectedCheck) return; // Reusing selectedCheck for sample tests
+    if (!selectedTemp) return;
     try {
       const today = new Date().toISOString().split('T')[0];
       const csvData: (string | number)[][] = [
-        ['Sample Test Report', `Date: ${today}`],
+        ['Temperature Compliance Report', `Date: ${today}`],
         [''],
-        ['Sample Information'],
-        ['Check ID', selectedCheck.checkId],
-        ['Batch ID', selectedCheck.batchId],
-        ['Product', selectedCheck.product],
-        ['Vendor', selectedCheck.vendor],
-        ['Test Type', selectedCheck.checkType],
-        ['Result', selectedCheck.result],
-        ['Inspector', selectedCheck.inspector || 'N/A'],
+        ['Shipment Information'],
+        ['Shipment ID', selectedTemp.shipmentId],
+        ['Product', selectedTemp.product],
+        ['Vendor', selectedTemp.vendor],
+        ['Requirement', selectedTemp.requirement],
+        ['Average Temperature', `${selectedTemp.avgTemp}°C`],
+        ['Min Temperature', `${selectedTemp.minTemp}°C`],
+        ['Max Temperature', `${selectedTemp.maxTemp}°C`],
+        ['Compliant', selectedTemp.compliant ? 'Yes' : 'No'],
       ];
-      exportToCSV(csvData, `sample-test-${selectedCheck.checkId}-${today}`);
-      toast.success('Sample test report downloaded');
+      exportToCSV(csvData, `temperature-compliance-${selectedTemp.shipmentId}-${today}`);
+      toast.success('Temperature compliance report downloaded');
     } catch (error) {
       toast.error('Failed to download report');
     }
@@ -680,6 +1602,7 @@ export function QCCompliance() {
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showTempReportModal, setShowTempReportModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Get result badge color
   const getResultColor = (result: QCResult) => {
@@ -1117,7 +2040,14 @@ export function QCCompliance() {
                         </button>
                         {audit.result === 'Passed' && (
                           <button
-                            onClick={() => scheduleAudit(audit.id)}
+                            onClick={async () => {
+                              try {
+                                await scheduleAudit(audit.id);
+                              } catch (err: any) {
+                                // Error is already handled in scheduleAudit function
+                                console.error('Schedule audit error:', err);
+                              }
+                            }}
                             className="px-3 py-1.5 bg-[#4F46E5] text-white text-xs font-medium rounded-md hover:bg-[#4338CA]"
                           >
                             {loadingIds[audit.id] ? 'Scheduling...' : 'Schedule'}
@@ -1436,7 +2366,7 @@ export function QCCompliance() {
               QC Check Details
             </DialogTitle>
             <DialogDescription id="qc-check-details-description" className="text-sm text-[#6B7280]">
-              {selectedCheck?.checkId} | {selectedCheck?.product} | {selectedCheck?.batchId}
+              {selectedCheck ? `${selectedCheck.checkId || 'N/A'} | ${selectedCheck.product || 'N/A'} | ${selectedCheck.batchId || 'N/A'}` : 'QC check details'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1572,7 +2502,7 @@ export function QCCompliance() {
               Vendor Audit History
             </DialogTitle>
             <DialogDescription id="vendor-audit-history-description" className="text-sm text-[#6B7280]">
-              {selectedAudit?.vendor}
+              {selectedAudit && selectedAudit.vendor ? selectedAudit.vendor : 'Vendor audit history'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1641,7 +2571,14 @@ export function QCCompliance() {
 
           <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end gap-3">
             <button
-              onClick={() => scheduleAudit()}
+              onClick={async () => {
+                try {
+                  await scheduleAudit();
+                } catch (err: any) {
+                  // Error is already handled in scheduleAudit function
+                  console.error('Schedule audit error:', err);
+                }
+              }}
               className="px-6 py-2.5 bg-[#4F46E5] text-white text-sm font-medium rounded-md hover:bg-[#4338CA]"
             >
               Schedule Audit
@@ -1671,7 +2608,7 @@ export function QCCompliance() {
               Certificate Details
             </DialogTitle>
             <DialogDescription id="certificate-details-description" className="text-sm text-[#6B7280]">
-              {selectedCertificate?.certificateType} - {selectedCertificate?.vendor}
+              {selectedCertificate ? `${selectedCertificate.certificateType || 'Certificate'} - ${selectedCertificate.vendor || 'Unknown'}` : 'Certificate details'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1777,7 +2714,7 @@ export function QCCompliance() {
               Temperature Compliance Report
             </DialogTitle>
             <DialogDescription id="temp-compliance-report-description" className="text-sm text-[#6B7280]">
-              Shipment {selectedTemp?.shipmentId}
+              {selectedTemp ? `Shipment ${selectedTemp.shipmentId || 'N/A'}` : 'Temperature compliance report'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1844,18 +2781,198 @@ export function QCCompliance() {
             {!selectedTemp?.compliant && (
               <>
                 <button
-                  onClick={() => {
-                    toast.success('Batch approved with justification');
-                    setShowTempReportModal(false);
+                  onClick={async () => {
+                    if (!selectedTemp) return;
+                    
+                    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+                    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(selectedTemp.id);
+                    if (!isValidObjectId && (selectedTemp.id === '1' || selectedTemp.id === '2' || selectedTemp.id === '3' || selectedTemp.id.length < 10)) {
+                      // This is likely mock data - just update locally and save to localStorage
+                      setTemps(prev => {
+                        const updated = prev.map(t => t.id === selectedTemp.id ? { ...t, compliant: true } : t);
+                        localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                        return updated;
+                      });
+                      toast.success('Batch approved with justification');
+                      setShowTempReportModal(false);
+                      return;
+                    }
+                    
+                    const currentTemps = temps;
+                    // Optimistic update - save immediately
+                    setTemps(prev => {
+                      const updated = prev.map(t => t.id === selectedTemp.id ? { ...t, compliant: true } : t);
+                      localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                      return updated;
+                    });
+                    try {
+                      await vendorManagementApi.updateTemperatureCompliance(selectedTemp.id, {
+                        compliant: true,
+                        notes: 'Approved with justification',
+                      });
+                      toast.success('Batch approved with justification');
+                      setShowTempReportModal(false);
+                      // Wait a bit to ensure backend has saved, then reload temperature compliance to get updated data
+                      await new Promise(resolve => setTimeout(resolve, 500));
+                      try {
+                        const vendorId = localStorage.getItem('selectedVendorId');
+                        if (vendorId) {
+                          const tempResp = await vendorManagementApi.getTemperatureCompliance({ vendorId });
+                          const tempData = Array.isArray(tempResp.data) ? tempResp.data : (Array.isArray(tempResp) ? tempResp : []);
+                          if (tempData.length > 0) {
+                            const transformedTemps = tempData.map((t: any) => ({
+                              id: t._id?.toString() || t.id,
+                              shipmentId: t.shipmentId || 'N/A',
+                              product: t.product || t.productName || 'Unknown',
+                              vendor: t.vendor || t.vendorName || t.vendorId || 'Unknown',
+                              requirement: t.requirement || 'N/A',
+                              avgTemp: t.avgTemp || 0,
+                              minTemp: t.minTemp || 0,
+                              maxTemp: t.maxTemp || 0,
+                              compliant: t.compliant !== undefined ? t.compliant : true,
+                            }));
+                            
+                            // Merge with current state to preserve optimistic update
+                            const currentTemp = currentTemps.find(t => t.id === selectedTemp.id);
+                            const mergedTemps = transformedTemps.map(apiTemp => {
+                              if (apiTemp.id === selectedTemp.id && currentTemp && currentTemp.compliant === true) {
+                                return currentTemp; // Prefer optimistic update
+                              }
+                              return apiTemp;
+                            });
+                            
+                            // Add any current temps not in API
+                            currentTemps.forEach(currentTemp => {
+                              if (!mergedTemps.find(t => t.id === currentTemp.id)) {
+                                mergedTemps.push(currentTemp);
+                              }
+                            });
+                            
+                            setTemps(mergedTemps);
+                            localStorage.setItem('temperatureCompliance', JSON.stringify(mergedTemps));
+                          } else {
+                            // Backend returned empty - keep optimistic update
+                            console.log('Backend returned empty temperature data, keeping optimistic update');
+                            const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: true } : t);
+                            setTemps(updated);
+                            localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                          }
+                        } else {
+                          // No vendorId - keep optimistic update
+                          const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: true } : t);
+                          setTemps(updated);
+                          localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                        }
+                      } catch (reloadErr) {
+                        console.error('Failed to reload temperature compliance after approval:', reloadErr);
+                        // Keep the optimistic update
+                        const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: true } : t);
+                        setTemps(updated);
+                        localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                      }
+                    } catch (err: any) {
+                      console.error('Approve temperature compliance error:', err);
+                      toast.error(err.message || 'Failed to approve batch');
+                    }
                   }}
                   className="px-6 py-2.5 bg-[#10B981] text-white text-sm font-medium rounded-md hover:bg-[#059669]"
                 >
                   Approve Anyway
                 </button>
                 <button
-                  onClick={() => {
-                    toast.success('Batch rejected');
-                    setShowTempReportModal(false);
+                  onClick={async () => {
+                    if (!selectedTemp) return;
+                    
+                    // Check if this is a mock data ID (not a valid MongoDB ObjectId)
+                    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(selectedTemp.id);
+                    if (!isValidObjectId && (selectedTemp.id === '1' || selectedTemp.id === '2' || selectedTemp.id === '3' || selectedTemp.id.length < 10)) {
+                      // This is likely mock data - just update locally and save to localStorage
+                      setTemps(prev => {
+                        const updated = prev.map(t => t.id === selectedTemp.id ? { ...t, compliant: false } : t);
+                        localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                        return updated;
+                      });
+                      toast.success('Batch rejected');
+                      setShowTempReportModal(false);
+                      return;
+                    }
+                    
+                    const currentTemps = temps;
+                    // Optimistic update - save immediately
+                    setTemps(prev => {
+                      const updated = prev.map(t => t.id === selectedTemp.id ? { ...t, compliant: false } : t);
+                      localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                      return updated;
+                    });
+                    try {
+                      await vendorManagementApi.updateTemperatureCompliance(selectedTemp.id, {
+                        compliant: false,
+                        notes: 'Batch rejected due to temperature violation',
+                      });
+                      toast.success('Batch rejected');
+                      setShowTempReportModal(false);
+                      // Wait a bit to ensure backend has saved, then reload temperature compliance to get updated data
+                      await new Promise(resolve => setTimeout(resolve, 500));
+                      try {
+                        const vendorId = localStorage.getItem('selectedVendorId');
+                        if (vendorId) {
+                          const tempResp = await vendorManagementApi.getTemperatureCompliance({ vendorId });
+                          const tempData = Array.isArray(tempResp.data) ? tempResp.data : (Array.isArray(tempResp) ? tempResp : []);
+                          if (tempData.length > 0) {
+                            const transformedTemps = tempData.map((t: any) => ({
+                              id: t._id?.toString() || t.id,
+                              shipmentId: t.shipmentId || 'N/A',
+                              product: t.product || t.productName || 'Unknown',
+                              vendor: t.vendor || t.vendorName || t.vendorId || 'Unknown',
+                              requirement: t.requirement || 'N/A',
+                              avgTemp: t.avgTemp || 0,
+                              minTemp: t.minTemp || 0,
+                              maxTemp: t.maxTemp || 0,
+                              compliant: t.compliant !== undefined ? t.compliant : true,
+                            }));
+                            
+                            // Merge with current state to preserve optimistic update
+                            const currentTemp = currentTemps.find(t => t.id === selectedTemp.id);
+                            const mergedTemps = transformedTemps.map(apiTemp => {
+                              if (apiTemp.id === selectedTemp.id && currentTemp && currentTemp.compliant === false) {
+                                return currentTemp; // Prefer optimistic update
+                              }
+                              return apiTemp;
+                            });
+                            
+                            // Add any current temps not in API
+                            currentTemps.forEach(currentTemp => {
+                              if (!mergedTemps.find(t => t.id === currentTemp.id)) {
+                                mergedTemps.push(currentTemp);
+                              }
+                            });
+                            
+                            setTemps(mergedTemps);
+                            localStorage.setItem('temperatureCompliance', JSON.stringify(mergedTemps));
+                          } else {
+                            // Backend returned empty - keep optimistic update
+                            console.log('Backend returned empty temperature data, keeping optimistic update');
+                            const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: false } : t);
+                            setTemps(updated);
+                            localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                          }
+                        } else {
+                          // No vendorId - keep optimistic update
+                          const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: false } : t);
+                          setTemps(updated);
+                          localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                        }
+                      } catch (reloadErr) {
+                        console.error('Failed to reload temperature compliance after rejection:', reloadErr);
+                        // Keep the optimistic update
+                        const updated = currentTemps.map(t => t.id === selectedTemp.id ? { ...t, compliant: false } : t);
+                        setTemps(updated);
+                        localStorage.setItem('temperatureCompliance', JSON.stringify(updated));
+                      }
+                    } catch (err: any) {
+                      console.error('Reject temperature compliance error:', err);
+                      toast.error(err.message || 'Failed to reject batch');
+                    }
                   }}
                   className="px-6 py-2.5 bg-[#EF4444] text-white text-sm font-medium rounded-md hover:bg-[#DC2626]"
                 >
@@ -1888,7 +3005,7 @@ export function QCCompliance() {
               Quality Rating Details
             </DialogTitle>
             <DialogDescription id="quality-rating-details-description" className="text-sm text-[#6B7280]">
-              {selectedRating?.vendor}
+              {selectedRating ? (selectedRating.vendor || 'Quality rating details') : 'Quality rating details'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1998,13 +3115,39 @@ export function QCCompliance() {
 
           <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end gap-3">
             <button
-              onClick={() => toast.success('Viewing full history')}
+              onClick={() => {
+                if (selectedRating) {
+                  setShowHistoryModal(true);
+                }
+              }}
               className="px-6 py-2.5 bg-[#6B7280] text-white text-sm font-medium rounded-md hover:bg-[#4B5563]"
             >
               View History
             </button>
             <button
-              onClick={exportRejectionReport}
+              onClick={() => {
+                if (selectedRating) {
+                  try {
+                    const today = new Date().toISOString().split('T')[0];
+                    const csvData: (string | number)[][] = [
+                      ['Quality Rating Report', `Date: ${today}`],
+                      [''],
+                      ['Vendor Information'],
+                      ['Vendor', selectedRating.vendor],
+                      ['Overall Rating', selectedRating.overallRating],
+                      ['QC Pass Rate', `${selectedRating.qcPassRate}%`],
+                      ['Compliance Score', selectedRating.complianceScore],
+                      ['Audit Score', selectedRating.auditScore],
+                      ['Trend', selectedRating.trend],
+                    ];
+                    exportToCSV(csvData, `quality-rating-${selectedRating.vendor.replace(/\s+/g, '-')}-${today}`);
+                    toast.success('Quality rating report downloaded');
+                  } catch (error) {
+                    console.error('Download report error:', error);
+                    toast.error('Failed to download report');
+                  }
+                }
+              }}
               className="px-6 py-2.5 bg-[#6B7280] text-white text-sm font-medium rounded-md hover:bg-[#4B5563] flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
@@ -2012,6 +3155,68 @@ export function QCCompliance() {
             </button>
             <button
               onClick={() => setShowRatingModal(false)}
+              className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6]"
+            >
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal 6: Quality Rating History */}
+      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto p-0" aria-describedby="quality-rating-history-description">
+          <DialogHeader className="px-6 py-5 border-b border-[#E5E7EB]">
+            <DialogTitle className="text-lg font-bold text-[#1F2937]">
+              Quality Rating History
+            </DialogTitle>
+            <DialogDescription id="quality-rating-history-description" className="text-sm text-[#6B7280]">
+              {selectedRating?.vendor}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRating && (
+            <div className="px-6 py-6 space-y-6">
+              <div className="bg-[#F9FAFB] p-6 rounded-lg text-center">
+                <p className="text-sm text-[#6B7280] mb-2">Overall Rating History</p>
+                <p className="text-3xl font-bold mb-1" style={{ color: getRatingColor(selectedRating.overallRating) }}>
+                  {selectedRating.overallRating.toFixed(1)}/5
+                </p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  {renderStars(selectedRating.overallRating)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#F9FAFB] p-4 rounded-lg">
+                  <p className="text-sm text-[#6B7280] mb-1">QC Pass Rate</p>
+                  <p className="text-2xl font-bold text-[#1F2937]">{selectedRating.qcPassRate}%</p>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 rounded-lg">
+                  <p className="text-sm text-[#6B7280] mb-1">Compliance Score</p>
+                  <p className="text-2xl font-bold text-[#1F2937]">{selectedRating.complianceScore}/100</p>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 rounded-lg">
+                  <p className="text-sm text-[#6B7280] mb-1">Audit Score</p>
+                  <p className="text-2xl font-bold text-[#1F2937]">{selectedRating.auditScore}/100</p>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 rounded-lg">
+                  <p className="text-sm text-[#6B7280] mb-1">Trend</p>
+                  <p className="text-2xl font-bold text-[#1F2937] capitalize">{selectedRating.trend}</p>
+                </div>
+              </div>
+
+              <div className="bg-[#FFFBEB] border border-[#FEF3C7] p-4 rounded-lg">
+                <p className="text-sm text-[#92400E]">
+                  <strong>Note:</strong> Detailed historical data and trend charts will be available in future updates.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="px-6 py-4 bg-[#FAFBFC] border-t border-[#E5E7EB] flex justify-end">
+            <button
+              onClick={() => setShowHistoryModal(false)}
               className="px-6 py-2.5 bg-white border border-[#D1D5DB] text-[#1F2937] text-sm font-medium rounded-md hover:bg-[#F3F4F6]"
             >
               Close

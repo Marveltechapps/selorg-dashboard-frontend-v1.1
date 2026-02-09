@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { ComplianceScoreComponent } from './types';
 import { COMPLIANCE_SCORES } from './mockData';
@@ -15,15 +16,16 @@ export function ComplianceOverviewSheet({ isOpen, onClose }: ComplianceOverviewS
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[500px]">
-        <SheetHeader className="pb-6 border-b">
+      <SheetContent className="w-[400px] sm:w-[500px] flex flex-col h-full">
+        <SheetHeader className="pb-6 border-b shrink-0">
           <SheetTitle className="text-2xl">Compliance Overview</SheetTitle>
           <SheetDescription>
             Detailed breakdown of regional compliance scoring.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="py-6 space-y-8">
+        <ScrollArea className="flex-1 min-h-0 py-6">
+          <div className="space-y-8 pr-4">
             {/* Total Score */}
             <div className="text-center space-y-2">
                 <div className="relative inline-flex items-center justify-center">
@@ -72,7 +74,8 @@ export function ComplianceOverviewSheet({ isOpen, onClose }: ComplianceOverviewS
                     </li>
                 </ul>
             </div>
-        </div>
+          </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   );

@@ -29,39 +29,105 @@ interface ExportReportModalProps {
 export function ExportReportModal({ isOpen, onClose }: ExportReportModalProps) {
   const [step, setStep] = useState(1);
   const [reportType, setReportType] = useState('full');
+  const [fileFormat, setFileFormat] = useState('pdf');
   const [deliveryMethod, setDeliveryMethod] = useState('download');
   const [isScheduled, setIsScheduled] = useState(false);
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
+  const generateReportContent = () => {
+    const date = new Date().toLocaleString();
+    const baseContent = {
+      title: `ANALYTICS EXPORT - ${reportType.toUpperCase()}`,
+      generated: date,
+      description: `This is a ${reportType} report from the Merchandising Dashboard.`
+    };
+    return baseContent;
+  };
+
+  const downloadPDF = () => {
+    // Load jsPDF dynamically
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => {
+      try {
+        const { jsPDF } = (window as any).jspdf;
+        const doc = new jsPDF();
+        const content = generateReportContent();
+        
+        doc.setFontSize(16);
+        doc.text(content.title, 20, 20);
+        doc.setFontSize(12);
+        doc.text(`Generated: ${content.generated}`, 20, 35);
+        doc.text(content.description, 20, 45);
+        
+        doc.save(`Analytics_Report_${reportType}_${Date.now()}.pdf`);
+        toast.success("PDF Report Downloaded", {
+          description: "Your report has been downloaded successfully."
+        });
+      } catch (error) {
+        toast.error("Failed to generate PDF", {
+          description: "Please try again or use a different format."
+        });
+      }
+    };
+    script.onerror = () => {
+      toast.error("Failed to load PDF library", {
+        description: "Please try a different format."
+      });
+    };
+    document.body.appendChild(script);
+  };
+
+  const downloadExcel = () => {
+    const content = generateReportContent();
+    const csvContent = `${content.title}\nGenerated: ${content.generated}\n${content.description}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Analytics_Report_${reportType}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    toast.success("Excel Report Downloaded", {
+      description: "Your report has been downloaded successfully."
+    });
+  };
+
+  const downloadCSV = () => {
+    const content = generateReportContent();
+    const csvContent = `${content.title}\nGenerated: ${content.generated}\n${content.description}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Analytics_RawData_${reportType}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    toast.success("Raw Data Downloaded", {
+      description: "Your CSV file has been downloaded successfully."
+    });
+  };
+
   const handleConfirm = () => {
     onClose();
     if (deliveryMethod === 'download') {
       toast.info("Preparing your download...", { description: "This will only take a moment." });
       
-      const reportContent = `
-        ANALYTICS EXPORT - ${reportType.toUpperCase()}
-        Generated: ${new Date().toLocaleString()}
-        
-        This is a demo export file from the Merchandising Dashboard.
-      `;
-
       setTimeout(() => {
-        const blob = new Blob([reportContent], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Analytics_Export_${Date.now()}.txt`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-
-        toast.success("Report is ready", {
-          description: "Your download has started automatically."
-        });
-      }, 1500);
+        if (fileFormat === 'pdf') {
+          downloadPDF();
+        } else if (fileFormat === 'excel') {
+          downloadExcel();
+        } else if (fileFormat === 'csv') {
+          downloadCSV();
+        }
+      }, 500);
     } else {
       toast.success("Report Scheduled", {
         description: isScheduled ? "You will receive this report weekly." : "Report has been emailed to you."
@@ -124,7 +190,7 @@ export function ExportReportModal({ isOpen, onClose }: ExportReportModalProps) {
             <div className="space-y-4">
                <div className="space-y-2">
                 <Label>File Format</Label>
-                <Select defaultValue="pdf">
+                <Select value={fileFormat} onValueChange={setFileFormat}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

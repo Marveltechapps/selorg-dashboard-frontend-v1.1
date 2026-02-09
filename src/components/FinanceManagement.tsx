@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FinanceSidebar } from './finance/FinanceSidebar';
 import { FinanceTopBar } from './finance/FinanceTopBar';
 import { FinanceOverview } from './screens/finance/FinanceOverview';
@@ -18,6 +18,25 @@ import { useDashboardNavigation } from '../hooks/useDashboardNavigation';
 
 export function FinanceManagement({ onLogout }: { onLogout: () => void }) {
   const { activeTab, setActiveTab } = useDashboardNavigation('overview');
+  const [analyticsView, setAnalyticsView] = useState<string | null>(null);
+
+  // Listen for navigation events from child components
+  useEffect(() => {
+    const handleNavigateToTab = (event: CustomEvent) => {
+      const { tab, view } = event.detail;
+      if (tab) {
+        setActiveTab(tab);
+        if (view) {
+          setAnalyticsView(view);
+        }
+      }
+    };
+
+    window.addEventListener('navigateToTab', handleNavigateToTab as EventListener);
+    return () => {
+      window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
+    };
+  }, [setActiveTab]);
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-[#212121] font-sans">
@@ -35,7 +54,7 @@ export function FinanceManagement({ onLogout }: { onLogout: () => void }) {
             {activeTab === 'ledger' && <LedgerAccounting />}
             {activeTab === 'billing' && <BillingInvoicing />}
             {activeTab === 'alerts' && <FinanceAlerts />}
-            {activeTab === 'analytics' && <FinanceAnalytics />}
+            {activeTab === 'analytics' && <FinanceAnalytics initialView={analyticsView} />}
             {activeTab === 'approvals' && <TaskApprovals />}
             {activeTab === 'monitoring' && <SystemMonitoring />}
             {activeTab === 'communication' && <CommunicationHub />}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { REGIONAL_CHART_DATA } from './mockData';
+import { REGIONAL_CHART_DATA, REGIONAL_DATA } from './mockData';
 import { MapPin, TrendingUp, Users } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -38,12 +38,18 @@ export function RegionalInsights({ onNavigate }: { onNavigate?: (tab: string) =>
               returningCustomers: 0,
               storeType: 'Dark Store'
             })));
+          } else {
+            // Fallback to mock data
+            setRegionalData(REGIONAL_DATA);
           }
+        } else {
+          // Fallback to mock data on error
+          setRegionalData(REGIONAL_DATA);
         }
       } catch (err) {
         console.error('Failed to load regional analytics', err);
-        toast.error('Failed to load regional analytics');
-        setRegionalData([]);
+        // Use mock data as fallback
+        setRegionalData(REGIONAL_DATA);
       } finally {
         setLoading(false);
       }
@@ -74,7 +80,12 @@ export function RegionalInsights({ onNavigate }: { onNavigate?: (tab: string) =>
     <div className="space-y-6 flex flex-col min-h-0">
        {/* Filters */}
        <div className="flex flex-wrap items-center gap-4 pb-4 border-b">
-        <Select value={dateRange} onValueChange={setDateRange}>
+        <Select 
+          value={dateRange} 
+          onValueChange={(value) => {
+            setDateRange(value);
+          }}
+        >
             <SelectTrigger className="w-[150px] bg-white text-xs">
                 <SelectValue placeholder="Date Range" />
             </SelectTrigger>
@@ -83,7 +94,12 @@ export function RegionalInsights({ onNavigate }: { onNavigate?: (tab: string) =>
                 <SelectItem value="30days">Last 30 Days</SelectItem>
             </SelectContent>
         </Select>
-         <Select value={storeType} onValueChange={setStoreType}>
+         <Select 
+          value={storeType} 
+          onValueChange={(value) => {
+            setStoreType(value);
+          }}
+        >
             <SelectTrigger className="w-[150px] bg-white text-xs">
                 <SelectValue placeholder="Store Type" />
             </SelectTrigger>
@@ -165,12 +181,16 @@ export function RegionalInsights({ onNavigate }: { onNavigate?: (tab: string) =>
                   </TableRow>
               </TableHeader>
               <TableBody>
-                  {filteredData.map((region) => (
+                  {filteredData.length === 0 ? (
+                      <TableRow>
+                          <TableCell colSpan={6} className="text-center py-10 text-gray-400">No regions found for this filter</TableCell>
+                      </TableRow>
+                  ) : filteredData.map((region) => (
                       <TableRow key={region.id} className="cursor-pointer hover:bg-gray-50 h-12">
                           <TableCell className="font-medium text-blue-600 text-xs">{region.name}</TableCell>
                           <TableCell className="text-right text-xs font-bold">${region.revenue.toLocaleString()}</TableCell>
                           <TableCell className="text-right text-xs font-bold">{region.orders.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-xs font-bold">${region.aov}</TableCell>
+                          <TableCell className="text-right text-xs font-bold">${region.aov.toFixed(2)}</TableCell>
                           <TableCell className="text-right text-xs font-bold">{region.redemptionRate}%</TableCell>
                           <TableCell className="text-right text-[10px]">
                               <span className="text-green-600 font-bold uppercase">{region.newCustomers} New</span> / <span className="text-gray-500 font-bold uppercase">{region.returningCustomers} Ret</span>

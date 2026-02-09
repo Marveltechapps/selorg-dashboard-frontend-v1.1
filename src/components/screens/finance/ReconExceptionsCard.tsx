@@ -86,7 +86,12 @@ export function ReconExceptionsCard({ exceptions, isLoading, onInvestigate, onRe
                                     size="sm" 
                                     variant="outline" 
                                     className="h-8 text-xs font-medium"
-                                    onClick={() => onInvestigate(ex)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onInvestigate(ex);
+                                    }}
+                                    type="button"
                                 >
                                     Investigate
                                 </Button>
@@ -94,7 +99,12 @@ export function ReconExceptionsCard({ exceptions, isLoading, onInvestigate, onRe
                                     <Button 
                                         size="sm" 
                                         className="h-8 text-xs font-medium bg-[#14B8A6] hover:bg-[#0D9488]"
-                                        onClick={() => onResolve(ex)}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          onResolve(ex);
+                                        }}
+                                        type="button"
                                     >
                                         Resolve
                                     </Button>

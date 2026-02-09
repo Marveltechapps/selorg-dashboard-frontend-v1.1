@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import { createOrder } from "./dispatchApi";
 
 export interface ManualOrderPayload {
   id: string;
@@ -29,24 +30,31 @@ export function ManualDispatchModal({ isOpen, onClose, onSuccess }: ManualDispat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderId.trim() || !pickup.trim() || !drop.trim()) {
-      toast.error("Please fill Order ID, Pickup and Drop locations.");
+    if (!pickup.trim() || !drop.trim()) {
+      toast.error("Please fill Pickup and Drop locations.");
       return;
     }
-    const id = `ord-${orderId.trim().toUpperCase().replace(/\s/g, '-')}-${Date.now()}`;
     setLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 400));
-      const payload: ManualOrderPayload = { id, orderId: orderId.trim(), pickup: pickup.trim(), drop: drop.trim(), customer: customer.trim() };
+      const created = await createOrder({
+        orderId: orderId.trim() || undefined,
+        pickup: pickup.trim(),
+        drop: drop.trim(),
+        customer: customer.trim() || "Customer",
+      });
+      const payload: ManualOrderPayload = {
+        id: created.id || created.orderId || `ORD-${Date.now()}`,
+        orderId: created.id || created.orderId || `ORD-${Date.now()}`,
+        pickup: created.pickupLocation || created.pickup || pickup.trim(),
+        drop: created.dropLocation || created.drop || drop.trim(),
+        customer: created.customerName || created.customer || customer.trim() || "Customer",
+      };
       onSuccess(payload);
       toast.success("Order created. Assign a rider from the queue.");
       setOrderId(""); setPickup(""); setDrop(""); setCustomer("");
       onClose();
-    } catch {
-      const payload: ManualOrderPayload = { id: `ord-${Date.now()}`, orderId: orderId.trim(), pickup: pickup.trim(), drop: drop.trim(), customer: customer.trim() };
-      onSuccess(payload);
-      toast.success("Order queued.");
-      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create order");
     } finally {
       setLoading(false);
     }

@@ -9,7 +9,7 @@ import { CampaignWizard } from "./components/CampaignWizard";
 import { CampaignDrawer } from "./components/CampaignDrawer";
 import { Separator } from "../../ui/separator";
 import { toast } from "sonner";
-import { merchApi } from "./merchApi";
+import { merchApi, campaignsApi } from "./merchApi";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../ui/dropdown-menu";
 
 interface PromoCampaignsProps {
@@ -20,16 +20,50 @@ interface PromoCampaignsProps {
 }
 
 export function PromoCampaigns({ searchQuery = '', region = 'North America', scope = 'Global', onNavigate }: PromoCampaignsProps) {
-  const [campaigns, setCampaigns] = useState<any[]>([
+  // Default campaigns
+  const defaultCampaigns = [
     { _id: '1', name: 'Summer Hydration', tagline: '20% off all beverages', status: 'Active', period: 'July 1 - Aug 15', target: 'Beverages', scope: 'Global', type: 'Discount', owner: { name: 'Muthu', initial: 'M' }, kpi: { label: 'Uplift', value: '+15.2%', trend: 'up' } },
     { _id: '2', name: 'Back to School', tagline: 'Bundle & Save on snacks', status: 'Scheduled', period: 'Aug 20 - Sept 15', target: 'Snacks, Fruits', scope: 'Local', type: 'Bundle', owner: { name: 'Sarah Miller', initial: 'SM' }, kpi: { label: 'Revenue', value: '$12.5k', trend: 'neutral' } },
     { _id: '3', name: 'Weekend Flash', tagline: 'Flash sale on organic produce', status: 'Pending Review', period: 'July 10 - July 12', target: 'Organic Produce', scope: 'Local', type: 'Flash Sale', owner: { name: 'Muthu', initial: 'M' }, kpi: { label: 'Uplift', value: '+28.5%', trend: 'up' } }
-  ]);
+  ];
+  
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<any>(null);
+  
+  // Load campaigns on mount
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      setLoading(true);
+      try {
+        const result = await campaignsApi.getCampaigns();
+        if (result.success && result.data.length > 0) {
+          setCampaigns(result.data);
+        } else {
+          // Initialize with default campaigns if empty
+          campaignsApi.saveCampaignsToStorage(defaultCampaigns);
+          setCampaigns(defaultCampaigns);
+        }
+      } catch (error) {
+        console.error('Error loading campaigns:', error);
+        // Fallback to localStorage
+        const stored = campaignsApi.loadCampaignsFromStorage();
+        if (stored.length > 0) {
+          setCampaigns(stored);
+        } else {
+          campaignsApi.saveCampaignsToStorage(defaultCampaigns);
+          setCampaigns(defaultCampaigns);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadCampaigns();
+  }, []);
 
   const handleCampaignClick = (campaign: any) => {
     setSelectedCampaign(campaign);
@@ -37,30 +71,55 @@ export function PromoCampaigns({ searchQuery = '', region = 'North America', sco
   };
 
   const handleUpdateStatus = (id: any, newStatus: string) => {
-    setCampaigns(prev => prev.map(c => 
+    // Update via API (which saves to localStorage)
+    const result = campaignsApi.updateCampaignStatus(id, newStatus);
+    if (result.success) {
+      // Update state
+      setCampaigns(prev => prev.map(c => 
         (c._id === id) ? { ...c, status: newStatus } : c
-    ));
-    if (selectedCampaign?._id === id) {
+      ));
+      if (selectedCampaign?._id === id) {
         setSelectedCampaign({ ...selectedCampaign, status: newStatus });
+      }
+      toast.success(`Campaign ${newStatus} successfully`);
     }
-    toast.success(`Campaign ${newStatus} (Local Update)`);
   };
 
-  const handleAddCampaign = (data: any, status: string) => {
+  const handleAddCampaign = async (data: any, status: string) => {
+    const period = data.startDate && data.endDate 
+      ? `${new Date(data.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(data.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : "Jan 10 - Jan 30, 2026";
+    
     const newCampaign = {
-        _id: `camp-${Date.now()}`,
+        _id: editingCampaign?._id || `camp-${Date.now()}`,
         name: data.name || "Untitled Campaign",
-        tagline: "New Promotion",
+        tagline: data.description || "New Promotion",
         status: status,
-        period: "Jan 10 - Jan 30, 2026",
-        target: data.target || "Selected SKUs",
-        scope: "Global",
+        period: period,
+        target: data.target || (data.skus?.length ? `${data.skus.length} SKUs` : "Selected SKUs"),
+        scope: data.region || "Global",
         type: data.type || "Discount",
         owner: { name: "Muthu", initial: "M" },
-        kpi: { label: "Revenue Uplift", value: "0%", trend: "neutral" }
+        kpi: { label: "Revenue Uplift", value: "0%", trend: "neutral" },
+        ...data // Include all form data
     };
-    setCampaigns(prev => [newCampaign, ...prev]);
-    toast.success("Campaign Created Locally");
+    
+    if (editingCampaign) {
+      // Update existing campaign
+      const result = await campaignsApi.updateCampaign(editingCampaign._id, newCampaign);
+      if (result.success) {
+        setCampaigns(prev => prev.map(c => c._id === editingCampaign._id ? result.data : c));
+        toast.success("Campaign Updated Successfully");
+        setEditingCampaign(null);
+      }
+    } else {
+      // Create new campaign
+      const result = await campaignsApi.createCampaign(newCampaign);
+      if (result.success) {
+        setCampaigns(prev => [result.data, ...prev]);
+        toast.success("Campaign Created Successfully");
+      }
+    }
   };
 
   const filteredCampaigns = campaigns.filter(c => {
@@ -310,7 +369,13 @@ export function PromoCampaigns({ searchQuery = '', region = 'North America', sco
 
       <CampaignWizard 
         open={isWizardOpen} 
-        onOpenChange={setIsWizardOpen} 
+        onOpenChange={(open) => {
+          setIsWizardOpen(open);
+          if (!open) {
+            setEditingCampaign(null);
+          }
+        }}
+        initialData={editingCampaign}
         onComplete={(data) => handleAddCampaign(data, 'Pending Review')}
         onSave={(data) => handleAddCampaign(data, 'Draft')}
       />
@@ -320,7 +385,12 @@ export function PromoCampaigns({ searchQuery = '', region = 'North America', sco
         campaign={selectedCampaign} 
         onAction={(id, action) => {
             if (action === 'Edit') {
-                toast.success("Edit Mode", { description: "Opening editor..." });
+                const campaignToEdit = campaigns.find(c => c._id === id);
+                if (campaignToEdit) {
+                  setEditingCampaign(campaignToEdit);
+                  setIsDrawerOpen(false);
+                  setIsWizardOpen(true);
+                }
             } else {
                 handleUpdateStatus(id, action);
             }

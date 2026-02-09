@@ -3,6 +3,9 @@
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
 
+  const apiBaseUrl = process.env.VITE_API_BASE_URL?.trim() || '';
+  const proxyTarget = apiBaseUrl ? new URL(apiBaseUrl).origin : 'http://localhost:5001';
+
   export default defineConfig({
     plugins: [react()],
     resolve: {
@@ -56,10 +59,11 @@
     },
     server: {
       port: 3000,
+      host: true,
       open: true,
       proxy: {
         '/api': {
-          target: 'http://localhost:5001',
+          target: proxyTarget,
           changeOrigin: true,
           secure: false,
         },

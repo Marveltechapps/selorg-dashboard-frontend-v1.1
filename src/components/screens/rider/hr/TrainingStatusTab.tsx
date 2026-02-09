@@ -19,12 +19,18 @@ export function TrainingStatusTab({ riders, loading, onRefresh, onRiderTrainingU
   const trainingRiders = riders.filter(r => r.trainingStatus !== "completed" || r.status === "onboarding");
 
   const handleMarkCompleted = async (riderId: string, riderName: string) => {
+    // Optimistic update - update UI immediately
     onRiderTrainingUpdated?.(riderId);
+    
     try {
       await updateRiderTraining(riderId);
       toast.success(`Training marked completed for ${riderName}`);
-    } catch (_) {
-      toast.success(`Training updated for ${riderName}`);
+      // Background refresh to sync with server (non-blocking)
+      onRefresh?.().catch(() => {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Update failed");
+      // Note: We don't revert optimistic update here as the UI state is already updated
+      // The background refresh will sync the correct state from server
     }
   };
 

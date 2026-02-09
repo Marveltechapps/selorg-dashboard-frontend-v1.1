@@ -13,9 +13,10 @@ interface ActiveZonesModalProps {
   zones: Zone[];
   onEditZone: (zone: Zone) => void;
   onViewOnMap: (zone: Zone) => void;
+  onArchiveZone?: (zone: Zone) => void;
 }
 
-export function ActiveZonesModal({ isOpen, onClose, zones, onEditZone, onViewOnMap }: ActiveZonesModalProps) {
+export function ActiveZonesModal({ isOpen, onClose, zones, onEditZone, onViewOnMap, onArchiveZone }: ActiveZonesModalProps) {
     const [search, setSearch] = useState('');
     
     const filteredZones = zones.filter(z => z.name.toLowerCase().includes(search.toLowerCase()));
@@ -63,6 +64,16 @@ export function ActiveZonesModal({ isOpen, onClose, zones, onEditZone, onViewOnM
                                     <TableCell className="text-right space-x-2">
                                         <Button variant="ghost" size="sm" onClick={() => onViewOnMap(zone)}>View on Map</Button>
                                         <Button variant="outline" size="sm" onClick={() => onEditZone(zone)}>Edit</Button>
+                                        {onArchiveZone && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                onClick={() => onArchiveZone(zone)}
+                                            >
+                                                Archive
+                                            </Button>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -79,9 +90,47 @@ interface StoreCoverageModalProps {
   isOpen: boolean;
   onClose: () => void;
   stores: Store[];
+  zones: Zone[];
+  onViewTargeting?: (store: Store) => void;
+  onStoresUpdated?: () => void;
 }
 
-export function StoreCoverageModal({ isOpen, onClose, stores }: StoreCoverageModalProps) {
+export function StoreCoverageModal({ isOpen, onClose, stores, zones, onViewTargeting, onStoresUpdated }: StoreCoverageModalProps) {
+    const handleFixCoverageGaps = () => {
+        const storesWithoutZones = stores.filter(s => s.zones.length === 0);
+        if (storesWithoutZones.length === 0) {
+            toast.info('All stores have zone coverage');
+            return;
+        }
+        
+        // Auto-assign stores to nearest zones (simplified: assign to first available zone)
+        let fixedCount = 0;
+        storesWithoutZones.forEach(store => {
+            const nearestZone = zones.find(z => z.status === 'Active');
+            if (nearestZone) {
+                const updated = geofenceApi.updateStore(store.id, {
+                    zones: [...store.zones, nearestZone.name],
+                    serviceStatus: 'Full'
+                });
+                if (updated) fixedCount++;
+            }
+        });
+        
+        if (fixedCount > 0) {
+            toast.success(`Fixed coverage for ${fixedCount} store(s)`, {
+                description: 'Stores have been assigned to zones and will persist after refresh'
+            });
+            // Notify parent to reload stores
+            if (onStoresUpdated) {
+                onStoresUpdated();
+            }
+        } else {
+            toast.error('Failed to fix coverage gaps', {
+                description: 'No active zones available to assign'
+            });
+        }
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl h-[70vh] flex flex-col">
@@ -94,10 +143,14 @@ export function StoreCoverageModal({ isOpen, onClose, stores }: StoreCoverageMod
                         <AlertCircle className="text-yellow-600 h-5 w-5" />
                         <div>
                             <p className="font-medium text-yellow-900">Coverage Gaps Detected</p>
-                            <p className="text-sm text-yellow-700">2 stores have incomplete or missing zone coverage.</p>
+                            <p className="text-sm text-yellow-700">{stores.filter(s => s.zones.length === 0).length} stores have incomplete or missing zone coverage.</p>
                         </div>
                     </div>
-                    <Button variant="outline" className="border-yellow-600 text-yellow-800 hover:bg-yellow-100">
+                    <Button 
+                        variant="outline" 
+                        className="border-yellow-600 text-yellow-800 hover:bg-yellow-100"
+                        onClick={handleFixCoverageGaps}
+                    >
                         Fix Coverage Gaps
                     </Button>
                 </div>
@@ -135,7 +188,17 @@ export function StoreCoverageModal({ isOpen, onClose, stores }: StoreCoverageMod
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                         <Button variant="ghost" size="sm">View Targeting</Button>
+                                         <Button 
+                                            variant="ghost" 
+                                            size="sm"
+                                            onClick={() => {
+                                                if (onViewTargeting) {
+                                                    onViewTargeting(store);
+                                                }
+                                            }}
+                                         >
+                                            View Targeting
+                                         </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}

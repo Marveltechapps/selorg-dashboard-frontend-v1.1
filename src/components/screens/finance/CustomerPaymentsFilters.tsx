@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -14,31 +14,93 @@ interface Props {
 
 export function CustomerPaymentsFilters({ filters, onFilterChange }: Props) {
   const [localQuery, setLocalQuery] = useState(filters.query || '');
+  const [dateFrom, setDateFrom] = useState(filters.dateFrom || '');
+  const [dateTo, setDateTo] = useState(filters.dateTo || '');
+  const [methodType, setMethodType] = useState(filters.methodType || 'any');
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Sync local state with filters prop when it changes
+  useEffect(() => {
+    setLocalQuery(filters.query || '');
+    setDateFrom(filters.dateFrom || '');
+    setDateTo(filters.dateTo || '');
+    setMethodType(filters.methodType || 'any');
+  }, [filters]);
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Clear any pending debounce
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
     onFilterChange({ ...filters, query: localQuery, page: 1 });
+  };
+  
+  const handleSearchInput = (value: string) => {
+    setLocalQuery(value);
+    
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Debounce the search - wait 300ms after user stops typing
+    debounceTimerRef.current = setTimeout(() => {
+      onFilterChange({ ...filters, query: value, page: 1 });
+    }, 300);
   };
 
   const handleStatusChange = (status: string) => {
-    onFilterChange({ ...filters, status: status === 'all' ? undefined : status, page: 1 });
+    const newStatus = status === 'all' ? undefined : status;
+    onFilterChange({ ...filters, status: newStatus, page: 1 });
+  };
+  
+  const handleAdvancedFilter = (dateFrom?: string, dateTo?: string, methodType?: string) => {
+    onFilterChange({ 
+      ...filters, 
+      dateFrom, 
+      dateTo, 
+      methodType: methodType === 'any' ? undefined : methodType,
+      page: 1 
+    });
   };
 
-  // Debounce search input for better UX (optional, but good)
-  // For now just on Enter or blur to keep it simple with the form submit
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
   
   return (
     <div className="flex items-center gap-4 bg-white p-3 rounded-lg border border-[#E0E0E0] shadow-sm">
-      <form onSubmit={handleSearch} className="relative flex-1">
+      <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E9E9E]" size={16} />
         <Input 
           type="text" 
           value={localQuery}
-          onChange={(e) => setLocalQuery(e.target.value)}
+          onChange={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSearchInput(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSearch(e);
+            }
+          }}
           placeholder="Search by Customer Name, Order ID, Last 4 digits..." 
           className="w-full h-9 pl-9 pr-4 rounded-lg bg-[#F5F5F5] border-transparent text-sm focus:bg-white focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition-all shadow-none"
         />
-      </form>
+      </div>
 
       <Select value={filters.status || 'all'} onValueChange={handleStatusChange}>
         <SelectTrigger className="w-[180px] h-9 border-[#E0E0E0] bg-white focus:ring-[#14B8A6]">
@@ -57,7 +119,7 @@ export function CustomerPaymentsFilters({ filters, onFilterChange }: Props) {
 
       <Popover>
         <PopoverTrigger asChild>
-            <Button variant="outline" className="h-9 gap-2 text-[#757575] border-[#E0E0E0] hover:text-[#212121]">
+            <Button type="button" variant="outline" className="h-9 gap-2 text-[#757575] border-[#E0E0E0] hover:text-[#212121]">
                 <Filter size={16} />
                 Filters
             </Button>
@@ -67,26 +129,65 @@ export function CustomerPaymentsFilters({ filters, onFilterChange }: Props) {
                 <h4 className="font-medium leading-none">Advanced Filters</h4>
                 <div className="space-y-2">
                     <Label htmlFor="date-from">Date From</Label>
-                    <Input id="date-from" type="date" className="h-8" />
+                    <Input 
+                      id="date-from" 
+                      type="date" 
+                      className="h-8" 
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="date-to">Date To</Label>
-                    <Input id="date-to" type="date" className="h-8" />
+                    <Input 
+                      id="date-to" 
+                      type="date" 
+                      className="h-8" 
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label>Payment Method</Label>
-                    <Select>
+                    <Select value={methodType} onValueChange={setMethodType}>
                         <SelectTrigger className="h-8"><SelectValue placeholder="Any" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="any">Any</SelectItem>
                             <SelectItem value="card">Card</SelectItem>
                             <SelectItem value="wallet">Wallet</SelectItem>
+                            <SelectItem value="net_banking">Net Banking</SelectItem>
+                            <SelectItem value="cod">Cash on Delivery</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="ghost" size="sm" onClick={() => {}}>Reset</Button>
-                    <Button size="sm" className="bg-[#14B8A6] hover:bg-[#0D9488]">Apply</Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDateFrom('');
+                        setDateTo('');
+                        setMethodType('any');
+                        handleAdvancedFilter(undefined, undefined, undefined);
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button 
+                      type="button"
+                      size="sm" 
+                      className="bg-[#14B8A6] hover:bg-[#0D9488]"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAdvancedFilter(dateFrom || undefined, dateTo || undefined, methodType === 'any' ? undefined : methodType);
+                      }}
+                    >
+                      Apply
+                    </Button>
                 </div>
             </div>
         </PopoverContent>

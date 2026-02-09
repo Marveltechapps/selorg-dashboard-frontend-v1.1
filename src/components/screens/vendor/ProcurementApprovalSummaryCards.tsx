@@ -1,7 +1,6 @@
 import React from 'react';
 import { ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
 import { ProcurementApprovalSummary } from './procurementApprovalsApi';
-import { Skeleton } from "../../ui/skeleton";
 
 interface Props {
   summary: ProcurementApprovalSummary | null;
@@ -11,18 +10,17 @@ interface Props {
 }
 
 export function ProcurementApprovalSummaryCards({ summary, isLoading, onFilter, activeFilter }: Props) {
-  if (isLoading || !summary) {
-      return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-xl" />)}
-          </div>
-      );
-  }
+  // Use default values if summary is not loaded yet
+  const displaySummary = summary || {
+    pendingRequestsCount: 0,
+    approvedTodayCount: 0,
+    rejectedTodayCount: 0
+  };
 
   const cards = [
     {
       label: 'Pending Requests',
-      count: summary.pendingRequestsCount,
+      count: displaySummary.pendingRequestsCount,
       icon: <ClipboardList size={32} className="text-[#4F46E5]" />,
       bg: 'bg-indigo-50',
       status: 'pending' as const,
@@ -31,7 +29,7 @@ export function ProcurementApprovalSummaryCards({ summary, isLoading, onFilter, 
     },
     {
       label: 'Approved Today',
-      count: summary.approvedTodayCount,
+      count: displaySummary.approvedTodayCount,
       icon: <CheckCircle2 size={32} className="text-[#10B981]" />,
       bg: 'bg-emerald-50',
       status: 'approved' as const,
@@ -40,7 +38,7 @@ export function ProcurementApprovalSummaryCards({ summary, isLoading, onFilter, 
     },
     {
       label: 'Rejected Today',
-      count: summary.rejectedTodayCount,
+      count: displaySummary.rejectedTodayCount,
       icon: <XCircle size={32} className="text-[#EF4444]" />,
       bg: 'bg-red-50',
       status: 'rejected' as const,
@@ -57,7 +55,25 @@ export function ProcurementApprovalSummaryCards({ summary, isLoading, onFilter, 
             return (
                 <div 
                     key={card.label}
-                    onClick={() => onFilter(card.status)}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Only call onFilter if not already active to prevent unnecessary reloads
+                        if (!isActive) {
+                            onFilter(card.status);
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!isActive) {
+                                onFilter(card.status);
+                            }
+                        }
+                    }}
                     className={`
                         bg-white p-6 rounded-xl border shadow-sm flex flex-col items-center text-center cursor-pointer transition-all
                         ${isActive ? `ring-2 ${card.borderColor} bg-gray-50` : 'border-[#E0E0E0] hover:shadow-md hover:border-gray-300'}

@@ -50,8 +50,8 @@ export function AlertDetailDrawer({ alert, onClose, onResolve, onNavigate }: Ale
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="space-y-6 py-6">
+        <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="space-y-6 py-6 px-6">
                 {/* Linked Entities */}
                 <div className="space-y-3">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Impacted Entities</h4>

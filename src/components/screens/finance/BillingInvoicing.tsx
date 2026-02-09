@@ -41,7 +41,9 @@ export function BillingInvoicing() {
           setSummary(data);
       } catch (e) {
           console.error(e);
-          toast.error("Failed to load summary");
+          // Use data from localStorage on error
+          const data = await fetchInvoiceSummary();
+          setSummary(data);
       }
   };
 
@@ -53,17 +55,32 @@ export function BillingInvoicing() {
           setInvoices(data);
       } catch (e) {
           toast.error("Failed to load invoices");
+          // Use data from localStorage on error
+          try {
+            const data = await fetchInvoices(status, search);
+            setInvoices(data);
+          } catch (e2) {
+            console.error('Failed to load invoices', e2);
+            setInvoices([]);
+          }
       } finally {
           setIsListLoading(false);
       }
   };
 
-  // Initial load
+  // Initial load - ensure data is initialized
   useEffect(() => {
       const init = async () => {
           setIsLoading(true);
-          await loadSummary();
-          setIsLoading(false);
+          try {
+              // Force initialization by calling fetchInvoices first to ensure data exists
+              await fetchInvoices('sent', ''); // This will initialize default invoices if empty
+              await loadSummary();
+          } catch (e) {
+              console.error('Failed to initialize invoices:', e);
+          } finally {
+              setIsLoading(false);
+          }
       };
       init();
   }, []);
@@ -97,10 +114,17 @@ export function BillingInvoicing() {
   };
 
   const handleRefresh = async () => {
-      await Promise.all([
-          loadSummary(),
-          activeStatus ? loadInvoices(activeStatus, searchTerm) : Promise.resolve()
-      ]);
+      // Reload both summary and invoices to reflect any status changes
+      // Force reload summary first to get latest counts
+      setIsLoading(true);
+      try {
+          await loadSummary();
+          if (activeStatus) {
+              await loadInvoices(activeStatus, searchTerm);
+          }
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   const handleViewInvoice = (inv: Invoice) => {
@@ -149,7 +173,11 @@ export function BillingInvoicing() {
       <InvoiceDetailsDrawer 
           invoice={selectedInvoice}
           open={detailsDrawerOpen}
-          onClose={() => setDetailsDrawerOpen(false)}
+          onClose={() => {
+              setDetailsDrawerOpen(false);
+              // Refresh summary when drawer closes to ensure counts are updated
+              handleRefresh();
+          }}
           onUpdate={handleRefresh} // Refresh parent list to reflect changes (e.g. paid status)
       />
     </div>

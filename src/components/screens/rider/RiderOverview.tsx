@@ -46,9 +46,16 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
-  const [autoAssignEnabled, setAutoAssignEnabled] = useState(true);
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState(() => {
+    try { return localStorage.getItem('rider_overview_auto_assign') !== 'false'; } catch { return true; }
+  });
   const [refreshStatus, setRefreshStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const localOrderUpdates = useRef<Record<string, Partial<Order>>>({});
+  const lastOrdersRef = useRef<Order[]>([]);
+  const persistAutoAssign = (enabled: boolean) => {
+    setAutoAssignEnabled(enabled);
+    try { localStorage.setItem('rider_overview_auto_assign', String(enabled)); } catch (_) {}
+  };
   
   // Drawers & Modals state
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -60,7 +67,11 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
   const [orderToAssign, setOrderToAssign] = useState<Order | null>(null);
 
   const applyLocalOrderUpdates = (list: Order[]) =>
-    list.map(o => ({ ...o, ...localOrderUpdates.current[o.id] }));
+    list.map(o => {
+      const normalizedId = o.id.replace(/^ord-/i, 'ORD-');
+      const update = localOrderUpdates.current[o.id] || localOrderUpdates.current[normalizedId];
+      return update ? { ...o, ...update } : o;
+    });
 
   const fetchData = async (showLoading = false) => {
     setRefreshStatus('idle');
@@ -82,8 +93,46 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
       const hasNoData = mergedSummary.activeRiders === 0 && mergedSummary.ordersInTransit === 0;
       setSummary(hasNoData ? DEFAULT_SUMMARY : mergedSummary);
 
-      const baseOrders = ordersData.length > 0 ? ordersData : DEFAULT_ORDERS;
-      setOrders(applyLocalOrderUpdates(baseOrders));
+      const baseOrders = ordersData.length > 0 ? ordersData : (lastOrdersRef.current.length > 0 ? lastOrdersRef.current : DEFAULT_ORDERS);
+      
+      // Merge saved orders with API orders, prioritizing saved orders for reassigned riders
+      const ordersToProcess = savedOrders.length > 0 ? 
+        baseOrders.map(apiOrder => {
+          const savedOrder = savedOrders.find(so => 
+            so.id === apiOrder.id || 
+            so.id.replace(/^ord-/i, 'ORD-') === apiOrder.id.replace(/^ord-/i, 'ORD-')
+          );
+          // If saved order has a riderId and API order doesn't, or they differ, prefer saved
+          if (savedOrder && savedOrder.riderId && (savedOrder.riderId !== apiOrder.riderId || !apiOrder.riderId)) {
+            return { ...apiOrder, riderId: savedOrder.riderId, status: savedOrder.status || apiOrder.status };
+          }
+          return apiOrder;
+        }) : baseOrders;
+      
+      // Apply local updates, handling both original and normalized IDs
+      // But prioritize server data over local updates for persistence
+      const merged = ordersToProcess.map(o => {
+        const normalizedId = o.id.replace(/^ord-/i, 'ORD-');
+        // Only apply local updates if they don't conflict with server data
+        // Server data takes precedence for persistence
+        const update = localOrderUpdates.current[o.id] || localOrderUpdates.current[normalizedId];
+        if (update && o.riderId && update.riderId && o.riderId !== update.riderId) {
+          // Server has different riderId, use server data (more recent)
+          delete localOrderUpdates.current[o.id];
+          delete localOrderUpdates.current[normalizedId];
+          return o;
+        }
+        return update ? { ...o, ...update } : o;
+      });
+      // Save merged orders to localStorage for persistence
+      try {
+        localStorage.setItem('rider_orders', JSON.stringify(merged));
+      } catch (e) {
+        console.warn('Failed to save orders to localStorage', e);
+      }
+      
+      lastOrdersRef.current = merged;
+      setOrders(merged);
 
       setRiders(ridersData.length > 0 ? ridersData : DEFAULT_RIDERS);
 
@@ -177,32 +226,283 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
 
   const handleReassignConfirm = async (riderId: string, riderName: string) => {
     if (!orderToReassign) return;
-    const patch = { riderId, status: 'assigned' as Order['status'], etaMinutes: 12 };
-    localOrderUpdates.current[orderToReassign.id] = { ...localOrderUpdates.current[orderToReassign.id], ...patch };
-    try {
-      await api.assignOrder(orderToReassign.id, riderId);
-      setOrders(prev => prev.map(o => o.id === orderToReassign.id ? { ...o, ...patch } : o));
-      toast.success(`Order reassigned to ${riderName}`);
-      await fetchData(false);
-    } catch {
-      setOrders(prev => prev.map(o => o.id === orderToReassign.id ? { ...o, ...patch } : o));
-      toast.success(`Order reassigned to ${riderName}`);
-    }
+    const orderId = orderToReassign.id;
+    const normalizedId = orderId.replace(/^ord-/i, 'ORD-');
+    const orderToUpdate = orderToReassign;
+    const wasReassignment = !!orderToUpdate.riderId;
+    
+    // Close modal immediately
     setIsReassignModalOpen(false);
     setOrderToReassign(null);
+    
+    try {
+      // Call API first - wait for server confirmation before showing success
+      const result = await api.assignOrder(orderId, riderId);
+      
+      // Verify we got a valid response with required fields
+      if (!result) {
+        throw new Error('No response from server');
+      }
+      if (!result.orderId) {
+        throw new Error('Invalid response: missing orderId');
+      }
+      if (!result.riderId) {
+        throw new Error('Invalid response: missing riderId');
+      }
+      
+      // Only proceed if API call was successful
+      const serverOrderId = result.orderId;
+      const serverNormalizedId = serverOrderId.replace(/^ord-/i, 'ORD-');
+      const serverRiderId = result.riderId;
+      const serverStatus = (result.status || 'assigned') as Order['status'];
+      
+      // Clear any stale local updates first
+      delete localOrderUpdates.current[orderId];
+      delete localOrderUpdates.current[normalizedId];
+      delete localOrderUpdates.current[serverOrderId];
+      delete localOrderUpdates.current[serverNormalizedId];
+      
+      // Update local state with server response - immediately update UI
+      const update = { riderId: serverRiderId, status: serverStatus };
+      
+      // Helper function to check if an order ID matches the target order
+      const isTargetOrder = (o: Order) => {
+        const oId = o.id;
+        const oNormalized = oId.replace(/^ord-/i, 'ORD-');
+        return oId === orderId || oId === normalizedId || oId === serverOrderId || oId === serverNormalizedId ||
+               oNormalized === orderId || oNormalized === normalizedId || oNormalized === serverOrderId || oNormalized === serverNormalizedId;
+      };
+      
+      setOrders(prev => prev.map(o => 
+        isTargetOrder(o) ? { ...o, ...update } : o
+      ));
+      
+      // Update selectedOrder immediately if it's the same order being reassigned (for dynamic update in drawer)
+      // This ensures the drawer shows the new rider name immediately
+      if (selectedOrder && isTargetOrder(selectedOrder)) {
+        setSelectedOrder(prev => prev ? { ...prev, ...update, riderId: serverRiderId } : null);
+      }
+      
+      // Save to localStorage for persistence across refreshes
+      try {
+        const savedOrders = JSON.parse(localStorage.getItem('rider_orders') || '[]');
+        const updatedSavedOrders = savedOrders.map((o: Order) => 
+          isTargetOrder(o) ? { ...o, ...update, riderId: serverRiderId } : o
+        );
+        // If order not in saved list, add it
+        if (!updatedSavedOrders.find((o: Order) => isTargetOrder(o))) {
+          const currentOrder = orders.find(o => isTargetOrder(o));
+          if (currentOrder) {
+            updatedSavedOrders.push({ ...currentOrder, ...update, riderId: serverRiderId });
+          }
+        }
+        localStorage.setItem('rider_orders', JSON.stringify(updatedSavedOrders));
+      } catch (e) {
+        console.warn('Failed to save order to localStorage', e);
+      }
+      
+      // Show success message ONLY after API call succeeds
+      toast.success(`Order ${serverOrderId} ${wasReassignment ? 'reassigned' : 'assigned'} to ${riderName}`);
+      
+      // Refresh data from server to get the updated order with correct rider
+      // This ensures persistence and shows the correct data after refresh
+      try {
+        // Fetch fresh data
+        const [summaryResult, ordersResult, ridersResult] = await Promise.allSettled([
+          api.getSummary(),
+          api.getOrders(searchQuery ? { search: searchQuery } : undefined),
+          api.getRiders()
+        ]);
+
+        const ordersData = ordersResult.status === 'fulfilled' ? ordersResult.value : [];
+        const ridersData = ridersResult.status === 'fulfilled' ? ridersResult.value : [];
+
+        // Use the current orders state (which has the optimistic update) instead of lastOrdersRef
+        // This ensures we have the most up-to-date state
+        setOrders(currentState => {
+          const currentOrders = currentState.length > 0 ? currentState : [];
+          
+          // Merge API data with current state, ensuring the just-assigned order is preserved
+          const baseOrders = ordersData.length > 0 ? ordersData : [];
+          
+          // Start with API orders as the source of truth, then merge in current orders for any missing ones
+          const merged: Order[] = [];
+          const processedIds = new Set<string>();
+          
+          // Helper to normalize and create a unique key
+          const getOrderKey = (o: Order) => {
+            const normalized = o.id.replace(/^ord-/i, 'ORD-');
+            return `${o.id.toLowerCase()}|${normalized.toLowerCase()}`;
+          };
+
+          // First, add all API orders (source of truth from server)
+          baseOrders.forEach(apiOrder => {
+            const key = getOrderKey(apiOrder);
+            if (!processedIds.has(key)) {
+              // If this is the just-assigned order, ensure it has the server rider ID
+              if (isTargetOrder(apiOrder)) {
+                // Force the server rider ID even if API returns different/null riderId
+                // Use the server rider ID from the assignment response, not from API
+                const finalRiderId = serverRiderId || apiOrder.riderId;
+                merged.push({ 
+                  ...apiOrder, 
+                  riderId: finalRiderId, 
+                  status: serverStatus 
+                });
+                console.log('[Reassign] Updated order from API:', apiOrder.id, 'API riderId:', apiOrder.riderId, 'Server riderId:', serverRiderId, 'Final:', finalRiderId);
+              } else {
+                // Regular order, use API data as-is
+                const apiNormalized = apiOrder.id.replace(/^ord-/i, 'ORD-');
+                const localUpdate = localOrderUpdates.current[apiOrder.id] || localOrderUpdates.current[apiNormalized];
+                if (localUpdate && apiOrder.riderId && localUpdate.riderId && apiOrder.riderId !== localUpdate.riderId) {
+                  // Server data conflicts with local update, use server data
+                  delete localOrderUpdates.current[apiOrder.id];
+                  delete localOrderUpdates.current[apiNormalized];
+                }
+                merged.push(localUpdate ? { ...apiOrder, ...localUpdate } : apiOrder);
+              }
+              processedIds.add(key);
+            }
+          });
+
+          // Then, add any current orders that aren't in API results (to preserve the list)
+          currentOrders.forEach(currentOrder => {
+            const key = getOrderKey(currentOrder);
+            if (!processedIds.has(key)) {
+              // Check if this order exists in merged list by ID matching (exact match only)
+              const exists = merged.some(m => {
+                const mKey = getOrderKey(m);
+                return mKey === key;
+              });
+              
+              if (!exists) {
+                // Order not in API results, preserve it from current state
+                if (isTargetOrder(currentOrder)) {
+                  // This is the just-assigned order, ensure it has the server rider ID
+                  merged.push({ ...currentOrder, riderId: serverRiderId, status: serverStatus });
+                  console.log('[Reassign] Preserved order from current state:', currentOrder.id, 'with rider:', serverRiderId);
+                } else {
+                  // Regular order, preserve as-is (don't apply the update to other orders!)
+                  const currentNormalized = currentOrder.id.replace(/^ord-/i, 'ORD-');
+                  const localUpdate = localOrderUpdates.current[currentOrder.id] || localOrderUpdates.current[currentNormalized];
+                  merged.push(localUpdate ? { ...currentOrder, ...localUpdate } : currentOrder);
+                }
+                processedIds.add(key);
+              }
+            }
+          });
+          
+          // Update lastOrdersRef with the merged result
+          lastOrdersRef.current = merged;
+          
+          // Update riders
+          setRiders(ridersData.length > 0 ? ridersData : DEFAULT_RIDERS);
+          
+          // Immediately update selectedOrder with fresh data if drawer is still open
+          if (isDetailsOpen) {
+            const refreshedOrder = merged.find(o => isTargetOrder(o));
+            if (refreshedOrder) {
+              // Update selectedOrder with the fresh order data
+              setSelectedOrder(refreshedOrder);
+            }
+          }
+          
+          return merged;
+        });
+      } catch (fetchErr) {
+        // If fetch fails, log but don't show error to user (assignment was successful)
+        console.error('Failed to refresh data after assignment:', fetchErr);
+        // Even if fetch fails, ensure selectedOrder is updated with the optimistic update
+        if (isDetailsOpen && selectedOrder && (selectedOrder.id === orderId || selectedOrder.id === normalizedId || selectedOrder.id === serverOrderId || selectedOrder.id === serverNormalizedId)) {
+          setSelectedOrder(prev => prev ? { ...prev, ...update, riderId: serverRiderId } : null);
+        }
+      }
+    } catch (err) {
+      // Extract error message properly - avoid [object Object]
+      let errorMessage = 'Operation failed';
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (err && typeof err === 'object') {
+        // Try to extract message from various possible locations
+        const possiblePaths = [
+          (err as any)?.message,
+          (err as any)?.error,
+          (err as any)?.error?.message,
+          (err as any)?.response?.data?.message,
+          (err as any)?.response?.data?.error,
+          (err as any)?.response?.data?.error?.message,
+        ];
+        
+        for (const path of possiblePaths) {
+          if (path && typeof path === 'string' && path !== '[object Object]' && path !== '{}') {
+            errorMessage = path;
+            break;
+          }
+        }
+        
+        // If still not found, try to extract from nested objects
+        if (errorMessage === 'Operation failed' || errorMessage === '[object Object]') {
+          // Try to find message in nested structure
+          const findMessage = (obj: any): string | null => {
+            if (typeof obj === 'string' && obj !== '[object Object]' && obj !== '{}') {
+              return obj;
+            }
+            if (obj && typeof obj === 'object') {
+              if (obj.message && typeof obj.message === 'string') return obj.message;
+              if (obj.error && typeof obj.error === 'string') return obj.error;
+              if (obj.msg && typeof obj.msg === 'string') return obj.msg;
+              // Try nested
+              for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                  const nested = findMessage(obj[key]);
+                  if (nested) return nested;
+                }
+              }
+            }
+            return null;
+          };
+          
+          const foundMsg = findMessage(err);
+          if (foundMsg) {
+            errorMessage = foundMsg;
+          }
+        }
+      }
+      
+      // Ensure we have a valid error message - never show [object Object]
+      if (!errorMessage || errorMessage === '[object Object]' || errorMessage === '{}') {
+        errorMessage = `Failed to ${wasReassignment ? 'reassign' : 'assign'} order`;
+      }
+      
+      // Prefix with "Failed to reassign:" for clarity
+      if (!errorMessage.toLowerCase().includes('failed') && !errorMessage.toLowerCase().includes('error')) {
+        errorMessage = `Failed to ${wasReassignment ? 'reassign' : 'assign'}: ${errorMessage}`;
+      }
+      
+      toast.error(errorMessage);
+      
+      // Refresh to get correct state from server
+      try {
+        await fetchData(false);
+      } catch (fetchErr) {
+        // Ignore fetch errors in error handler
+        console.error('Failed to refresh after error:', fetchErr);
+      }
+    }
   };
 
   const handleDispatchAssign = async (orderId: string, riderId: string) => {
     const patch = { riderId, status: 'assigned' as Order['status'], etaMinutes: 12 };
-    localOrderUpdates.current[orderId] = { ...localOrderUpdates.current[orderId], ...patch };
     try {
       await api.assignOrder(orderId, riderId);
+      localOrderUpdates.current[orderId] = { ...localOrderUpdates.current[orderId], ...patch };
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o));
       toast.success(`Order ${orderId} assigned successfully`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Assign failed');
+    } finally {
       await fetchData(false);
-    } catch {
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o));
-      toast.success(`Order ${orderId} assigned`);
     }
   };
 
@@ -256,7 +556,7 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
                 onAlertOrder={handleAlertOrder}
                 onAssignOrder={handleAssignOrder}
                 autoAssignEnabled={autoAssignEnabled}
-                onToggleAutoAssign={setAutoAssignEnabled}
+                onToggleAutoAssign={persistAutoAssign}
                 refreshData={fetchData}
                 initialSearchQuery={searchQuery}
             />
@@ -297,9 +597,39 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
       {/* Drawers & Modals */}
       <OrderDetailsDrawer 
         order={selectedOrder}
-        rider={selectedOrder?.riderId ? riders.find(r => r.id === selectedOrder.riderId) : undefined}
+        rider={selectedOrder?.riderId ? (() => {
+          // Try exact match first
+          let rider = riders.find(r => r.id === selectedOrder.riderId);
+          if (rider) return rider;
+          
+          // Try normalized matching for different ID formats
+          const normalizeId = (id: string) => {
+            const match = id.match(/^(?:r|rider-?)(\d+)$/i);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              return `RIDER-${String(num).padStart(4, '0')}`;
+            }
+            const riderMatch = id.match(/^RIDER-(\d+)$/i);
+            if (riderMatch) {
+              const num = parseInt(riderMatch[1], 10);
+              return `RIDER-${String(num).padStart(4, '0')}`;
+            }
+            return id;
+          };
+          
+          const normalizedId = normalizeId(selectedOrder.riderId);
+          rider = riders.find(r => {
+            const rNormalized = normalizeId(r.id);
+            return rNormalized === normalizedId || r.id === normalizedId || r.id === selectedOrder.riderId;
+          });
+          
+          return rider || undefined;
+        })() : undefined}
         isOpen={isDetailsOpen}
-        onClose={() => setIsDetailsOpen(false)}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedOrder(null);
+        }}
         onReassign={handleReassign}
         onAlert={handleAlertFromDrawer}
       />
@@ -323,7 +653,12 @@ export function RiderOverview({ searchQuery = '' }: RiderOverviewProps) {
           setOrderToReassign(null);
         }}
         onConfirm={handleReassignConfirm}
-        riders={riders.map(r => ({ id: r.id, name: r.name, status: r.status, load: r.capacity?.currentLoad }))}
+        riders={riders.map(r => ({ 
+          id: r.id, 
+          name: r.name, 
+          status: r.status, 
+          load: r.capacity?.currentLoad ?? 0 
+        }))}
       />
 
       <RiderMapModal 

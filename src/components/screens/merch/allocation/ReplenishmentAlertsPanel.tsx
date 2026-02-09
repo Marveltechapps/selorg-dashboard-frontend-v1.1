@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Filter, Check, X } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AllocateStockModal } from './AllocateStockModal';
 import { ClearancePromoModal } from './ClearancePromoModal';
+import { allocationApi } from './allocationApi';
 
 interface Alert {
     id: string;
@@ -55,6 +56,34 @@ export function ReplenishmentAlertsPanel() {
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [promoOpen, setPromoOpen] = useState(false);
 
+  // Load dismissed alerts on mount
+  useEffect(() => {
+    loadAlerts();
+  }, []);
+
+  const handleAllocationComplete = () => {
+    // Reload alerts from localStorage to reflect dismissed alerts
+    const dismissed = allocationApi.loadDismissedAlerts();
+    setAlerts(prev => prev.filter(a => !dismissed.includes(a.id)));
+    
+    // Also remove selected alert if it exists
+    if (selectedAlert) {
+      setAlerts(prev => prev.filter(a => a.id !== selectedAlert.id));
+    }
+  };
+
+  const handlePromoComplete = () => {
+    // Reload alerts to ensure data is fresh
+    const dismissed = allocationApi.loadDismissedAlerts();
+    setAlerts(prev => prev.filter(a => !dismissed.includes(a.id)));
+  };
+
+  // Reload alerts on mount and when filter changes to ensure dismissed alerts don't reappear
+  const loadAlerts = () => {
+    const dismissed = allocationApi.loadDismissedAlerts();
+    setAlerts(MOCK_ALERTS.filter(a => !dismissed.includes(a.id)));
+  };
+
   const filteredAlerts = alerts.filter(a => {
       if (filter === 'all') return true;
       if (filter === 'low_stock') return a.type === 'low_stock';
@@ -63,6 +92,7 @@ export function ReplenishmentAlertsPanel() {
   });
 
   const handleDismiss = (id: string) => {
+      allocationApi.dismissAlert(id);
       setAlerts(alerts.filter(a => a.id !== id));
   };
 
@@ -180,12 +210,14 @@ export function ReplenishmentAlertsPanel() {
         <AllocateStockModal 
             open={allocateOpen} 
             onOpenChange={setAllocateOpen} 
-            alert={selectedAlert} 
+            alert={selectedAlert}
+            onComplete={handleAllocationComplete}
         />
         <ClearancePromoModal 
             open={promoOpen} 
             onOpenChange={setPromoOpen} 
-            alert={selectedAlert} 
+            alert={selectedAlert}
+            onComplete={handlePromoComplete}
         />
     </div>
   );

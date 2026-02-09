@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   UserPlus, 
   FileCheck, 
@@ -122,8 +123,8 @@ function persistVendorsToStorage(list: Vendor[]) {
 }
 
 // Helper function to get stage badge styling
-function getStageBadgeStyle(stage: VendorStage) {
-  const styles = {
+function getStageBadgeStyle(stage: VendorStage | string) {
+  const styles: { [key: string]: { bg: string; text: string; label: string } } = {
     new_request: { bg: '#EFF6FF', text: '#1E40AF', label: 'New Request' },
     kyc_verification: { bg: '#FEF3C7', text: '#92400E', label: 'KYC Verification' },
     docs_verification: { bg: '#FEF3C7', text: '#92400E', label: 'Docs Verification' },
@@ -131,9 +132,13 @@ function getStageBadgeStyle(stage: VendorStage) {
     contract: { bg: '#E9D5FF', text: '#6B21A8', label: 'Contract' },
     tier_assignment: { bg: '#E9D5FF', text: '#6B21A8', label: 'Tier Assignment' },
     approved: { bg: '#DCFCE7', text: '#166534', label: 'Approved' },
-    rejected: { bg: '#FEE2E2', text: '#991B1B', label: 'Rejected' }
+    rejected: { bg: '#FEE2E2', text: '#991B1B', label: 'Rejected' },
+    // Map common API stage values
+    pending: { bg: '#EFF6FF', text: '#1E40AF', label: 'New Request' },
+    active: { bg: '#DCFCE7', text: '#166534', label: 'Approved' },
+    inactive: { bg: '#FEE2E2', text: '#991B1B', label: 'Rejected' }
   };
-  return styles[stage];
+  return styles[stage] || { bg: '#F3F4F6', text: '#6B7280', label: String(stage || 'Unknown') };
 }
 
 export function VendorOnboarding() {
@@ -142,6 +147,26 @@ export function VendorOnboarding() {
 
   useEffect(() => {
     let mounted = true;
+    
+    // First, load from localStorage if it exists
+    let localStorageVendors: Vendor[] = [];
+    try {
+      const raw = localStorage.getItem(VENDORS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorageVendors = parsed;
+          // Set vendors from localStorage immediately for fast UI
+          if (mounted) {
+            setVendors(localStorageVendors);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load vendors from localStorage', e);
+    }
+    
+    // Then fetch from API and merge
     (async () => {
       try {
         setLoadingVendors(true);
@@ -149,12 +174,81 @@ export function VendorOnboarding() {
         if (!mounted) return;
         // API returns { meta, data } or VendorList directly
         const items = resp.data || resp.items || resp;
-        if (Array.isArray(items)) setVendors(items);
+        if (Array.isArray(items)) {
+          // Map API vendor data to local Vendor interface
+          const mappedVendors: Vendor[] = items.map((item: any) => {
+            // Map API stage values to VendorStage
+            let stage: VendorStage = 'new_request';
+            if (item.stage) {
+              const stageMap: { [key: string]: VendorStage } = {
+                'pending': 'new_request',
+                'active': 'approved',
+                'inactive': 'rejected',
+                'new_request': 'new_request',
+                'kyc_verification': 'kyc_verification',
+                'docs_verification': 'docs_verification',
+                'review_pending': 'review_pending',
+                'contract': 'contract',
+                'tier_assignment': 'tier_assignment',
+                'approved': 'approved',
+                'rejected': 'rejected'
+              };
+              stage = stageMap[item.stage.toLowerCase()] || 'new_request';
+            }
+            
+            return {
+              id: item.code || item._id || item.id || `VND-${Date.now()}`,
+              name: item.name || 'Unknown Vendor',
+              email: item.contact?.email || item.email || '',
+              phone: item.contact?.phone || item.phone || '',
+              type: (item.metadata?.vendorType || item.type || 'Farmer') as Vendor['type'],
+              category: item.metadata?.category || item.category || 'General',
+              submissionDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+              stage: stage,
+              docsStatus: item.docsStatus || 'incomplete' as Vendor['docsStatus'],
+              registrationDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+              daysInStage: item.daysInStage || 0,
+              documents: item.documents || [],
+              activityLog: item.activityLog || [],
+              tier: item.metadata?.tier as Vendor['tier'],
+              contractSigned: item.contractSigned || false,
+              contractId: item.contractId
+            };
+          });
+          
+          // Merge: localStorage takes precedence for existing vendors, API adds new ones
+          const localStorageMap = new Map(localStorageVendors.map(v => [v.id, v]));
+          const mergedVendors: Vendor[] = [];
+          
+          // First, add all localStorage vendors (these have user edits)
+          localStorageVendors.forEach(v => mergedVendors.push(v));
+          
+          // Then, add API vendors that don't exist in localStorage (new vendors)
+          mappedVendors.forEach(apiVendor => {
+            if (!localStorageMap.has(apiVendor.id)) {
+              mergedVendors.push(apiVendor);
+            }
+          });
+          
+          if (mounted) {
+            setVendors(mergedVendors);
+            // Persist merged data to localStorage
+            persistVendorsToStorage(mergedVendors);
+          }
+        }
       } catch (err) {
-        console.error('Failed to load vendors', err);
-        toast.error('Failed to load vendors');
+        console.error('Failed to load vendors from API', err);
+        // If API fails, keep using localStorage data if available
+        if (localStorageVendors.length > 0 && mounted) {
+          setVendors(localStorageVendors);
+          toast.info('Using cached vendor data');
+        } else {
+          toast.error('Failed to load vendors');
+        }
       } finally {
-        setLoadingVendors(false);
+        if (mounted) {
+          setLoadingVendors(false);
+        }
       }
     })();
     return () => {
@@ -173,20 +267,93 @@ export function VendorOnboarding() {
   const downloadDocument = (doc: Document, vendor: Vendor) => {
     try {
       const htmlContent = `
-        <h1>Vendor Document</h1>
-        <h2>${doc.name}</h2>
-        <table border="1" cellpadding="5" cellspacing="0" style="width:100%; border-collapse:collapse;">
-          <tr><th style="text-align:left;">Field</th><th style="text-align:left;">Value</th></tr>
-          <tr><td>Document Name</td><td>${doc.name}</td></tr>
-          <tr><td>Status</td><td>${doc.status}</td></tr>
-          <tr><td>Vendor</td><td>${vendor.name}</td></tr>
-          <tr><td>Vendor ID</td><td>${vendor.id}</td></tr>
-          <tr><td>Type</td><td>${vendor.type}</td></tr>
-          <tr><td>Category</td><td>${vendor.category}</td></tr>
-        </table>
-        <p style="margin-top:20px; font-size:12px; color:#666;">
-          Generated on ${new Date().toLocaleString()}
-        </p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${doc.name} - ${vendor.name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #1F2937; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+            h2 { color: #4F46E5; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #E5E7EB; padding: 12px; text-align: left; }
+            th { background-color: #F9FAFB; font-weight: bold; color: #1F2937; }
+            .section { margin: 30px 0; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>Vendor Document Report</h1>
+          <h2>${doc.name}</h2>
+          
+          <div class="section">
+            <h3>Document Information</h3>
+            <table>
+              <tr><th>Field</th><th>Value</th></tr>
+              <tr><td>Document Name</td><td>${doc.name}</td></tr>
+              <tr><td>Status</td><td>${doc.status}</td></tr>
+              ${doc.uploadedAt ? `<tr><td>Uploaded At</td><td>${doc.uploadedAt}</td></tr>` : ''}
+            </table>
+          </div>
+
+          <div class="section">
+            <h3>Vendor Information</h3>
+            <table>
+              <tr><th>Field</th><th>Value</th></tr>
+              <tr><td>Vendor ID</td><td>${vendor.id}</td></tr>
+              <tr><td>Vendor Name</td><td>${vendor.name}</td></tr>
+              <tr><td>Email</td><td>${vendor.email}</td></tr>
+              <tr><td>Phone</td><td>${vendor.phone}</td></tr>
+              <tr><td>Type</td><td>${vendor.type}</td></tr>
+              <tr><td>Category</td><td>${vendor.category}</td></tr>
+              <tr><td>Stage</td><td>${getStageBadgeStyle(vendor.stage).label}</td></tr>
+              <tr><td>Documents Status</td><td>${vendor.docsStatus}</td></tr>
+              <tr><td>Registration Date</td><td>${vendor.registrationDate}</td></tr>
+              <tr><td>Submission Date</td><td>${vendor.submissionDate}</td></tr>
+              <tr><td>Days in Current Stage</td><td>${vendor.daysInStage}</td></tr>
+              ${vendor.tier ? `<tr><td>Tier</td><td>${vendor.tier}</td></tr>` : ''}
+            </table>
+          </div>
+
+          ${vendor.documents.length > 0 ? `
+          <div class="section">
+            <h3>All Documents</h3>
+            <table>
+              <tr><th>Document Name</th><th>Status</th><th>Uploaded At</th></tr>
+              ${vendor.documents.map(d => `
+                <tr>
+                  <td>${d.name}</td>
+                  <td>${d.status}</td>
+                  <td>${d.uploadedAt || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
+          ` : ''}
+
+          ${vendor.activityLog.length > 0 ? `
+          <div class="section">
+            <h3>Activity Log</h3>
+            <table>
+              <tr><th>Action</th><th>User</th><th>Timestamp</th></tr>
+              ${vendor.activityLog.map(activity => `
+                <tr>
+                  <td>${activity.action}</td>
+                  <td>${activity.user}</td>
+                  <td>${activity.timestamp}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Generated on ${new Date().toLocaleString()}</p>
+            <p>Report ID: DOC-${Date.now()}</p>
+          </div>
+        </body>
+        </html>
       `;
       exportToPDF(htmlContent, `${doc.name}-${vendor.id}`);
       toast.success(`Download started: ${doc.name}`);
@@ -200,26 +367,92 @@ export function VendorOnboarding() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const htmlContent = `
-        <h1>All Vendor Documents</h1>
-        <h2>${modalVendor.name} (${modalVendor.id})</h2>
-        <table border="1" cellpadding="5" cellspacing="0" style="width:100%; border-collapse:collapse;">
-          <tr>
-            <th style="text-align:left;">Document Name</th>
-            <th style="text-align:left;">Status</th>
-          </tr>
-          ${modalVendor.documents.map(doc => `
-            <tr>
-              <td>${doc.name}</td>
-              <td>${doc.status}</td>
-            </tr>
-          `).join('')}
-        </table>
-        <p style="margin-top:20px; font-size:12px; color:#666;">
-          Generated on ${new Date().toLocaleString()}
-        </p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Complete Vendor Report - ${modalVendor.name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #1F2937; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+            h2 { color: #4F46E5; margin-top: 20px; }
+            h3 { color: #6B7280; margin-top: 25px; margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #E5E7EB; padding: 12px; text-align: left; }
+            th { background-color: #F9FAFB; font-weight: bold; color: #1F2937; }
+            .section { margin: 30px 0; page-break-inside: avoid; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 12px; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <h1>Complete Vendor Report</h1>
+          <h2>${modalVendor.name}</h2>
+          
+          <div class="section">
+            <h3>Vendor Information</h3>
+            <table>
+              <tr><th>Field</th><th>Value</th></tr>
+              <tr><td>Vendor ID</td><td>${modalVendor.id}</td></tr>
+              <tr><td>Vendor Name</td><td>${modalVendor.name}</td></tr>
+              <tr><td>Email</td><td>${modalVendor.email}</td></tr>
+              <tr><td>Phone</td><td>${modalVendor.phone}</td></tr>
+              <tr><td>Type</td><td>${modalVendor.type}</td></tr>
+              <tr><td>Category</td><td>${modalVendor.category}</td></tr>
+              <tr><td>Stage</td><td>${getStageBadgeStyle(modalVendor.stage).label}</td></tr>
+              <tr><td>Documents Status</td><td>${modalVendor.docsStatus}</td></tr>
+              <tr><td>Registration Date</td><td>${modalVendor.registrationDate}</td></tr>
+              <tr><td>Submission Date</td><td>${modalVendor.submissionDate}</td></tr>
+              <tr><td>Days in Current Stage</td><td>${modalVendor.daysInStage}</td></tr>
+              ${modalVendor.tier ? `<tr><td>Tier</td><td>${modalVendor.tier}</td></tr>` : ''}
+              ${modalVendor.contractId ? `<tr><td>Contract ID</td><td>${modalVendor.contractId}</td></tr>` : ''}
+              <tr><td>Contract Signed</td><td>${modalVendor.contractSigned ? 'Yes' : 'No'}</td></tr>
+            </table>
+          </div>
+
+          <div class="section">
+            <h3>All Documents</h3>
+            ${modalVendor.documents.length > 0 ? `
+            <table>
+              <tr><th>Document Name</th><th>Status</th><th>Uploaded At</th></tr>
+              ${modalVendor.documents.map(doc => `
+                <tr>
+                  <td>${doc.name}</td>
+                  <td>${doc.status}</td>
+                  <td>${doc.uploadedAt || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </table>
+            ` : '<p>No documents available</p>'}
+          </div>
+
+          ${modalVendor.activityLog.length > 0 ? `
+          <div class="section">
+            <h3>Complete Activity Log</h3>
+            <table>
+              <tr><th>#</th><th>Action</th><th>User</th><th>Timestamp</th></tr>
+              ${modalVendor.activityLog.map((activity, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td>${activity.action}</td>
+                  <td>${activity.user}</td>
+                  <td>${activity.timestamp}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Generated on ${new Date().toLocaleString()}</p>
+            <p>Report ID: VENDOR-REPORT-${modalVendor.id}-${today}</p>
+            <p>Total Documents: ${modalVendor.documents.length} | Total Activities: ${modalVendor.activityLog.length}</p>
+          </div>
+        </body>
+        </html>
       `;
-      exportToPDF(htmlContent, `all-documents-${modalVendor.id}-${today}`);
-      toast.success('Download started: All vendor documents.zip');
+      exportToPDF(htmlContent, `complete-vendor-report-${modalVendor.id}-${today}`);
+      toast.success('Download started: Complete vendor report');
     } catch (error) {
       toast.error('Failed to download documents');
     }
@@ -264,6 +497,34 @@ export function VendorOnboarding() {
   const [addNoteForm, setAddNoteForm] = useState({
     note: '',
     visibleToAll: true
+  });
+
+  const [editInfoForm, setEditInfoForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    category: '',
+    type: '' as Vendor['type'] | ''
+  });
+
+  const [scheduleMeetingForm, setScheduleMeetingForm] = useState({
+    title: '',
+    date: '',
+    time: '',
+    link: '',
+    notes: ''
+  });
+
+  const [sendMessageForm, setSendMessageForm] = useState({
+    subject: '',
+    message: '',
+    sendCopy: false
+  });
+
+  const [flagVendorForm, setFlagVendorForm] = useState({
+    reason: '',
+    priority: '',
+    details: ''
   });
 
   // Filter vendors
@@ -325,21 +586,21 @@ export function VendorOnboarding() {
     };
   }, [showMoreMenu]);
 
-  // Init from storage and setup multi-tab sync
+  // Initialize editInfoForm when editInfo modal opens
   useEffect(() => {
-    // load from storage if present
-    try {
-      const raw = localStorage.getItem(VENDORS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setVendors(parsed);
-        }
-      }
-    } catch (e) {
-      // ignore parse errors
+    if (activeModal === 'editInfo' && modalVendor) {
+      setEditInfoForm({
+        name: modalVendor.name,
+        email: modalVendor.email,
+        phone: modalVendor.phone,
+        category: modalVendor.category,
+        type: modalVendor.type
+      });
     }
+  }, [activeModal, modalVendor]);
 
+  // Setup multi-tab sync (data loading is now handled in the main useEffect above)
+  useEffect(() => {
     // BroadcastChannel listener
     let bc: BroadcastChannel | null = null;
     try {
@@ -449,21 +710,24 @@ export function VendorOnboarding() {
     // simulate network latency and show loading state
     setApproveLoading(true);
     setTimeout(() => {
-      const updatedVendors = vendors.map(v =>
-        v.id === modalVendor.id
-          ? { ...v, stage: 'contract' as VendorStage, daysInStage: 0 }
-          : v
-      );
+      const updatedVendors = vendors.map(v => {
+        if (v.id === modalVendor.id) {
+          return {
+            ...v,
+            stage: 'contract' as VendorStage,
+            daysInStage: 0,
+            activityLog: [
+              ...(v.activityLog || []),
+              { action: `Approved${approveNotes ? `: ${approveNotes}` : ''}`, user: 'Admin', timestamp: new Date().toLocaleString() }
+            ]
+          };
+        }
+        return v;
+      });
       setVendors(updatedVendors);
       // persist and notify other tabs
       persistVendorsToStorage(updatedVendors);
       const updatedSelected = updatedVendors.find(v => v.id === modalVendor.id) || null;
-      if (updatedSelected) {
-        updatedSelected.activityLog = [
-          ...(updatedSelected.activityLog || []),
-          { action: 'Approved', user: 'Admin', timestamp: new Date().toLocaleString() }
-        ];
-      }
       setSelectedVendor(updatedSelected);
       setActiveModal(null);
       setModalVendor(null);
@@ -478,21 +742,23 @@ export function VendorOnboarding() {
     if (!modalVendor) return;
     setRejectLoading(true);
     setTimeout(() => {
-      const updatedVendors = vendors.map(v =>
-        v.id === modalVendor.id
-          ? { ...v, stage: 'rejected' as VendorStage }
-          : v
-      );
+      const updatedVendors = vendors.map(v => {
+        if (v.id === modalVendor.id) {
+          return {
+            ...v,
+            stage: 'rejected' as VendorStage,
+            activityLog: [
+              ...(v.activityLog || []),
+              { action: `Rejected: ${rejectForm.reason || 'No reason provided'}${rejectForm.message ? ` - ${rejectForm.message}` : ''}`, user: 'Admin', timestamp: new Date().toLocaleString() }
+            ]
+          };
+        }
+        return v;
+      });
       setVendors(updatedVendors);
       // persist and notify other tabs
       persistVendorsToStorage(updatedVendors);
       const updatedSelected = updatedVendors.find(v => v.id === modalVendor.id) || null;
-      if (updatedSelected) {
-        updatedSelected.activityLog = [
-          ...(updatedSelected.activityLog || []),
-          { action: 'Rejected', user: 'Admin', timestamp: new Date().toLocaleString() }
-        ];
-      }
       setSelectedVendor(updatedSelected);
       setActiveModal(null);
       setModalVendor(null);
@@ -533,9 +799,38 @@ export function VendorOnboarding() {
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
-    // Add note action - API call would go here
+    if (!modalVendor || !addNoteForm.note.trim()) {
+      toast.error('Please enter a note');
+      return;
+    }
+    
+    const updatedVendors = vendors.map(v => {
+      if (v.id === modalVendor.id) {
+        const newActivity = {
+          action: `Note added: ${addNoteForm.note}`,
+          user: 'Admin',
+          timestamp: new Date().toLocaleString()
+        };
+        return {
+          ...v,
+          activityLog: [...(v.activityLog || []), newActivity]
+        };
+      }
+      return v;
+    });
+    
+    setVendors(updatedVendors);
+    persistVendorsToStorage(updatedVendors);
+    
+    // Update selected vendor if it's the same one
+    if (selectedVendor?.id === modalVendor.id) {
+      const updated = updatedVendors.find(v => v.id === modalVendor.id);
+      if (updated) setSelectedVendor(updated);
+    }
+    
     setActiveModal(null);
     setAddNoteForm({ note: '', visibleToAll: true });
+    toast.success('Note added successfully');
   };
 
   const handleReviewClick = (vendor: Vendor) => {
@@ -802,10 +1097,12 @@ export function VendorOnboarding() {
                 return (
                   <tr 
                     key={vendor.id} 
-                    onClick={() => setSelectedVendor(vendor)}
-                    className="hover:bg-[#F9FAFB] cursor-pointer transition-colors"
+                    className="hover:bg-[#F9FAFB] transition-colors"
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-[#1F2937]">
+                    <td 
+                      className="px-6 py-4 text-sm font-medium text-[#1F2937] cursor-pointer"
+                      onClick={() => setSelectedVendor(vendor)}
+                    >
                       {vendor.name}
                     </td>
                     <td className="px-6 py-4 text-sm text-[#6B7280]">
@@ -869,18 +1166,19 @@ export function VendorOnboarding() {
                                 className="fixed inset-0 z-[90]" 
                                 onClick={() => setShowMoreMenu(null)}
                               />
-                              <div 
-                                className={`absolute right-0 w-48 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-[100] py-1 max-h-[320px] overflow-y-auto transition-all duration-200 ${
-                                  dropdownDirection[vendor.id] === 'up' 
-                                    ? 'bottom-full mb-2' 
-                                    : 'top-full mt-2'
-                                }`}
-                                style={{
-                                  transformOrigin: dropdownDirection[vendor.id] === 'up' ? 'bottom center' : 'top center'
-                                }}
-                                role="menu"
-                                aria-label="Vendor actions"
-                              >
+                              {createPortal(
+                                <div 
+                                  className={`fixed w-48 bg-white border border-[#E5E7EB] rounded-lg shadow-lg z-[100] py-1 max-h-[320px] overflow-y-auto transition-all duration-200`}
+                                  style={{
+                                    top: dropdownDirection[vendor.id] === 'up' 
+                                      ? `${(menuRefs.current[vendor.id]?.getBoundingClientRect().top || 0) - 320}px`
+                                      : `${(menuRefs.current[vendor.id]?.getBoundingClientRect().bottom || 0) + 4}px`,
+                                    left: `${(menuRefs.current[vendor.id]?.getBoundingClientRect().right || 0) - 192}px`
+                                  }}
+                                  role="menu"
+                                  aria-label="Vendor actions"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                 <button 
                                   onClick={() => {
                                     setSelectedVendor(vendor);
@@ -960,6 +1258,14 @@ export function VendorOnboarding() {
                                 <button 
                                   onClick={() => {
                                     setModalVendor(vendor);
+                                    // Initialize form with current vendor data
+                                    setEditInfoForm({
+                                      name: vendor.name,
+                                      email: vendor.email,
+                                      phone: vendor.phone,
+                                      category: vendor.category,
+                                      type: vendor.type
+                                    });
                                     setActiveModal('editInfo');
                                     setShowMoreMenu(null);
                                   }}
@@ -968,7 +1274,9 @@ export function VendorOnboarding() {
                                 >
                                   Edit Info
                                 </button>
-                              </div>
+                                </div>,
+                                document.body
+                              )}
                             </>
                           )}
                         </div>
@@ -1112,26 +1420,30 @@ export function VendorOnboarding() {
             </div>
 
             {/* Quick Actions */}
-            <div className="space-y-2">
-              <button 
-                onClick={() => {
-                  setModalVendor(selectedVendor);
-                  setActiveModal('approve');
-                }}
-                className="w-full px-4 py-2.5 bg-[#10B981] text-white font-medium rounded-lg hover:bg-[#059669] transition-colors"
-              >
-                Approve Application
-              </button>
-              <button 
-                onClick={() => {
-                  setModalVendor(selectedVendor);
-                  setActiveModal('reject');
-                }}
-                className="w-full px-4 py-2.5 bg-[#EF4444] text-white font-medium rounded-lg hover:bg-[#DC2626] transition-colors"
-              >
-                Reject Application
-              </button>
-            </div>
+            {selectedVendor.stage !== 'approved' && selectedVendor.stage !== 'rejected' && (
+              <div className="space-y-2">
+                {(selectedVendor.stage === 'review_pending' || selectedVendor.stage === 'new_request' || selectedVendor.stage === 'docs_verification') && (
+                  <button 
+                    onClick={() => {
+                      setModalVendor(selectedVendor);
+                      setActiveModal('approve');
+                    }}
+                    className="w-full px-4 py-2.5 bg-[#10B981] text-white font-medium rounded-lg hover:bg-[#059669] transition-colors"
+                  >
+                    Approve Application
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    setModalVendor(selectedVendor);
+                    setActiveModal('reject');
+                  }}
+                  className="w-full px-4 py-2.5 bg-[#EF4444] text-white font-medium rounded-lg hover:bg-[#DC2626] transition-colors"
+                >
+                  Reject Application
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1869,7 +2181,40 @@ export function VendorOnboarding() {
 
           {/* Modal 12: Schedule Meeting */}
           {activeModal === 'scheduleMeeting' && modalVendor && (
-            <form onSubmit={(e) => { e.preventDefault(); setActiveModal(null); toast.success('Meeting scheduled!'); }} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!scheduleMeetingForm.title || !scheduleMeetingForm.date || !scheduleMeetingForm.time) {
+                toast.error('Please fill in all required fields');
+                return;
+              }
+              
+              const updatedVendors = vendors.map(v => {
+                if (v.id === modalVendor.id) {
+                  const newActivity = {
+                    action: `Meeting scheduled: ${scheduleMeetingForm.title} on ${scheduleMeetingForm.date} at ${scheduleMeetingForm.time}`,
+                    user: 'Admin',
+                    timestamp: new Date().toLocaleString()
+                  };
+                  return {
+                    ...v,
+                    activityLog: [...(v.activityLog || []), newActivity]
+                  };
+                }
+                return v;
+              });
+              
+              setVendors(updatedVendors);
+              persistVendorsToStorage(updatedVendors);
+              
+              if (selectedVendor?.id === modalVendor.id) {
+                const updated = updatedVendors.find(v => v.id === modalVendor.id);
+                if (updated) setSelectedVendor(updated);
+              }
+              
+              setActiveModal(null);
+              setScheduleMeetingForm({ title: '', date: '', time: '', link: '', notes: '' });
+              toast.success('Meeting scheduled successfully!');
+            }} className="space-y-4">
               <div className="space-y-4 py-2">
                 <div>
                   <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
@@ -1878,6 +2223,8 @@ export function VendorOnboarding() {
                   <input
                     type="text"
                     required
+                    value={scheduleMeetingForm.title}
+                    onChange={(e) => setScheduleMeetingForm({ ...scheduleMeetingForm, title: e.target.value })}
                     placeholder="e.g., Onboarding Discussion"
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   />
@@ -1890,6 +2237,8 @@ export function VendorOnboarding() {
                     <input
                       type="date"
                       required
+                      value={scheduleMeetingForm.date}
+                      onChange={(e) => setScheduleMeetingForm({ ...scheduleMeetingForm, date: e.target.value })}
                       className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                     />
                   </div>
@@ -1900,6 +2249,8 @@ export function VendorOnboarding() {
                     <input
                       type="time"
                       required
+                      value={scheduleMeetingForm.time}
+                      onChange={(e) => setScheduleMeetingForm({ ...scheduleMeetingForm, time: e.target.value })}
                       className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                     />
                   </div>
@@ -1910,6 +2261,8 @@ export function VendorOnboarding() {
                   </label>
                   <input
                     type="url"
+                    value={scheduleMeetingForm.link}
+                    onChange={(e) => setScheduleMeetingForm({ ...scheduleMeetingForm, link: e.target.value })}
                     placeholder="https://meet.google.com/..."
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   />
@@ -1919,6 +2272,8 @@ export function VendorOnboarding() {
                     Notes
                   </label>
                   <textarea
+                    value={scheduleMeetingForm.notes}
+                    onChange={(e) => setScheduleMeetingForm({ ...scheduleMeetingForm, notes: e.target.value })}
                     placeholder="Add meeting agenda or notes..."
                     rows={3}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm resize-none focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
@@ -1945,7 +2300,40 @@ export function VendorOnboarding() {
 
           {/* Modal 13: Send Message */}
           {activeModal === 'sendMessage' && modalVendor && (
-            <form onSubmit={(e) => { e.preventDefault(); setActiveModal(null); toast.success('Message sent'); }} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!sendMessageForm.subject || !sendMessageForm.message) {
+                toast.error('Please fill in all required fields');
+                return;
+              }
+              
+              const updatedVendors = vendors.map(v => {
+                if (v.id === modalVendor.id) {
+                  const newActivity = {
+                    action: `Message sent: ${sendMessageForm.subject}`,
+                    user: 'Admin',
+                    timestamp: new Date().toLocaleString()
+                  };
+                  return {
+                    ...v,
+                    activityLog: [...(v.activityLog || []), newActivity]
+                  };
+                }
+                return v;
+              });
+              
+              setVendors(updatedVendors);
+              persistVendorsToStorage(updatedVendors);
+              
+              if (selectedVendor?.id === modalVendor.id) {
+                const updated = updatedVendors.find(v => v.id === modalVendor.id);
+                if (updated) setSelectedVendor(updated);
+              }
+              
+              setActiveModal(null);
+              setSendMessageForm({ subject: '', message: '', sendCopy: false });
+              toast.success('Message sent successfully!');
+            }} className="space-y-4">
               <div className="space-y-4 py-2">
                 <div>
                   <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
@@ -1954,6 +2342,8 @@ export function VendorOnboarding() {
                   <input
                     type="text"
                     required
+                    value={sendMessageForm.subject}
+                    onChange={(e) => setSendMessageForm({ ...sendMessageForm, subject: e.target.value })}
                     placeholder="Message subject"
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   />
@@ -1964,6 +2354,8 @@ export function VendorOnboarding() {
                   </label>
                   <textarea
                     required
+                    value={sendMessageForm.message}
+                    onChange={(e) => setSendMessageForm({ ...sendMessageForm, message: e.target.value })}
                     placeholder="Type your message here..."
                     rows={6}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm resize-none focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
@@ -1973,6 +2365,8 @@ export function VendorOnboarding() {
                   <input
                     type="checkbox"
                     id="sendCopy"
+                    checked={sendMessageForm.sendCopy}
+                    onChange={(e) => setSendMessageForm({ ...sendMessageForm, sendCopy: e.target.checked })}
                     className="w-4 h-4 text-[#4F46E5] border-[#D1D5DB] rounded focus:ring-[#4F46E5]"
                   />
                   <label htmlFor="sendCopy" className="text-sm text-[#1F2937]">
@@ -2000,7 +2394,40 @@ export function VendorOnboarding() {
 
           {/* Modal 14: Flag Vendor */}
           {activeModal === 'flagVendor' && modalVendor && (
-            <form onSubmit={(e) => { e.preventDefault(); setActiveModal(null); toast.success('Vendor flagged for review'); }} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!flagVendorForm.reason || !flagVendorForm.priority || !flagVendorForm.details) {
+                toast.error('Please fill in all required fields');
+                return;
+              }
+              
+              const updatedVendors = vendors.map(v => {
+                if (v.id === modalVendor.id) {
+                  const newActivity = {
+                    action: `Vendor flagged: ${flagVendorForm.reason} (${flagVendorForm.priority} priority) - ${flagVendorForm.details}`,
+                    user: 'Admin',
+                    timestamp: new Date().toLocaleString()
+                  };
+                  return {
+                    ...v,
+                    activityLog: [...(v.activityLog || []), newActivity]
+                  };
+                }
+                return v;
+              });
+              
+              setVendors(updatedVendors);
+              persistVendorsToStorage(updatedVendors);
+              
+              if (selectedVendor?.id === modalVendor.id) {
+                const updated = updatedVendors.find(v => v.id === modalVendor.id);
+                if (updated) setSelectedVendor(updated);
+              }
+              
+              setActiveModal(null);
+              setFlagVendorForm({ reason: '', priority: '', details: '' });
+              toast.success('Vendor flagged for review');
+            }} className="space-y-4">
               <div className="space-y-4 py-2">
                 <div>
                   <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
@@ -2008,6 +2435,8 @@ export function VendorOnboarding() {
                   </label>
                   <select
                     required
+                    value={flagVendorForm.reason}
+                    onChange={(e) => setFlagVendorForm({ ...flagVendorForm, reason: e.target.value })}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   >
                     <option value="">Select a reason</option>
@@ -2024,15 +2453,37 @@ export function VendorOnboarding() {
                   </label>
                   <div className="flex gap-3">
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="priority" value="low" required className="w-4 h-4 text-[#4F46E5]" />
+                      <input 
+                        type="radio" 
+                        name="priority" 
+                        value="low" 
+                        checked={flagVendorForm.priority === 'low'}
+                        onChange={(e) => setFlagVendorForm({ ...flagVendorForm, priority: e.target.value })}
+                        required 
+                        className="w-4 h-4 text-[#4F46E5]" 
+                      />
                       <span className="text-sm text-[#1F2937]">Low</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="priority" value="medium" className="w-4 h-4 text-[#4F46E5]" />
+                      <input 
+                        type="radio" 
+                        name="priority" 
+                        value="medium" 
+                        checked={flagVendorForm.priority === 'medium'}
+                        onChange={(e) => setFlagVendorForm({ ...flagVendorForm, priority: e.target.value })}
+                        className="w-4 h-4 text-[#4F46E5]" 
+                      />
                       <span className="text-sm text-[#1F2937]">Medium</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="priority" value="high" className="w-4 h-4 text-[#4F46E5]" />
+                      <input 
+                        type="radio" 
+                        name="priority" 
+                        value="high" 
+                        checked={flagVendorForm.priority === 'high'}
+                        onChange={(e) => setFlagVendorForm({ ...flagVendorForm, priority: e.target.value })}
+                        className="w-4 h-4 text-[#4F46E5]" 
+                      />
                       <span className="text-sm text-[#1F2937]">High</span>
                     </label>
                   </div>
@@ -2043,6 +2494,8 @@ export function VendorOnboarding() {
                   </label>
                   <textarea
                     required
+                    value={flagVendorForm.details}
+                    onChange={(e) => setFlagVendorForm({ ...flagVendorForm, details: e.target.value })}
                     placeholder="Provide detailed information about the issue..."
                     rows={4}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm resize-none focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
@@ -2069,7 +2522,54 @@ export function VendorOnboarding() {
 
           {/* Modal 15: Edit Vendor Info */}
           {activeModal === 'editInfo' && modalVendor && (
-            <form onSubmit={(e) => { e.preventDefault(); setActiveModal(null); toast.success('Vendor information updated'); }} className="space-y-4">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              // Use form values, fallback to modalVendor if form is empty (shouldn't happen, but safety check)
+              const name = editInfoForm.name.trim() || modalVendor.name;
+              const email = editInfoForm.email.trim() || modalVendor.email;
+              const phone = editInfoForm.phone.trim() || modalVendor.phone;
+              
+              if (!name || !email || !phone) {
+                toast.error('Please fill in all required fields');
+                return;
+              }
+              
+              const updatedVendors = vendors.map(v => {
+                if (v.id === modalVendor.id) {
+                  const updated = {
+                    ...v,
+                    name: name,
+                    email: email,
+                    phone: phone,
+                    category: editInfoForm.category || v.category,
+                    type: (editInfoForm.type || v.type) as Vendor['type'],
+                    activityLog: [
+                      ...(v.activityLog || []),
+                      { 
+                        action: `Vendor information updated: ${name} (${email})`, 
+                        user: 'Admin', 
+                        timestamp: new Date().toLocaleString() 
+                      }
+                    ]
+                  };
+                  return updated;
+                }
+                return v;
+              });
+              
+              setVendors(updatedVendors);
+              persistVendorsToStorage(updatedVendors);
+              
+              // Update selected vendor if it's the same one
+              if (selectedVendor?.id === modalVendor.id) {
+                const updated = updatedVendors.find(v => v.id === modalVendor.id);
+                if (updated) setSelectedVendor(updated);
+              }
+              
+              setActiveModal(null);
+              setEditInfoForm({ name: '', email: '', phone: '', category: '', type: '' });
+              toast.success('Vendor information updated successfully');
+            }} className="space-y-4">
               <div className="space-y-4 py-2">
                 <div>
                   <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2">
@@ -2078,7 +2578,8 @@ export function VendorOnboarding() {
                   <input
                     type="text"
                     required
-                    defaultValue={modalVendor.name}
+                    value={editInfoForm.name || modalVendor.name}
+                    onChange={(e) => setEditInfoForm({ ...editInfoForm, name: e.target.value })}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   />
                 </div>
@@ -2090,7 +2591,8 @@ export function VendorOnboarding() {
                     <input
                       type="email"
                       required
-                      defaultValue={modalVendor.email}
+                      value={editInfoForm.email || modalVendor.email}
+                      onChange={(e) => setEditInfoForm({ ...editInfoForm, email: e.target.value })}
                       className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                     />
                   </div>
@@ -2101,7 +2603,8 @@ export function VendorOnboarding() {
                     <input
                       type="tel"
                       required
-                      defaultValue={modalVendor.phone}
+                      value={editInfoForm.phone || modalVendor.phone}
+                      onChange={(e) => setEditInfoForm({ ...editInfoForm, phone: e.target.value })}
                       className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                     />
                   </div>
@@ -2111,13 +2614,15 @@ export function VendorOnboarding() {
                     Category
                   </label>
                   <select
-                    defaultValue={modalVendor.category}
+                    value={editInfoForm.category || modalVendor.category}
+                    onChange={(e) => setEditInfoForm({ ...editInfoForm, category: e.target.value })}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   >
                     <option value="Fruits & Veg">Fruits & Veg</option>
                     <option value="Dairy">Dairy</option>
                     <option value="Grains">Grains</option>
                     <option value="Spices">Spices</option>
+                    <option value="Uncategorized">Uncategorized</option>
                   </select>
                 </div>
                 <div>
@@ -2125,7 +2630,8 @@ export function VendorOnboarding() {
                     Vendor Type
                   </label>
                   <select
-                    defaultValue={modalVendor.type}
+                    value={editInfoForm.type || modalVendor.type}
+                    onChange={(e) => setEditInfoForm({ ...editInfoForm, type: e.target.value as Vendor['type'] })}
                     className="w-full px-3 py-2 border border-[#D1D5DB] rounded-md text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-3 focus:ring-[#4F46E5]/10"
                   >
                     <option value="Farmer">Farmer</option>
@@ -2138,7 +2644,10 @@ export function VendorOnboarding() {
               <DialogFooter>
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={() => {
+                    setActiveModal(null);
+                    setEditInfoForm({ name: '', email: '', phone: '', category: '', type: '' });
+                  }}
                   className="px-6 py-2.5 border border-[#D1D5DB] text-[#1F2937] font-medium rounded-lg hover:bg-[#F3F4F6] transition-colors"
                 >
                   Cancel

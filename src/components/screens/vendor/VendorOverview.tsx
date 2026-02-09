@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, AlertTriangle, Truck, Star, Clock, X, ChevronDown, FileText, Download, CheckCircle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../../ui/page-header';
 import { exportToCSV, exportToCSVForExcel } from '../../../utils/csvExport';
 import { exportToPDF } from '../../../utils/pdfExport';
 import { EmptyState } from '../../ui/ux-components';
+import * as vendorApi from '../../../api/vendor/vendorManagement.api';
 
 interface MetricCardProps {
   label: string;
@@ -37,18 +38,33 @@ function MetricCard({ label, value, subValue, trend, trendUp, icon, color = "ind
   );
 }
 
-export function VendorOverview() {
-  const [vendors, setVendors] = useState([
-    { id: 'VND-8821', name: 'Global Spices Co.', category: 'Grocery / Spices', rating: '4.8', status: 'Active', statusColor: 'green' },
-    { id: 'VND-8824', name: 'Dairy Delights Ltd.', category: 'Dairy / Perishables', rating: '4.5', status: 'Review Due', statusColor: 'yellow' },
-    { id: 'VND-9901', name: 'PackRight Solutions', category: 'Packaging', rating: '4.2', status: 'On Hold', statusColor: 'red' },
-  ]);
+interface VendorOverviewProps {
+  searchQuery?: string;
+}
+
+interface Vendor {
+  id: string;
+  code?: string;
+  name: string;
+  category: string;
+  rating: string;
+  status: string;
+  statusColor: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+}
+
+export function VendorOverview({ searchQuery = '' }: VendorOverviewProps) {
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [showVendorDetail, setShowVendorDetail] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -56,21 +72,170 @@ export function VendorOverview() {
     email: '',
     phone: ''
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Generate unique vendor code
+  const generateVendorCode = (name: string): string => {
+    const prefix = name
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase())
+      .join('')
+      .substring(0, 3)
+      .padEnd(3, 'X');
+    const random = Math.floor(1000 + Math.random() * 9000);
+    return `${prefix}${random}`;
+  };
+
+  // Load vendors from API
+  const loadVendors = async () => {
+    try {
+      setLoading(true);
+      const response = await vendorApi.getVendors();
+      
+      // Handle different response structures
+      let vendorsData: any[] = [];
+      if (Array.isArray(response)) {
+        vendorsData = response;
+      } else if (response.data && Array.isArray(response.data)) {
+        vendorsData = response.data;
+      } else if (response.vendors && Array.isArray(response.vendors)) {
+        vendorsData = response.vendors;
+      } else if (response.meta && response.data) {
+        vendorsData = response.data;
+      }
+      
+      // Transform API data to match component format
+      const transformedVendors: Vendor[] = vendorsData.map((v: any) => {
+        // Use _id (MongoDB ID) for updates, but display code in UI
+        const vendorId = v._id || v.id || v.code || `VND-${Math.floor(1000 + Math.random() * 9000)}`;
+        const vendorCode = v.code || vendorId;
+        const status = v.status || 'pending';
+        
+        return {
+          id: vendorId, // Store MongoDB _id for API calls
+          code: vendorCode, // Store code for display
+          name: v.name || 'Unknown',
+          category: v.metadata?.category || v.onboarding?.category || 'Uncategorized',
+          rating: v.metadata?.rating || '4.0',
+          status: status === 'pending' ? 'Under Review' : 
+                  status === 'active' ? 'Active' : 
+                  status === 'inactive' ? 'On Hold' : 
+                  status || 'Active',
+          statusColor: status === 'active' ? 'green' : 
+                       status === 'pending' ? 'yellow' : 'red',
+          contactPerson: v.contact?.name || '',
+          email: v.contact?.email || '',
+          phone: v.contact?.phone || ''
+        };
+      });
+      
+      setVendors(transformedVendors);
+      
+      if (transformedVendors.length === 0) {
+        console.log('No vendors found in API response');
+      }
+    } catch (error: any) {
+      console.error('Failed to load vendors:', error);
+      toast.error(error.message || 'Failed to load vendors from server');
+      setVendors([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVendors();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.category) {
-      const newVendorId = `VND-${Math.floor(1000 + Math.random() * 9000)}`;
-      setVendors([{
-        id: newVendorId,
+    if (!formData.name || !formData.category) {
+      toast.error('Please fill in required fields (Name and Category are required)');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      // Generate unique vendor code (only for new vendors)
+      let vendorCode: string;
+      if (isEditing && selectedVendor) {
+        // For updates, preserve the existing code if available
+        vendorCode = selectedVendor.code?.replace(/^VND-/, '') || generateVendorCode(formData.name);
+      } else {
+        vendorCode = generateVendorCode(formData.name);
+      }
+      
+      // Structure payload according to backend schema
+      const payload: any = {
         name: formData.name,
-        category: formData.category,
-        rating: '4.0',
-        status: 'Active',
-        statusColor: 'green'
-      }, ...vendors]);
+        code: `VND-${vendorCode}`,
+        status: isEditing 
+          ? (selectedVendor?.status === 'Active' ? 'active' : selectedVendor?.status === 'On Hold' ? 'inactive' : 'pending')
+          : 'active',
+        contact: {
+          name: formData.contactPerson || '',
+          email: formData.email || '',
+          phone: formData.phone || ''
+        },
+        address: {
+          line1: '',
+          line2: '',
+          city: '',
+          state: '',
+          pincode: ''
+        },
+        metadata: {
+          category: formData.category,
+          rating: '4.0'
+        }
+      };
+
+      if (isEditing && selectedVendor) {
+        // Update existing vendor - use MongoDB _id (stored in id field)
+        const vendorId = selectedVendor.id;
+        await vendorApi.updateVendor(vendorId, payload);
+        toast.success('Vendor updated successfully');
+        setIsEditing(false);
+        setSelectedVendor(null);
+      } else {
+        // Create new vendor
+        const response = await vendorApi.createVendor(payload);
+        toast.success('Vendor created successfully');
+        
+        // Add to local state immediately
+        const newVendor: Vendor = {
+          id: response._id || response.id || `temp-${Date.now()}`, // Use MongoDB _id
+          code: response.code || payload.code, // Store code for display
+          name: formData.name,
+          category: formData.category,
+          rating: '4.0',
+          status: 'Active',
+          statusColor: 'green',
+          contactPerson: formData.contactPerson,
+          email: formData.email,
+          phone: formData.phone
+        };
+        setVendors([newVendor, ...vendors]);
+      }
+
       setFormData({ name: '', category: '', contactPerson: '', email: '', phone: '' });
       setIsDialogOpen(false);
+      
+      // Reload vendors to ensure data is synced with backend
+      await loadVendors();
+    } catch (error: any) {
+      console.error('Failed to save vendor:', error);
+      const errorMessage = error.message || 'Failed to save vendor. Please try again.';
+      toast.error(errorMessage);
+      
+      // If validation error, show details
+      if (error.details && Array.isArray(error.details)) {
+        const validationErrors = error.details.map((d: any) => d.msg || d.message).join(', ');
+        toast.error(`Validation errors: ${validationErrors}`);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -127,30 +292,75 @@ export function VendorOverview() {
     }
   };
 
-  const handleViewVendor = (vendor: any) => {
+  const handleViewVendor = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setShowVendorDetail(true);
+    setIsEditing(false);
+    setFormData({
+      name: vendor.name,
+      category: vendor.category,
+      contactPerson: vendor.contactPerson || '',
+      email: vendor.email || '',
+      phone: vendor.phone || ''
+    });
   };
 
-  const handleToggleVendorStatus = (vendorId: string) => {
-    setVendors(vendors.map(v => {
-      if (v.id === vendorId) {
-        if (v.statusColor === 'red') {
-          return { ...v, status: 'Active', statusColor: 'green' };
-        } else {
-          return { ...v, status: 'On Hold', statusColor: 'red' };
-        }
-      }
-      return v;
-    }));
+  const handleEditVendor = () => {
+    setIsEditing(true);
     setShowVendorDetail(false);
+    setIsDialogOpen(true);
   };
 
+  const handleToggleVendorStatus = async (vendorId: string) => {
+    try {
+      const vendor = vendors.find(v => v.id === vendorId);
+      if (!vendor) return;
+
+      const newStatus = vendor.statusColor === 'red' ? 'Active' : 'On Hold';
+      const newStatusColor = vendor.statusColor === 'red' ? 'green' : 'red';
+
+      await vendorApi.updateVendor(vendorId, { status: newStatus });
+      
+      setVendors(vendors.map(v => {
+        if (v.id === vendorId) {
+          return { ...v, status: newStatus, statusColor: newStatusColor };
+        }
+        return v;
+      }));
+      
+      toast.success(`Vendor ${newStatus === 'Active' ? 'activated' : 'put on hold'}`);
+      setShowVendorDetail(false);
+      
+      // Reload to ensure sync
+      await loadVendors();
+    } catch (error: any) {
+      console.error('Failed to update vendor status:', error);
+      toast.error(error.message || 'Failed to update vendor status');
+    }
+  };
+
+  // Filter vendors by status and search query
   const filteredVendors = vendors.filter(vendor => {
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'active') return vendor.status === 'Active';
-    if (filterStatus === 'review') return vendor.status === 'Review Due';
-    if (filterStatus === 'hold') return vendor.status === 'On Hold';
+    // Status filter
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'active' && vendor.status !== 'Active') return false;
+      if (filterStatus === 'review' && vendor.status !== 'Review Due' && vendor.status !== 'Under Review') return false;
+      if (filterStatus === 'hold' && vendor.status !== 'On Hold') return false;
+    }
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      return (
+        vendor.id.toLowerCase().includes(query) ||
+        vendor.name.toLowerCase().includes(query) ||
+        vendor.category.toLowerCase().includes(query) ||
+        vendor.contactPerson?.toLowerCase().includes(query) ||
+        vendor.email?.toLowerCase().includes(query) ||
+        vendor.phone?.toLowerCase().includes(query)
+      );
+    }
+    
     return true;
   });
 
@@ -319,7 +529,7 @@ export function VendorOverview() {
                   <tr key={index} className="hover:bg-[#FAFAFA]">
                     <td className="px-6 py-4">
                         <p className="font-medium text-[#212121]">{vendor.name}</p>
-                        <p className="text-xs text-[#757575]">ID: {vendor.id}</p>
+                        <p className="text-xs text-[#757575]">ID: {vendor.code || vendor.id}</p>
                     </td>
                     <td className="px-6 py-4 text-[#616161]">{vendor.category}</td>
                     <td className="px-6 py-4 flex items-center gap-1 text-[#F59E0B] font-bold">
@@ -351,9 +561,14 @@ export function VendorOverview() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setIsDialogOpen(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-[#212121] text-lg">Add New Vendor</h3>
+              <h3 className="font-bold text-[#212121] text-lg">{isEditing ? 'Edit Vendor' : 'Add New Vendor'}</h3>
               <button 
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setIsEditing(false);
+                  setSelectedVendor(null);
+                  setFormData({ name: '', category: '', contactPerson: '', email: '', phone: '' });
+                }}
                 className="text-[#616161] hover:text-[#212121] p-1 hover:bg-[#F5F5F5] rounded"
               >
                 <X size={20} />
@@ -448,9 +663,10 @@ export function VendorOverview() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-[#4F46E5] text-white rounded-lg text-sm font-bold hover:bg-[#4338CA] transition-colors"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-[#4F46E5] text-white rounded-lg text-sm font-bold hover:bg-[#4338CA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Add Vendor
+                  {saving ? 'Saving...' : (isEditing ? 'Update Vendor' : 'Add Vendor')}
                 </button>
               </div>
             </form>
@@ -536,6 +752,13 @@ export function VendorOverview() {
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleEditVendor}
+                  className="flex-1 px-4 py-2 bg-[#4F46E5] text-white rounded-lg text-sm font-bold hover:bg-[#4338CA] transition-colors"
+                >
+                  Edit
+                </button>
                 <button
                   type="button"
                   onClick={() => handleToggleVendorStatus(selectedVendor.id)}

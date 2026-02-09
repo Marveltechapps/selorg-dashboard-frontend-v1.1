@@ -24,14 +24,12 @@ export function VendorTaskApprovals() {
   const [tasks, setTasks] = useState<ProcurementApprovalTask[]>([]);
   
   const [activeFilter, setActiveFilter] = useState<ProcurementTaskStatus>('pending');
-  const [isLoading, setIsLoading] = useState(true);
   
   // Drawer
   const [selectedTask, setSelectedTask] = useState<ProcurementApprovalTask | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const loadData = async () => {
-      setIsLoading(true);
       try {
           // Parallel fetch
           const [summaryData, tasksData] = await Promise.all([
@@ -42,14 +40,12 @@ export function VendorTaskApprovals() {
           setTasks(tasksData);
       } catch (e) {
           toast.error("Failed to load approval tasks");
-      } finally {
-          setIsLoading(false);
       }
   };
 
   useEffect(() => {
       loadData();
-  }, [activeFilter]);
+  }, [activeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDecision = async (id: string, payload: ProcurementApprovalDecision) => {
       // Optimistic UI update
@@ -75,6 +71,8 @@ export function VendorTaskApprovals() {
               ? "Request approved successfully" 
               : "Request rejected and requester notified"
           );
+          // Reload data to get updated counts and ensure persistence
+          await loadData();
       } catch (e) {
           toast.error("Failed to process decision");
           loadData(); // Revert on failure
@@ -103,14 +101,14 @@ export function VendorTaskApprovals() {
 
       <ProcurementApprovalSummaryCards 
           summary={summary}
-          isLoading={isLoading}
+          isLoading={false}
           activeFilter={activeFilter}
           onFilter={setActiveFilter}
       />
 
       <ProcurementApprovalQueueTable 
           tasks={tasks}
-          isLoading={isLoading}
+          isLoading={false}
           onTaskClick={handleTaskClick}
           onQuickApprove={handleQuickApprove}
           onQuickReject={handleQuickReject}

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, FileText } from 'lucide-react';
+import { Button } from '../../ui/button';
 import { toast } from 'sonner';
 
 import { PayablesSummaryCards } from './PayablesSummaryCards';
 import { VendorInvoicesFilters } from './VendorInvoicesFilters';
 import { VendorInvoicesTable } from './VendorInvoicesTable';
-import { InvoiceDetailsDrawer } from './InvoiceDetailsDrawer';
+import { VendorInvoiceDetailsDrawer } from './VendorInvoiceDetailsDrawer';
 import { UploadInvoiceModal } from './UploadInvoiceModal';
 import { NewPaymentModal } from './NewPaymentModal';
+import { RejectInvoiceModal } from './RejectInvoiceModal';
 
 import { 
     VendorInvoice, 
@@ -46,6 +48,7 @@ export function VendorPayments() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   // --- Data Fetching ---
   const loadSummary = async () => {
@@ -71,6 +74,7 @@ export function VendorPayments() {
   const loadInvoices = useCallback(async () => {
       setIsLoadingInvoices(true);
       try {
+          // fetchVendorInvoices now uses localStorage data internally
           const result = await fetchVendorInvoices(filters);
           setInvoices(result.data);
       } catch (e) {
@@ -104,7 +108,8 @@ export function VendorPayments() {
       try {
           await approveInvoice(id);
           toast.success("Invoice approved");
-          loadInvoices();
+          // Reload and merge with localStorage
+          await loadInvoices();
           loadSummary();
       } catch (e) {
           toast.error("Failed to approve invoice");
@@ -115,7 +120,8 @@ export function VendorPayments() {
       try {
           await markInvoicePaid(id);
           toast.success("Invoice marked as paid");
-          loadInvoices();
+          // Reload and merge with localStorage
+          await loadInvoices();
           loadSummary();
       } catch (e) {
           toast.error("Failed to mark as paid");
@@ -123,9 +129,10 @@ export function VendorPayments() {
   };
 
   const handleReject = async (invoice: VendorInvoice) => {
-       // Since rejection requires a reason, we open the details drawer which has the reject flow
+       // Open reject modal directly, not view details
        setSelectedInvoice(invoice);
-       setDetailsOpen(true);
+       setDetailsOpen(false); // Ensure details drawer is closed
+       setRejectOpen(true);
   };
 
   const handleViewDetails = async (invoice: VendorInvoice) => {
@@ -140,15 +147,34 @@ export function VendorPayments() {
   };
 
   const handleSchedule = (invoice: VendorInvoice) => {
-      // In a real app, this might open a specific scheduler
-      // For now, we'll prompt to open the new payment modal
-      toast.info("Opening payment workflow...");
+      // Set selected invoice for payment modal with today's date as default
+      setSelectedInvoice(invoice);
       setPaymentOpen(true);
   };
 
   const handleExport = () => {
-      toast.success("Export started. Downloading...");
-      // Mock download
+      // Export filtered invoices (current invoices state is already filtered)
+      if (invoices.length === 0) {
+        toast.error("No invoices to export");
+        return;
+      }
+      
+      const csvRows = ['Invoice Number,Vendor,Date,Due Date,Amount,Status'];
+      invoices.forEach(inv => {
+        csvRows.push(`${inv.invoiceNumber},${inv.vendorName},${inv.invoiceDate},${inv.dueDate},${inv.amount},${inv.status}`);
+      });
+      
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vendor-invoices-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success(`Exported ${invoices.length} invoice(s)`);
   };
 
   return (
@@ -159,20 +185,32 @@ export function VendorPayments() {
           <p className="text-[#757575] text-sm">Manage payables, invoices, and supplier relationships</p>
         </div>
         <div className="flex gap-3">
-             <button 
-                onClick={() => setUploadOpen(true)}
-                className="px-4 py-2 bg-white border border-[#E0E0E0] text-[#212121] font-medium rounded-lg hover:bg-[#F5F5F5] flex items-center gap-2"
+             <Button 
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUploadOpen(true);
+                }}
+                className="flex items-center gap-2"
             >
                 <FileText size={16} />
                 Upload Invoice
-            </button>
-            <button 
-                onClick={() => setPaymentOpen(true)}
-                className="px-4 py-2 bg-[#14B8A6] text-white font-medium rounded-lg hover:bg-[#0D9488] flex items-center gap-2"
+            </Button>
+            <Button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedInvoice(null);
+                  setPaymentOpen(true);
+                }}
+                className="bg-[#14B8A6] hover:bg-[#0D9488] flex items-center gap-2"
             >
                 <Plus size={16} />
                 New Payment
-            </button>
+            </Button>
         </div>
       </div>
 
@@ -186,6 +224,7 @@ export function VendorPayments() {
         <VendorInvoicesFilters 
             filters={filters} 
             vendors={vendors}
+            invoices={invoices}
             onFilterChange={setFilters}
             onExport={handleExport}
         />
@@ -201,7 +240,7 @@ export function VendorPayments() {
         />
       </div>
 
-      <InvoiceDetailsDrawer 
+      <VendorInvoiceDetailsDrawer 
         invoice={selectedInvoice}
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
@@ -223,12 +262,29 @@ export function VendorPayments() {
 
       <NewPaymentModal 
         open={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
+        onClose={() => {
+          setPaymentOpen(false);
+          setSelectedInvoice(null);
+        }}
         onSuccess={() => {
             loadInvoices();
             loadSummary();
         }}
         vendors={vendors}
+        preselectedInvoice={selectedInvoice}
+      />
+      
+      <RejectInvoiceModal
+        invoice={selectedInvoice}
+        open={rejectOpen}
+        onClose={() => {
+          setRejectOpen(false);
+          setSelectedInvoice(null);
+        }}
+        onSuccess={() => {
+          loadInvoices();
+          loadSummary();
+        }}
       />
     </div>
   );

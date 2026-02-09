@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
   Search,
@@ -63,6 +63,31 @@ interface Conversation {
   isFeedback: boolean;
   messages: Message[];
 }
+
+const saveConversationsToStorage = (conversations: Conversation[]) => {
+  try {
+    localStorage.setItem('communicationHubConversations', JSON.stringify(conversations));
+  } catch (e) {
+    console.warn('Failed to save conversations to localStorage', e);
+  }
+};
+
+// Load conversations from localStorage or use default
+const loadConversationsFromStorage = (): Conversation[] => {
+  try {
+    const saved = localStorage.getItem('communicationHubConversations');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load conversations from localStorage', e);
+  }
+  // Return empty array - will be initialized with mock data below
+  return [];
+};
 
 // Mock Data
 const mockConversations: Conversation[] = [
@@ -196,8 +221,46 @@ const mockConversations: Conversation[] = [
 ];
 
 export function CommunicationHub() {
-  const [conversations] = useState<Conversation[]>(mockConversations);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(conversations[0]);
+  // Load conversations from localStorage or use mock data
+  const initialConversations = (() => {
+    const saved = loadConversationsFromStorage();
+    if (saved.length > 0) {
+      return saved;
+    }
+    // If no saved data, use mock data and save it
+    saveConversationsToStorage(mockConversations);
+    return mockConversations;
+  })();
+
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
+  
+  // Load active conversation from localStorage or use first conversation
+  const savedActiveId = (() => {
+    try {
+      return localStorage.getItem('communicationHubActiveConversationId');
+    } catch (e) {
+      return null;
+    }
+  })();
+  
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(() => {
+    if (savedActiveId) {
+      const found = initialConversations.find(c => c.id === savedActiveId);
+      if (found) return found;
+    }
+    return initialConversations[0] || null;
+  });
+  
+  // Save active conversation ID when it changes
+  useEffect(() => {
+    if (activeConversation) {
+      try {
+        localStorage.setItem('communicationHubActiveConversationId', activeConversation.id);
+      } catch (e) {
+        console.warn('Failed to save active conversation ID', e);
+      }
+    }
+  }, [activeConversation]);
   const [filterType, setFilterType] = useState<ConversationType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageInput, setMessageInput] = useState('');
@@ -245,11 +308,57 @@ export function CommunicationHub() {
     return 0;
   };
 
+  // Update active conversation when conversations change (to get latest messages)
+  useEffect(() => {
+    if (activeConversation) {
+      const updated = conversations.find(c => c.id === activeConversation.id);
+      if (updated) {
+        // Only update if messages have changed to avoid unnecessary re-renders
+        if (updated.messages.length !== activeConversation.messages.length) {
+          setActiveConversation(updated);
+        }
+      }
+    }
+  }, [conversations]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Send message
   const handleSendMessage = () => {
-    if (messageInput.trim() === '') return;
-    toast.success('Message sent');
+    if (messageInput.trim() === '' || !activeConversation) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      conversationId: activeConversation.id,
+      content: messageInput.trim(),
+      sender: 'You',
+      senderType: 'user',
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      timeAgo: 'Just now',
+      isRead: false,
+      hasAttachment: false,
+    };
+
+    // Update the active conversation with the new message
+    const updatedConversation: Conversation = {
+      ...activeConversation,
+      messages: [...activeConversation.messages, newMessage],
+      lastMessage: messageInput.trim(),
+      lastMessageTime: 'Just now',
+      timeAgo: 'Just now',
+    };
+
+    // Update conversations list
+    const updatedConversations = conversations.map(conv =>
+      conv.id === activeConversation.id ? updatedConversation : conv
+    );
+
+    // Save to localStorage
+    saveConversationsToStorage(updatedConversations);
+
+    // Update state
+    setConversations(updatedConversations);
+    setActiveConversation(updatedConversation);
     setMessageInput('');
+    toast.success('Message sent');
   };
 
   // Simulate typing indicator
@@ -358,17 +467,24 @@ export function CommunicationHub() {
 
           {/* Conversation List */}
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
-            {filteredConversations.map((conversation) => (
+            {filteredConversations.map((conversation) => {
+              // Find the conversation from state to get latest data
+              const currentConv = conversations.find(c => c.id === conversation.id) || conversation;
+              return (
               <div
                 key={conversation.id}
-                onClick={() => setActiveConversation(conversation)}
+                onClick={() => {
+                  // Find the latest conversation data from state
+                  const latestConv = conversations.find(c => c.id === conversation.id) || conversation;
+                  setActiveConversation(latestConv);
+                }}
                 className={`relative p-3 rounded-lg cursor-pointer transition-all ${
-                  conversation.unreadCount > 0 ? 'bg-[#F9FAFB]' : 'bg-white'
+                  currentConv.unreadCount > 0 ? 'bg-[#F9FAFB]' : 'bg-white'
                 } ${
                   activeConversation?.id === conversation.id
                     ? 'border-2 border-[#4F46E5] shadow-sm'
                     : 'border border-[#E5E7EB] hover:bg-[#F9FAFB]'
-                } ${conversation.isEscalated ? 'border-l-4 !border-l-[#F59E0B]' : ''}`}
+                } ${currentConv.isEscalated ? 'border-l-4 !border-l-[#F59E0B]' : ''}`}
               >
                 {conversation.unreadCount > 0 && (
                   <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-[#4F46E5]" />
@@ -398,25 +514,26 @@ export function CommunicationHub() {
                       <span className="text-[11px] text-[#9CA3AF] flex-shrink-0 ml-2">{conversation.timeAgo}</span>
                     </div>
 
-                    <p className="text-xs text-[#6B7280] line-clamp-2 mb-1">{conversation.lastMessage}</p>
+                    <p className="text-xs text-[#6B7280] line-clamp-2 mb-1">{currentConv.lastMessage}</p>
 
                     <div className="flex items-center gap-2">
-                      {conversation.isEscalated && (
+                      {currentConv.isEscalated && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FEE2E2] text-[#991B1B] text-[10px] font-bold rounded">
                           <AlertTriangle className="w-2.5 h-2.5" />
                           Escalated
                         </span>
                       )}
-                      {conversation.unreadCount > 0 && (
+                      {currentConv.unreadCount > 0 && (
                         <span className="px-2 py-0.5 bg-[#4F46E5] text-white text-[10px] font-bold rounded-full">
-                          {conversation.unreadCount}
+                          {currentConv.unreadCount}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
 
@@ -738,13 +855,94 @@ export function CommunicationHub() {
             </button>
             <button
               onClick={() => {
-                toast.success('Message sent');
+                // Find or create conversation for the recipient
+                const recipientNames: Record<string, { name: string; contact: string; initials: string; color: string }> = {
+                  'fresh-farms': { name: 'Fresh Farms Inc.', contact: 'Michael Green', initials: 'FF', color: '#4F46E5' },
+                  'tech-logistics': { name: 'Tech Logistics', contact: 'Sarah Johnson', initials: 'TL', color: '#10B981' },
+                  'global-spices': { name: 'Global Spices', contact: 'John Smith', initials: 'GS', color: '#F59E0B' },
+                  'dairy-delights': { name: 'Dairy Delights', contact: 'Emma Wilson', initials: 'DD', color: '#EF4444' },
+                };
+
+                const recipientInfo = recipientNames[selectedRecipient] || {
+                  name: selectedRecipient,
+                  contact: 'Contact',
+                  initials: selectedRecipient.substring(0, 2).toUpperCase(),
+                  color: '#6B7280',
+                };
+
+                const existingConv = conversations.find(c => c.id === selectedRecipient);
+
+                const newMessage: Message = {
+                  id: Date.now().toString(),
+                  conversationId: selectedRecipient,
+                  content: messageContent.trim(),
+                  sender: 'You',
+                  senderType: 'user',
+                  timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                  timeAgo: 'Just now',
+                  isRead: false,
+                  hasAttachment: false,
+                };
+
+                if (existingConv) {
+                  // Add message to existing conversation
+                  const updatedConversation: Conversation = {
+                    ...existingConv,
+                    messages: [...existingConv.messages, newMessage],
+                    lastMessage: messageContent.trim(),
+                    lastMessageTime: 'Just now',
+                    timeAgo: 'Just now',
+                  };
+
+                  const updatedConversations = conversations.map(conv =>
+                    conv.id === selectedRecipient ? updatedConversation : conv
+                  );
+
+                  // Save to localStorage
+                  saveConversationsToStorage(updatedConversations);
+                  
+                  setConversations(updatedConversations);
+                  
+                  // Switch to this conversation if not already active
+                  if (activeConversation?.id !== selectedRecipient) {
+                    setActiveConversation(updatedConversation);
+                  } else {
+                    setActiveConversation(updatedConversation);
+                  }
+                } else {
+                  // Create new conversation
+                  const newConversation: Conversation = {
+                    id: selectedRecipient,
+                    vendorName: recipientInfo.name,
+                    initials: recipientInfo.initials,
+                    contactName: recipientInfo.contact,
+                    avatarColor: recipientInfo.color,
+                    lastMessage: messageContent.trim(),
+                    lastMessageTime: 'Just now',
+                    timeAgo: 'Just now',
+                    unreadCount: 0,
+                    isOnline: false,
+                    isEscalated: false,
+                    isFeedback: messageType === 'feedback',
+                    messages: [newMessage],
+                  };
+
+                  setConversations(prev => {
+                    const updated = [...prev, newConversation];
+                    // Save to localStorage
+                    saveConversationsToStorage(updated);
+                    return updated;
+                  });
+                  setActiveConversation(newConversation);
+                }
+
+                toast.success(`Message sent to ${recipientInfo.name}`);
                 setShowNewMessageModal(false);
                 setMessageContent('');
                 setMessageSubject('');
                 setSelectedRecipient('');
               }}
-              disabled={!selectedRecipient || !messageContent}
+              disabled={!selectedRecipient || !messageContent.trim()}
               className="px-6 py-2.5 bg-[#4F46E5] text-white text-sm font-medium rounded-md hover:bg-[#4338CA] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send Message

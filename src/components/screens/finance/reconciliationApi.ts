@@ -69,7 +69,29 @@ const MOCK_SUMMARY: SettlementSummaryItem[] = [
   }
 ];
 
-let MOCK_EXCEPTIONS: ReconciliationException[] = [
+// Load from localStorage or use default
+const loadExceptionsFromStorage = (): ReconciliationException[] => {
+  try {
+    const stored = localStorage.getItem('reconciliationExceptions');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load exceptions from storage', e);
+  }
+  return [];
+};
+
+const saveExceptionsToStorage = (exceptions: ReconciliationException[]) => {
+  try {
+    localStorage.setItem('reconciliationExceptions', JSON.stringify(exceptions));
+  } catch (e) {
+    console.error('Failed to save exceptions to storage', e);
+  }
+};
+
+// Default mock exceptions - always available
+const DEFAULT_EXCEPTIONS: ReconciliationException[] = [
   {
     id: "ex_001",
     title: "Txn #9921 not found in Bank",
@@ -107,8 +129,47 @@ let MOCK_EXCEPTIONS: ReconciliationException[] = [
     createdAt: new Date(Date.now() - 259200000).toISOString(),
     suggestedAction: "write_off",
     details: "Exchange rate difference exceeds 1% threshold."
+  },
+  {
+    id: "ex_004",
+    title: "Missing Settlement Record",
+    sourceType: "gateway",
+    gateway: "Stripe",
+    amount: 89.25,
+    currency: "USD",
+    status: "open",
+    reasonCode: "missing_settlement",
+    createdAt: new Date(Date.now() - 43200000).toISOString(),
+    suggestedAction: "investigate",
+    details: "Payment processed but settlement record not found in bank statement."
+  },
+  {
+    id: "ex_005",
+    title: "Amount Mismatch",
+    sourceType: "bank",
+    gateway: "PayPal",
+    amount: 15.75,
+    currency: "USD",
+    status: "open",
+    reasonCode: "amount_mismatch",
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    suggestedAction: "resolve",
+    details: "Bank statement shows different amount than gateway settlement."
   }
 ];
+
+// Initialize MOCK_EXCEPTIONS - use stored data if available, otherwise use defaults
+const getInitialExceptions = (): ReconciliationException[] => {
+  const stored = loadExceptionsFromStorage();
+  if (stored.length > 0) {
+    return stored;
+  }
+  // Return default exceptions and save them
+  saveExceptionsToStorage(DEFAULT_EXCEPTIONS);
+  return DEFAULT_EXCEPTIONS;
+};
+
+let MOCK_EXCEPTIONS: ReconciliationException[] = getInitialExceptions();
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -123,8 +184,24 @@ export const fetchReconSummary = async (date: string): Promise<SettlementSummary
 
 export const fetchExceptions = async (status: string = "open"): Promise<ReconciliationException[]> => {
   await delay(500);
-  if (status === 'all') return MOCK_EXCEPTIONS;
-  return MOCK_EXCEPTIONS.filter(e => e.status === status || e.status === 'in_review');
+  // Always load fresh from localStorage first
+  let storedExceptions = loadExceptionsFromStorage();
+  
+  // If no stored data, initialize with defaults
+  if (storedExceptions.length === 0) {
+    saveExceptionsToStorage(DEFAULT_EXCEPTIONS);
+    storedExceptions = DEFAULT_EXCEPTIONS;
+  }
+  
+  // Update MOCK_EXCEPTIONS to match stored data
+  MOCK_EXCEPTIONS = storedExceptions;
+  
+  if (status === 'all') return storedExceptions;
+  // For 'open' status, show both 'open' and 'in_review' exceptions
+  if (status === 'open') {
+    return storedExceptions.filter(e => e.status === 'open' || e.status === 'in_review');
+  }
+  return storedExceptions.filter(e => e.status === status);
 };
 
 export const runReconciliation = async (date: string, gateways: string[]): Promise<ReconciliationRun> => {
@@ -154,24 +231,51 @@ export const fetchRunStatus = async (id: string): Promise<ReconciliationRun> => 
 
 export const investigateException = async (id: string) => {
     await delay(400);
-    const ex = MOCK_EXCEPTIONS.find(e => e.id === id);
-    if (ex) {
-        ex.status = "in_review";
+    // Always load fresh from localStorage
+    let storedExceptions = loadExceptionsFromStorage();
+    
+    // If no stored data, initialize with defaults
+    if (storedExceptions.length === 0) {
+        saveExceptionsToStorage(DEFAULT_EXCEPTIONS);
+        storedExceptions = [...DEFAULT_EXCEPTIONS];
     }
-    return ex;
+    
+    const index = storedExceptions.findIndex(e => e.id === id);
+    if (index !== -1) {
+        storedExceptions[index] = {
+            ...storedExceptions[index],
+            status: "in_review"
+        };
+        // Update both MOCK_EXCEPTIONS and localStorage
+        MOCK_EXCEPTIONS = storedExceptions;
+        saveExceptionsToStorage(storedExceptions);
+        return storedExceptions[index];
+    }
+    throw new Error("Exception not found");
 };
 
 export const resolveException = async (id: string, resolutionType: string, note?: string) => {
     await delay(600);
-    const index = MOCK_EXCEPTIONS.findIndex(e => e.id === id);
+    // Always load fresh from localStorage
+    let storedExceptions = loadExceptionsFromStorage();
+    
+    // If no stored data, initialize with defaults
+    if (storedExceptions.length === 0) {
+        saveExceptionsToStorage(DEFAULT_EXCEPTIONS);
+        storedExceptions = [...DEFAULT_EXCEPTIONS];
+    }
+    
+    const index = storedExceptions.findIndex(e => e.id === id);
     if (index !== -1) {
-        MOCK_EXCEPTIONS[index] = {
-            ...MOCK_EXCEPTIONS[index],
+        storedExceptions[index] = {
+            ...storedExceptions[index],
             status: "resolved",
-            details: note ? `${MOCK_EXCEPTIONS[index].details}\nResolution Note: ${note}` : MOCK_EXCEPTIONS[index].details
+            details: note ? `${storedExceptions[index].details || ''}\nResolution Note: ${note}` : storedExceptions[index].details
         };
-        // Update summary just to show reactivity (simplified logic)
-        return MOCK_EXCEPTIONS[index];
+        // Update both MOCK_EXCEPTIONS and localStorage
+        MOCK_EXCEPTIONS = storedExceptions;
+        saveExceptionsToStorage(storedExceptions);
+        return storedExceptions[index];
     }
     throw new Error("Exception not found");
 };

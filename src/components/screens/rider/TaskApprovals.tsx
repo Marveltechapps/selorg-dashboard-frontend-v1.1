@@ -15,7 +15,11 @@ import {
   ApprovalStatus,
 } from './approvalsApi';
 
-export function TaskApprovals() {
+interface TaskApprovalsProps {
+  searchQuery?: string;
+}
+
+export function TaskApprovals({ searchQuery = '' }: TaskApprovalsProps) {
   const [summary, setSummary] = useState<ApprovalSummary | null>(null);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,13 +28,26 @@ export function TaskApprovals() {
   const [processing, setProcessing] = useState<Set<string>>(new Set());
   const localApprovalUpdatesRef = useRef<Record<string, ApprovalStatus>>({});
 
+  // Filter approvals based on search query
+  const filteredApprovals = React.useMemo(() => {
+    if (!searchQuery.trim()) return approvals;
+    const query = searchQuery.toLowerCase();
+    return approvals.filter(a => 
+      a.id.toLowerCase().includes(query) ||
+      a.requestorName?.toLowerCase().includes(query) ||
+      a.title?.toLowerCase().includes(query) ||
+      a.description?.toLowerCase().includes(query) ||
+      a.category?.toLowerCase().includes(query)
+    );
+  }, [approvals, searchQuery]);
+
   const loadData = async () => {
     try {
       setLoading(true);
       const [summaryData, approvalsData] = await Promise.all([
         getApprovalSummary(),
         listApprovals({ 
-          status: activeTab === 'all' ? undefined : activeTab as ApprovalStatus, 
+          status: (activeTab === 'all' ? 'all' : activeTab) as ApprovalStatus, 
           limit: 100 
         }),
       ]);
@@ -41,19 +58,20 @@ export function TaskApprovals() {
         ...(localApprovalUpdatesRef.current[a.id] && { status: localApprovalUpdatesRef.current[a.id] }),
       }));
       setApprovals(merged);
+      
+      // If we got data from backend, clear any mock data indicators
+      if (list.length > 0) {
+        console.log(`✅ Loaded ${list.length} approvals from backend`);
+      } else if (list.length === 0 && activeTab === 'pending') {
+        console.log('ℹ️ No pending approvals found in backend');
+      }
     } catch (error) {
-      console.error('Failed to load approvals data', error);
-      setSummary({ pendingCount: 5, approvedToday: 12, rejectedToday: 2, date: new Date().toISOString().split('T')[0] });
-      const mockList = [
-        { id: 'ap-1', type: 'order_exception', title: 'Order delay exception', description: 'Customer requested extension', requestedBy: 'Raj K', requestedById: 'r1', requesterRole: 'Rider', status: 'pending', createdAt: new Date(Date.now() - 3600000).toISOString() },
-        { id: 'ap-2', type: 'document_approval', title: 'Driving license verification', description: 'New rider document', requestedBy: 'Priya M', requestedById: 'r2', requesterRole: 'Rider', status: 'pending', createdAt: new Date(Date.now() - 7200000).toISOString() },
-      ];
-      const merged = mockList.map(a => ({
-        ...a,
-        ...(localApprovalUpdatesRef.current[a.id] && { status: localApprovalUpdatesRef.current[a.id] }),
-      }));
-      setApprovals(merged);
-      toast.info('Using sample data. Connect backend for live data.');
+      console.error('Failed to load approvals data:', error);
+      // Don't set mock data - let the user see that there's an error
+      // Only set empty state
+      setSummary({ pendingCount: 0, approvedToday: 0, rejectedToday: 0, date: new Date().toISOString().split('T')[0] });
+      setApprovals([]);
+      toast.error(`Failed to load approvals: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -61,34 +79,44 @@ export function TaskApprovals() {
 
   const handleApprove = async (id: string) => {
     if (processing.has(id)) return;
-    localApprovalUpdatesRef.current[id] = 'approved';
     setProcessing((prev) => new Set(prev).add(id));
     try {
-      await approveRequest(id);
+      const result = await approveRequest(id);
+      localApprovalUpdatesRef.current[id] = 'approved';
+      toast.success('Request approved');
+      // Remove from selected if selected
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      // Reload data to ensure persistence - this will filter out approved items
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Approval failed');
+      // Reload on error too to sync state
+      await loadData();
     } finally {
       setProcessing((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
-    setApprovals(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' as ApprovalStatus } : a));
-    setSummary(prev => prev ? { ...prev, pendingCount: Math.max(0, prev.pendingCount - 1), approvedToday: prev.approvedToday + 1 } : null);
-    toast.success('Request approved');
-    loadData();
   };
 
   const handleReject = async (id: string) => {
     if (processing.has(id)) return;
     const reason = prompt('Please provide a reason for rejection:');
     if (!reason) return;
-    localApprovalUpdatesRef.current[id] = 'rejected';
     setProcessing((prev) => new Set(prev).add(id));
     try {
-      await rejectRequest(id, reason);
+      const result = await rejectRequest(id, reason);
+      localApprovalUpdatesRef.current[id] = 'rejected';
+      toast.success('Request rejected');
+      // Remove from selected if selected
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      // Reload data to ensure persistence - this will filter out rejected items
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Rejection failed');
+      // Reload on error too to sync state
+      await loadData();
     } finally {
       setProcessing((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
-    setApprovals(prev => prev.map(a => a.id === id ? { ...a, status: 'rejected' as ApprovalStatus } : a));
-    setSummary(prev => prev ? { ...prev, pendingCount: Math.max(0, prev.pendingCount - 1), rejectedToday: prev.rejectedToday + 1 } : null);
-    toast.success('Request rejected');
-    loadData();
   };
 
   const handleBatchApprove = async () => {
@@ -97,20 +125,34 @@ export function TaskApprovals() {
       return;
     }
     const ids = Array.from(selectedIds);
-    ids.forEach(id => { localApprovalUpdatesRef.current[id] = 'approved'; });
+    // Add to processing set to show loading state
+    setProcessing((prev) => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+    
     try {
       const result = await batchApprove(ids);
-      setApprovals(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, status: 'approved' as ApprovalStatus } : a));
-      setSummary(prev => prev ? { ...prev, pendingCount: Math.max(0, prev.pendingCount - ids.length), approvedToday: prev.approvedToday + (result?.approved ?? ids.length) } : null);
+      ids.forEach(id => { 
+        localApprovalUpdatesRef.current[id] = 'approved';
+      });
       toast.success(`Approved ${result?.approved ?? ids.length} request(s)`);
       setSelectedIds(new Set());
-      loadData();
-    } catch {
-      setApprovals(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, status: 'approved' as ApprovalStatus } : a));
-      setSummary(prev => prev ? { ...prev, pendingCount: Math.max(0, (prev?.pendingCount ?? 0) - ids.length), approvedToday: (prev?.approvedToday ?? 0) + ids.length } : null);
-      toast.success(`Approved ${ids.length} request(s)`);
-      setSelectedIds(new Set());
-      loadData();
+      // Reload data to ensure persistence - this will filter out approved items
+      await loadData();
+    } catch (err) {
+      console.error('Batch approval error:', err);
+      toast.error(err instanceof Error ? err.message : 'Batch approval failed');
+      // Reload on error too to sync state
+      await loadData();
+    } finally {
+      // Remove from processing set
+      setProcessing((prev) => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
     }
   };
 
@@ -185,11 +227,20 @@ export function TaskApprovals() {
           <div className="flex gap-2">
             <Button
               onClick={handleBatchApprove}
-              disabled={selectedIds.size === 0 || activeTab !== 'pending'}
-              className="bg-[#16A34A] hover:bg-[#15803D] text-white"
+              disabled={selectedIds.size === 0 || activeTab !== 'pending' || processing.size > 0}
+              className="bg-[#16A34A] hover:bg-[#15803D] text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              {processing.size > 0 ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
               <CheckCircle size={16} className="mr-2" />
               Approve Selected ({selectedIds.size})
+                </>
+              )}
             </Button>
           </div>
         }
@@ -295,10 +346,10 @@ export function TaskApprovals() {
                 <th className="px-6 py-3 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedIds.size === approvals.length && approvals.length > 0}
+                    checked={selectedIds.size === filteredApprovals.length && filteredApprovals.length > 0}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedIds(new Set(approvals.map((a) => a.id)));
+                        setSelectedIds(new Set(filteredApprovals.map((a) => a.id)));
                       } else {
                         setSelectedIds(new Set());
                       }
@@ -324,15 +375,15 @@ export function TaskApprovals() {
                     </td>
                   </tr>
                 ))
-              ) : approvals.length === 0 ? (
+              ) : filteredApprovals.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-400">
                     <CheckCircle2 size={48} className="mx-auto mb-2 opacity-20" />
-                    <p>No {activeTab !== 'all' ? activeTab : ''} approvals found</p>
+                    <p>{searchQuery ? `No approvals found matching "${searchQuery}"` : `No ${activeTab !== 'all' ? activeTab : ''} approvals found`}</p>
                   </td>
                 </tr>
               ) : (
-                approvals.map((approval) => (
+                filteredApprovals.map((approval) => (
                   <tr key={approval.id} className="hover:bg-[#FAFAFA]">
                     <td className="px-6 py-4">
                       <input

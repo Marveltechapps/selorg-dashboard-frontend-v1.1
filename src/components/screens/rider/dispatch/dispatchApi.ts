@@ -255,18 +255,47 @@ export async function fetchOnlineRiders(): Promise<DispatchRider[]> {
   }
 }
 
-export async function assignOrder(orderId: string, riderId: string, overrideSla?: boolean): Promise<void> {
-  await apiRequest(
-    API_ENDPOINTS.dispatch.assignOrder,
+export async function createOrder(payload: { orderId?: string; pickup: string; drop: string; customer?: string }): Promise<{ id: string; pickupLocation: string; dropLocation: string; customerName: string }> {
+  const res = await apiRequest<{ id: string; pickupLocation: string; dropLocation: string; customerName: string }>(
+    API_ENDPOINTS.dispatch.createOrder,
     {
       method: 'POST',
       body: JSON.stringify({
-        orderId,
-        riderId,
-        overrideSla: overrideSla || false,
+        orderId: payload.orderId,
+        pickup: payload.pickup,
+        drop: payload.drop,
+        customer: payload.customer || 'Customer',
       }),
     }
   );
+  return res;
+}
+
+export async function assignOrder(orderId: string, riderId: string, overrideSla?: boolean): Promise<void> {
+  try {
+    const result = await apiRequest<any>(
+      API_ENDPOINTS.dispatch.assignOrder,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId,
+          riderId,
+          overrideSla: overrideSla || false,
+        }),
+      }
+    );
+    // Return void but ensure the request succeeded
+    if (result && result.error) {
+      throw new Error(result.message || result.error || 'Assignment failed');
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : (typeof error === 'object' && error !== null && 'message' in error)
+        ? String(error.message)
+        : 'Assignment failed';
+    throw new Error(errorMessage);
+  }
 }
 
 export async function autoAssignOrders(orderIds: string[]): Promise<{ assigned: number; failed: number }> {

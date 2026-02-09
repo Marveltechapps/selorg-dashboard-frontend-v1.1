@@ -26,12 +26,12 @@ export function VehicleManageDrawer({
   onScheduleMaintenance 
 }: VehicleManageDrawerProps) {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("status");
+  const [activeTab, setActiveTab] = useState("assignment");
 
   // Form States
   const [status, setStatus] = useState<VehicleStatus>("active");
   const [pool, setPool] = useState<PoolType>("Hub");
-  const [riderName, setRiderName] = useState("");
+  const [riderName, setRiderName] = useState("unassign"); // Use "unassign" instead of empty string
   const [maintType, setMaintType] = useState<MaintenanceType>("Scheduled Service");
   const [maintDate, setMaintDate] = useState("");
   const [maintNotes, setMaintNotes] = useState("");
@@ -41,7 +41,8 @@ export function VehicleManageDrawer({
     if (vehicle) {
       setStatus(vehicle.status);
       setPool(vehicle.pool);
-      setRiderName(vehicle.assignedRiderName || "");
+      // Convert empty string to "unassign" for Select component
+      setRiderName(vehicle.assignedRiderName || "unassign");
       setMaintDate(new Date(Date.now() + 86400000).toISOString().split('T')[0]); // tomorrow
       setMaintNotes("");
     }
@@ -64,11 +65,17 @@ export function VehicleManageDrawer({
     if (!vehicle) return;
     setLoading(true);
     try {
+      // Handle "unassign" value - convert to empty string for unassignment
+      const actualRiderName = riderName === "unassign" ? "" : riderName;
       await onUpdate(vehicle.id, { 
-        assignedRiderName: riderName, 
-        assignedRiderId: riderName ? "r-mock" : undefined 
+        assignedRiderName: actualRiderName, 
+        assignedRiderId: actualRiderName ? "r-mock" : undefined 
       });
-      toast.success(riderName ? "Rider assigned" : "Rider unassigned");
+      toast.success(actualRiderName ? "Rider assigned" : "Rider unassigned");
+      // Update local state to reflect the actual value
+      if (actualRiderName === "") {
+        setRiderName("unassign");
+      }
     } catch (e) {
       toast.error("Failed to update assignment");
     } finally {
@@ -78,6 +85,10 @@ export function VehicleManageDrawer({
 
   const handleScheduleService = async () => {
     if (!vehicle) return;
+    if (!maintDate) {
+      toast.error("Please select a scheduled date");
+      return;
+    }
     setLoading(true);
     try {
       await onScheduleMaintenance({
@@ -85,30 +96,36 @@ export function VehicleManageDrawer({
         vehicleInternalId: vehicle.id,
         type: maintType,
         scheduledDate: new Date(maintDate).toISOString(),
-        notes: maintNotes
+        notes: maintNotes || undefined
       });
-      toast.success("Maintenance scheduled");
+      toast.success("Maintenance scheduled successfully");
       // Optionally auto-update status if breakdown
       if (maintType === "Breakdown") {
         await onUpdate(vehicle.id, { status: "maintenance" });
       }
+      // Reset form
+      setMaintDate(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
+      setMaintNotes("");
       onClose();
     } catch (e) {
-      toast.error("Failed to schedule service");
+      const errorMessage = e instanceof Error ? e.message : "Failed to schedule service";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!vehicle) return null;
-
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[540px]">
+      <SheetContent className="w-[400px] sm:w-[540px] z-[100] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Manage {vehicle.vehicleId}</SheetTitle>
+          <SheetTitle>Manage {vehicle?.vehicleId ?? 'Vehicle'}</SheetTitle>
           <SheetDescription>Update status, pool, assignment, or schedule service.</SheetDescription>
         </SheetHeader>
+        {!vehicle ? (
+          <p className="py-8 text-center text-muted-foreground">No vehicle selected. Close and try again.</p>
+        ) : (
+        <>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <TabsList className="grid w-full grid-cols-3">
@@ -157,12 +174,12 @@ export function VehicleManageDrawer({
           <TabsContent value="assignment" className="space-y-4 py-4">
              <div className="space-y-2">
                <Label>Assigned Rider</Label>
-               <Select value={riderName} onValueChange={setRiderName}>
+               <Select value={riderName || "unassign"} onValueChange={setRiderName}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a rider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">-- Unassign --</SelectItem>
+                    <SelectItem value="unassign">-- Unassign --</SelectItem>
                     <SelectItem value="Rider 1">Rider 1 (John Doe)</SelectItem>
                     <SelectItem value="Rider 2">Rider 2 (Jane Smith)</SelectItem>
                     <SelectItem value="Rider 3">Rider 3 (Mike Ross)</SelectItem>
@@ -220,6 +237,8 @@ export function VehicleManageDrawer({
              </Button>
           </TabsContent>
         </Tabs>
+        </>
+        )}
       </SheetContent>
     </Sheet>
   );

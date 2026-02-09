@@ -27,13 +27,14 @@ export async function apiRequest<T>(
     if (!response.ok) {
       const errorText = await response.text();
       logger.error(`[${moduleName}] Error response:`, errorText);
-      let error;
+      let error: { message?: string; error?: { message?: string } } = { message: errorText || 'Request failed' };
       try {
         error = JSON.parse(errorText);
       } catch {
-        error = { message: errorText || 'Request failed' };
+        /* use default */
       }
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      const message = error?.error?.message || error?.message || `HTTP error! status: ${response.status}`;
+      throw new Error(message);
     }
 
     // Handle 204 No Content

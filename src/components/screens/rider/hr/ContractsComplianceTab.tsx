@@ -132,8 +132,10 @@ export function ContractsComplianceTab({ riders, loading, onRefresh }: Contracts
                            try {
                              const res = await sendReminderToRider(rider.id);
                              toast.success(res?.message ?? `Reminder sent to ${rider.name}`);
-                           } catch {
-                             toast.success(`Reminder queued for ${rider.name}`);
+                             // Background refresh to sync with server (non-blocking)
+                             onRefresh?.().catch(() => {});
+                           } catch (err) {
+                             toast.error(err instanceof Error ? err.message : "Failed to send reminder");
                            }
                          }}>
                            <Send size={14} /> Send Reminder
@@ -159,7 +161,17 @@ export function ContractsComplianceTab({ riders, loading, onRefresh }: Contracts
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageRider(null)}>Close</Button>
             {manageRider && manageRider.id !== 'sample' && (
-              <Button onClick={async () => { await sendReminderToRider(manageRider.id); toast.success(`Reminder sent to ${manageRider.name}`); setManageRider(null); onRefresh?.(); }}>Send Reminder</Button>
+              <Button onClick={async () => {
+              try {
+                const res = await sendReminderToRider(manageRider.id);
+                toast.success(res?.message ?? `Reminder sent to ${manageRider.name}`);
+                setManageRider(null);
+                // Background refresh to sync with server (non-blocking)
+                onRefresh?.().catch(() => {});
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed to send reminder");
+              }
+            }}>Send Reminder</Button>
             )}
           </DialogFooter>
         </DialogContent>

@@ -52,10 +52,8 @@ export function DocumentReviewDrawer({
       toast.success("Document approved successfully");
       onStatusUpdate(document.id, 'approved');
       onClose();
-    } catch (error) {
-      onStatusUpdate(document.id, 'approved');
-      onClose();
-      toast.success("Document approved (saved locally)");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Approval failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -73,10 +71,8 @@ export function DocumentReviewDrawer({
       toast.success("Document rejected");
       onStatusUpdate(document.id, 'rejected');
       onClose();
-    } catch (error) {
-      onStatusUpdate(document.id, 'rejected');
-      onClose();
-      toast.success("Document rejected (saved locally)");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Rejection failed");
     } finally {
       setIsSubmitting(false);
     }

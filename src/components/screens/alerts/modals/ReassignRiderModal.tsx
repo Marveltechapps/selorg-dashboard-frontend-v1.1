@@ -1,11 +1,11 @@
-import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import React, { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../../../../components/ui/dialog";
+import { Button } from "../../../../components/ui/button";
+import { Input } from "../../../../components/ui/input";
 import { Loader2, Search, User } from "lucide-react";
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "../../../../components/ui/scroll-area";
+import { Badge } from "../../../../components/ui/badge";
 
 interface RiderOption {
   id: string;
@@ -33,7 +33,21 @@ export function ReassignRiderModal({ isOpen, onClose, onConfirm, riders: ridersP
   const [selectedRider, setSelectedRider] = useState<RiderOption | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const ridersList = ridersProp?.length ? ridersProp.map(r => ({ id: r.id, name: r.name, distance: `${Math.floor(Math.random() * 2) + 0.5}km`, status: (r as any).status || "online", load: (r as any).capacity?.currentLoad ?? 0 })) : FALLBACK_RIDERS;
+  // Reset selected rider when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedRider(null);
+      setSearch("");
+    }
+  }, [isOpen]);
+
+  const ridersList = ridersProp?.length ? ridersProp.map(r => ({ 
+    id: r.id, 
+    name: r.name, 
+    distance: `${Math.floor(Math.random() * 2) + 0.5}km`, 
+    status: r.status || "online", 
+    load: r.load ?? 0 
+  })) : FALLBACK_RIDERS;
   const filteredRiders = ridersList.filter(r => 
     r.name.toLowerCase().includes(search.toLowerCase()) && (r.status !== "offline")
   );

@@ -259,7 +259,7 @@ export function AdminTopBar({ onSearchResultSelect, setActiveTab }: AdminTopBarP
   const renderNotificationsDropdown = () => {
     if (!notificationsOpen) return null;
     return (
-      <div className="absolute top-full right-0 mt-1 w-[360px] bg-white border border-[#e4e4e7] rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+      <div className="absolute top-full right-2 mt-1 w-[360px] bg-white border border-[#e4e4e7] rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
         <div className="p-3 border-b border-[#e4e4e7] flex items-center justify-between">
           <span className="font-semibold text-[#18181b]">Notifications</span>
           <button

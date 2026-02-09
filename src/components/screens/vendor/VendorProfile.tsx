@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, X, MoreVertical, Edit, MessageSquare, FileText, 
   BarChart3, Pause, Phone, Mail, MapPin, Building2, CreditCard,
   TrendingUp, TrendingDown, CheckCircle, AlertTriangle, XCircle,
-  Download, Eye, RefreshCw, Copy, Trash2
+  Download, Eye, RefreshCw, Copy, Trash2, Plus, Save
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { createPDFBlob, createPDFViewHTML } from '../../../utils/pdfHelper';
 
 interface Vendor {
   id: string;
@@ -25,9 +27,10 @@ interface VendorProfileProps {
   onMessage: () => void;
   onViewDocs: () => void;
   onSuspend: () => void;
+  onReport?: () => void;
 }
 
-export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, onSuspend }: VendorProfileProps) {
+export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, onSuspend, onReport }: VendorProfileProps) {
   const [openMenu, setOpenMenu] = useState(false);
   const [showFullAccount, setShowFullAccount] = useState(false);
 
@@ -141,7 +144,15 @@ export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, 
                   <button onClick={() => { onViewDocs(); setOpenMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-[#F3F4F6] flex items-center gap-2">
                     <FileText size={14} /> View Documents
                   </button>
-                  <button className="w-full px-4 py-2 text-left text-sm hover:bg-[#F3F4F6] flex items-center gap-2">
+                  <button 
+                    onClick={() => { 
+                      if (onReport) {
+                        onReport();
+                      }
+                      setOpenMenu(false); 
+                    }} 
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-[#F3F4F6] flex items-center gap-2"
+                  >
                     <BarChart3 size={14} /> Performance Report
                   </button>
                   <div className="border-t border-[#E5E7EB] my-1" />
@@ -231,7 +242,14 @@ export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, 
                 >
                   <FileText size={16} /> View Docs
                 </button>
-                <button className="px-4 py-2 bg-white border border-[#E5E7EB] text-[#1F2937] rounded-lg text-sm font-medium hover:bg-[#F3F4F6] flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    if (onReport) {
+                      onReport();
+                    }
+                  }}
+                  className="px-4 py-2 bg-white border border-[#E5E7EB] text-[#1F2937] rounded-lg text-sm font-medium hover:bg-[#F3F4F6] flex items-center gap-2"
+                >
                   <BarChart3 size={16} /> Report
                 </button>
               </div>
@@ -494,9 +512,16 @@ export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, 
               </table>
             </div>
             <div className="mt-4 text-center">
-              <a href="#" className="text-[#4F46E5] text-sm font-medium hover:underline">
+              <button 
+                onClick={() => {
+                  toast.info('Opening all orders for this vendor...');
+                  // In a real app, this would navigate to orders page filtered by vendor
+                  window.open(`/orders?vendor=${vendor.id}`, '_blank');
+                }}
+                className="text-[#4F46E5] text-sm font-medium hover:underline"
+              >
                 View All Orders →
-              </a>
+              </button>
             </div>
           </section>
 
@@ -522,10 +547,42 @@ export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, 
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const content = `Document: ${doc.name}\nStatus: ${doc.status}\nValid Until: ${doc.valid_until || 'N/A'}\nDays Left: ${doc.days_left || 'N/A'}\n\nThis is a sample document for demonstration purposes.\nIn a production environment, this would be the actual document content.`;
+                          const htmlContent = createPDFViewHTML(doc.name, content);
+                          const blob = new Blob([htmlContent], { type: 'text/html' });
+                          const url = URL.createObjectURL(blob);
+                          const newWindow = window.open(url, '_blank');
+                          if (newWindow) {
+                            toast.success(`Opening ${doc.name}...`);
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                          } else {
+                            toast.error('Please allow popups to view documents');
+                          }
+                        }}
+                        className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded flex items-center gap-1 transition-colors"
+                      >
                         <Eye size={14} /> View
                       </button>
-                      <button className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const content = `Document: ${doc.name}\nStatus: ${doc.status}\nValid Until: ${doc.valid_until || 'N/A'}\nDays Left: ${doc.days_left || 'N/A'}\n\nThis is a sample document for demonstration purposes.`;
+                          const pdfBlob = createPDFBlob(content, doc.name);
+                          const url = URL.createObjectURL(pdfBlob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${doc.name.replace(/\s+/g, '_')}.pdf`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          setTimeout(() => URL.revokeObjectURL(url), 100);
+                          toast.success(`Downloaded ${doc.name} as PDF`);
+                        }}
+                        className="px-3 py-1 text-xs font-medium text-[#4F46E5] hover:bg-[#F0F7FF] rounded flex items-center gap-1 transition-colors"
+                      >
                         <Download size={14} /> Download
                       </button>
                     </div>
@@ -559,20 +616,36 @@ export function VendorProfile({ vendor, onClose, onEdit, onMessage, onViewDocs, 
 
 // Category Management Component
 function CategoryManagement() {
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
-
-  const categories = [
-    { name: 'Fruits', enabled: true, products: [{ name: 'Apple', type: 'Raw' }, { name: 'Mango Juice', type: 'Finished' }] },
-    { name: 'Vegetables', enabled: true, products: [{ name: 'Tomato', type: 'Raw' }, { name: 'Carrot', type: 'Raw' }] },
-    { name: 'Atta', enabled: true, products: [{ name: 'Wheat Flour', type: 'Finished' }] },
-    { name: 'Rice', enabled: true, products: [{ name: 'Basmati Rice', type: 'Raw' }] },
-    { name: 'Oil', enabled: false, products: [] },
-    { name: 'Dals', enabled: true, products: [{ name: 'Moong Dal', type: 'Raw' }] },
-    { name: 'Dairy', enabled: true, products: [{ name: 'Milk', type: 'Raw' }] },
-    { name: 'Bread', enabled: false, products: [] },
-    { name: 'Eggs', enabled: true, products: [{ name: 'Farm Eggs', type: 'Raw' }] },
-    { name: 'Masalas', enabled: true, products: [{ name: 'Garam Masala', type: 'Finished' }] },
+  const STORAGE_KEY = 'vendor_categories_products';
+  const defaultCategories = [
+    { id: '1', name: 'Fruits', enabled: true, products: [{ id: 'p1', name: 'Apple', type: 'Raw' }, { id: 'p2', name: 'Mango Juice', type: 'Finished' }] },
+    { id: '2', name: 'Vegetables', enabled: true, products: [{ id: 'p3', name: 'Tomato', type: 'Raw' }, { id: 'p4', name: 'Carrot', type: 'Raw' }] },
+    { id: '3', name: 'Atta', enabled: true, products: [{ id: 'p5', name: 'Wheat Flour', type: 'Finished' }] },
+    { id: '4', name: 'Rice', enabled: true, products: [{ id: 'p6', name: 'Basmati Rice', type: 'Raw' }] },
+    { id: '5', name: 'Oil', enabled: false, products: [] },
+    { id: '6', name: 'Dals', enabled: true, products: [{ id: 'p7', name: 'Moong Dal', type: 'Raw' }] },
+    { id: '7', name: 'Dairy', enabled: true, products: [{ id: 'p8', name: 'Milk', type: 'Raw' }] },
+    { id: '8', name: 'Bread', enabled: false, products: [] },
+    { id: '9', name: 'Eggs', enabled: true, products: [{ id: 'p9', name: 'Farm Eggs', type: 'Raw' }] },
+    { id: '10', name: 'Masalas', enabled: true, products: [{ id: 'p10', name: 'Garam Masala', type: 'Finished' }] },
   ];
+
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : defaultCategories;
+  });
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [editingCategoryEnabled, setEditingCategoryEnabled] = useState(true);
+  const [addingProductTo, setAddingProductTo] = useState<string | null>(null);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductType, setNewProductType] = useState<'Raw' | 'Finished'>('Raw');
+
+  // Save to localStorage whenever categories change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
+  }, [categories]);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories(prev =>
@@ -580,6 +653,65 @@ function CategoryManagement() {
         ? prev.filter(c => c !== categoryName)
         : [...prev, categoryName]
     );
+  };
+
+  const handleEditCategory = (categoryId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
+      setEditingCategory(categoryId);
+      setEditingCategoryName(category.name);
+      setEditingCategoryEnabled(category.enabled);
+    }
+  };
+
+  const handleSaveCategoryEdit = () => {
+    if (!editingCategoryName.trim()) {
+      toast.error('Category name cannot be empty');
+      return;
+    }
+    setCategories(prev => prev.map(cat => 
+      cat.id === editingCategory
+        ? { ...cat, name: editingCategoryName, enabled: editingCategoryEnabled }
+        : cat
+    ));
+    setEditingCategory(null);
+    setEditingCategoryName('');
+    toast.success('Category updated successfully');
+  };
+
+  const handleRemoveProduct = (categoryId: string, productId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCategories(prev => {
+      const updated = prev.map(cat => 
+        cat.id === categoryId 
+          ? { ...cat, products: cat.products.filter(p => p.id !== productId) }
+          : cat
+      );
+      return updated;
+    });
+    toast.success('Product removed successfully');
+  };
+
+  const handleAddProduct = (categoryId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAddingProductTo(categoryId);
+  };
+
+  const handleSaveNewProduct = (categoryId: string) => {
+    if (!newProductName.trim()) {
+      toast.error('Please enter a product name');
+      return;
+    }
+    setCategories(prev => prev.map(cat => 
+      cat.id === categoryId 
+        ? { ...cat, products: [...cat.products, { id: `p${Date.now()}`, name: newProductName, type: newProductType }] }
+        : cat
+    ));
+    setNewProductName('');
+    setNewProductType('Raw');
+    setAddingProductTo(null);
+    toast.success('Product added successfully');
   };
 
   return (
@@ -603,9 +735,53 @@ function CategoryManagement() {
                   {category.enabled ? '✓ Enabled' : 'Disabled'}
                 </span>
               </div>
-              <button className="px-3 py-1 text-sm text-[#4F46E5] hover:bg-[#F0F7FF] rounded">
-                Edit
-              </button>
+              {editingCategory === category.id ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editingCategoryName}
+                    onChange={(e) => setEditingCategoryName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-2 py-1 text-sm border border-[#D1D5DB] rounded focus:outline-none focus:border-[#4F46E5]"
+                    placeholder="Category name"
+                  />
+                  <label className="flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={editingCategoryEnabled}
+                      onChange={(e) => setEditingCategoryEnabled(e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    Enabled
+                  </label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSaveCategoryEdit();
+                    }}
+                    className="px-2 py-1 text-xs bg-[#4F46E5] text-white rounded hover:bg-[#4338CA]"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingCategory(null);
+                      setEditingCategoryName('');
+                    }}
+                    className="px-2 py-1 text-xs border border-[#D1D5DB] rounded hover:bg-[#F3F4F6]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={(e) => handleEditCategory(category.id, e)}
+                  className="px-3 py-1 text-sm text-[#4F46E5] hover:bg-[#F0F7FF] rounded transition-colors"
+                >
+                  Edit
+                </button>
+              )}
             </div>
             
             {expandedCategories.includes(category.name) && (
@@ -622,14 +798,63 @@ function CategoryManagement() {
                               {product.type}
                             </span>
                           </div>
-                          <button className="text-xs text-[#EF4444] hover:underline">Remove</button>
+                          <button 
+                            onClick={(e) => handleRemoveProduct(category.id, product.id, e)}
+                            className="text-xs text-[#EF4444] hover:underline transition-colors"
+                          >
+                            Remove
+                          </button>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="text-sm text-[#9CA3AF] italic">No products added</p>
                   )}
-                  <button className="mt-3 text-sm text-[#4F46E5] hover:underline">+ Add Product</button>
+                  {addingProductTo === category.id ? (
+                    <div className="mt-3 p-3 bg-white rounded border border-[#E5E7EB] space-y-2">
+                      <input
+                        type="text"
+                        value={newProductName}
+                        onChange={(e) => setNewProductName(e.target.value)}
+                        placeholder="Product name"
+                        className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        autoFocus
+                      />
+                      <select
+                        value={newProductType}
+                        onChange={(e) => setNewProductType(e.target.value as 'Raw' | 'Finished')}
+                        className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                      >
+                        <option value="Raw">Raw</option>
+                        <option value="Finished">Finished</option>
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSaveNewProduct(category.id)}
+                          className="flex-1 px-3 py-1.5 bg-[#4F46E5] text-white rounded text-sm font-medium hover:bg-[#4338CA]"
+                        >
+                          <Save size={14} className="inline mr-1" />
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAddingProductTo(null);
+                            setNewProductName('');
+                          }}
+                          className="flex-1 px-3 py-1.5 border border-[#D1D5DB] rounded text-sm font-medium hover:bg-[#F3F4F6]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={(e) => handleAddProduct(category.id, e)}
+                      className="mt-3 text-sm text-[#4F46E5] hover:underline transition-colors"
+                    >
+                      + Add Product
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -642,19 +867,38 @@ function CategoryManagement() {
 
 // Purchase Limits Component
 function PurchaseLimits() {
-  const [isEditingGlobal, setIsEditingGlobal] = useState(false);
-
-  const globalLimits = {
-    min: 100,
-    max: 500,
-    unit: 'kg'
-  };
-
-  const categoryLimits = [
-    { category: 'Vegetables', min: 50, max: 200, unit: 'kg' },
-    { category: 'Fruits', min: 30, max: 150, unit: 'kg' },
-    { category: 'Dairy', min: 20, max: 100, unit: 'L' },
+  const STORAGE_KEY_GLOBAL = 'vendor_global_limits';
+  const STORAGE_KEY_CATEGORY = 'vendor_category_limits';
+  
+  const defaultGlobalLimits = { min: 100, max: 500, unit: 'kg' };
+  const defaultCategoryLimits = [
+    { id: '1', category: 'Vegetables', min: 50, max: 200, unit: 'kg' },
+    { id: '2', category: 'Fruits', min: 30, max: 150, unit: 'kg' },
+    { id: '3', category: 'Dairy', min: 20, max: 100, unit: 'L' },
   ];
+
+  const [isEditingGlobal, setIsEditingGlobal] = useState(false);
+  const [globalLimits, setGlobalLimits] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_GLOBAL);
+    return saved ? JSON.parse(saved) : defaultGlobalLimits;
+  });
+  const [editingLimit, setEditingLimit] = useState<{ min: number; max: number; unit: string } | null>(null);
+  const [categoryLimits, setCategoryLimits] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_CATEGORY);
+    return saved ? JSON.parse(saved) : defaultCategoryLimits;
+  });
+  const [isAddingCategoryLimit, setIsAddingCategoryLimit] = useState(false);
+  const [newCategoryLimit, setNewCategoryLimit] = useState({ category: '', min: '', max: '', unit: 'kg' });
+  const [editingCategoryLimitId, setEditingCategoryLimitId] = useState<string | null>(null);
+
+  // Save to localStorage whenever limits change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_GLOBAL, JSON.stringify(globalLimits));
+  }, [globalLimits]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_CATEGORY, JSON.stringify(categoryLimits));
+  }, [categoryLimits]);
 
   return (
     <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-6 mb-6">
@@ -663,54 +907,269 @@ function PurchaseLimits() {
       {/* Global Limits */}
       <div className="mb-6">
         <h4 className="text-sm font-bold text-[#6B7280] uppercase mb-3">Global Limits</h4>
-        <div className="bg-[#F9FAFB] rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        {isEditingGlobal ? (
+          <div className="bg-[#F9FAFB] rounded-lg p-4 space-y-3 border-2 border-[#4F46E5]">
             <div>
-              <p className="text-xs text-[#6B7280] mb-1">Minimum Quantity Per Order</p>
-              <p className="text-sm text-[#1F2937] font-medium">{globalLimits.min} {globalLimits.unit} per day</p>
+              <label className="text-xs text-[#6B7280] mb-1 block">Minimum Quantity Per Order</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={editingLimit?.min || globalLimits.min}
+                  onChange={(e) => setEditingLimit({ ...(editingLimit || globalLimits), min: parseInt(e.target.value) || 0 })}
+                  className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                />
+                <select
+                  value={editingLimit?.unit || globalLimits.unit}
+                  onChange={(e) => setEditingLimit({ ...(editingLimit || globalLimits), unit: e.target.value })}
+                  className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                >
+                  <option value="kg">kg</option>
+                  <option value="L">L</option>
+                  <option value="pieces">pieces</option>
+                </select>
+              </div>
             </div>
-            <button 
-              onClick={() => setIsEditingGlobal(true)}
-              className="p-2 hover:bg-white rounded transition-colors"
-            >
-              <Edit size={16} className="text-[#4F46E5]" />
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-[#6B7280] mb-1">Maximum Quantity Per Order</p>
-              <p className="text-sm text-[#1F2937] font-medium">{globalLimits.max} {globalLimits.unit} per day</p>
+              <label className="text-xs text-[#6B7280] mb-1 block">Maximum Quantity Per Order</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={editingLimit?.max || globalLimits.max}
+                  onChange={(e) => setEditingLimit({ ...(editingLimit || globalLimits), max: parseInt(e.target.value) || 0 })}
+                  className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                />
+                <select
+                  value={editingLimit?.unit || globalLimits.unit}
+                  onChange={(e) => setEditingLimit({ ...(editingLimit || globalLimits), unit: e.target.value })}
+                  className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                >
+                  <option value="kg">kg</option>
+                  <option value="L">L</option>
+                  <option value="pieces">pieces</option>
+                </select>
+              </div>
             </div>
-            <button 
-              onClick={() => setIsEditingGlobal(true)}
-              className="p-2 hover:bg-white rounded transition-colors"
-            >
-              <Edit size={16} className="text-[#4F46E5]" />
-            </button>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  if (editingLimit) {
+                    setGlobalLimits(editingLimit);
+                    toast.success('Global limits updated successfully');
+                  }
+                  setIsEditingGlobal(false);
+                  setEditingLimit(null);
+                }}
+                className="flex-1 px-4 py-2 bg-[#4F46E5] text-white rounded-lg text-sm font-medium hover:bg-[#4338CA]"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditingGlobal(false);
+                  setEditingLimit(null);
+                }}
+                className="flex-1 px-4 py-2 border border-[#D1D5DB] rounded-lg text-sm font-medium hover:bg-[#F3F4F6]"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-[#F9FAFB] rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[#6B7280] mb-1">Minimum Quantity Per Order</p>
+                <p className="text-sm text-[#1F2937] font-medium">{globalLimits.min} {globalLimits.unit} per day</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsEditingGlobal(true);
+                  setEditingLimit({ ...globalLimits });
+                }}
+                className="p-2 hover:bg-white rounded transition-colors"
+              >
+                <Edit size={16} className="text-[#4F46E5]" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-[#6B7280] mb-1">Maximum Quantity Per Order</p>
+                <p className="text-sm text-[#1F2937] font-medium">{globalLimits.max} {globalLimits.unit} per day</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsEditingGlobal(true);
+                  setEditingLimit({ ...globalLimits });
+                }}
+                className="p-2 hover:bg-white rounded transition-colors"
+              >
+                <Edit size={16} className="text-[#4F46E5]" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Category-Specific Limits */}
       <div>
         <h4 className="text-sm font-bold text-[#6B7280] uppercase mb-3">Category-Specific Limits</h4>
         <div className="space-y-2">
-          {categoryLimits.map((limit, index) => (
-            <div key={index} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-lg hover:bg-[#F3F4F6] transition-colors">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[#1F2937]">{limit.category}</p>
-                <p className="text-xs text-[#6B7280]">
-                  Min: {limit.min} {limit.unit} | Max: {limit.max} {limit.unit}
-                </p>
+          {categoryLimits.map((limit) => (
+            editingCategoryLimitId === limit.id ? (
+              <div key={limit.id} className="p-3 bg-white border-2 border-[#4F46E5] rounded-lg space-y-2">
+                <input
+                  type="text"
+                  value={limit.category}
+                  onChange={(e) => setCategoryLimits(prev => prev.map(l => l.id === limit.id ? { ...l, category: e.target.value } : l))}
+                  className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={limit.min}
+                    onChange={(e) => setCategoryLimits(prev => prev.map(l => l.id === limit.id ? { ...l, min: parseInt(e.target.value) || 0 } : l))}
+                    placeholder="Min"
+                    className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                  />
+                  <input
+                    type="number"
+                    value={limit.max}
+                    onChange={(e) => setCategoryLimits(prev => prev.map(l => l.id === limit.id ? { ...l, max: parseInt(e.target.value) || 0 } : l))}
+                    placeholder="Max"
+                    className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                  />
+                  <select
+                    value={limit.unit}
+                    onChange={(e) => setCategoryLimits(prev => prev.map(l => l.id === limit.id ? { ...l, unit: e.target.value } : l))}
+                    className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="L">L</option>
+                    <option value="pieces">pieces</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingCategoryLimitId(null);
+                      toast.success('Category limit updated');
+                    }}
+                    className="flex-1 px-3 py-1.5 bg-[#4F46E5] text-white rounded text-xs font-medium hover:bg-[#4338CA]"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingCategoryLimitId(null)}
+                    className="flex-1 px-3 py-1.5 border border-[#D1D5DB] rounded text-xs font-medium hover:bg-[#F3F4F6]"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 text-xs text-[#4F46E5] hover:bg-white rounded">Edit</button>
-                <button className="px-3 py-1 text-xs text-[#EF4444] hover:bg-white rounded">Delete</button>
+            ) : (
+              <div key={limit.id} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-lg hover:bg-[#F3F4F6] transition-colors">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#1F2937]">{limit.category}</p>
+                  <p className="text-xs text-[#6B7280]">
+                    Min: {limit.min} {limit.unit} | Max: {limit.max} {limit.unit}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setEditingCategoryLimitId(limit.id)}
+                    className="px-3 py-1 text-xs text-[#4F46E5] hover:bg-white rounded transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setCategoryLimits(prev => prev.filter(l => l.id !== limit.id));
+                      toast.success('Category limit deleted');
+                    }}
+                    className="px-3 py-1 text-xs text-[#EF4444] hover:bg-white rounded transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-            </div>
+            )
           ))}
         </div>
-        <button className="mt-3 text-sm text-[#4F46E5] hover:underline">+ Add Category Limit</button>
+        {isAddingCategoryLimit ? (
+          <div className="mt-3 p-3 bg-white border-2 border-[#4F46E5] rounded-lg space-y-2">
+            <input
+              type="text"
+              value={newCategoryLimit.category}
+              onChange={(e) => setNewCategoryLimit({ ...newCategoryLimit, category: e.target.value })}
+              placeholder="Category name"
+              className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={newCategoryLimit.min}
+                onChange={(e) => setNewCategoryLimit({ ...newCategoryLimit, min: e.target.value })}
+                placeholder="Min"
+                className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+              />
+              <input
+                type="number"
+                value={newCategoryLimit.max}
+                onChange={(e) => setNewCategoryLimit({ ...newCategoryLimit, max: e.target.value })}
+                placeholder="Max"
+                className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+              />
+              <select
+                value={newCategoryLimit.unit}
+                onChange={(e) => setNewCategoryLimit({ ...newCategoryLimit, unit: e.target.value })}
+                className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+              >
+                <option value="kg">kg</option>
+                <option value="L">L</option>
+                <option value="pieces">pieces</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (newCategoryLimit.category && newCategoryLimit.min && newCategoryLimit.max) {
+                    setCategoryLimits(prev => [...prev, {
+                      id: `cl${Date.now()}`,
+                      category: newCategoryLimit.category,
+                      min: parseInt(newCategoryLimit.min),
+                      max: parseInt(newCategoryLimit.max),
+                      unit: newCategoryLimit.unit
+                    }]);
+                    setNewCategoryLimit({ category: '', min: '', max: '', unit: 'kg' });
+                    setIsAddingCategoryLimit(false);
+                    toast.success('Category limit added');
+                  } else {
+                    toast.error('Please fill all fields');
+                  }
+                }}
+                className="flex-1 px-3 py-1.5 bg-[#4F46E5] text-white rounded text-xs font-medium hover:bg-[#4338CA]"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddingCategoryLimit(false);
+                  setNewCategoryLimit({ category: '', min: '', max: '', unit: 'kg' });
+                }}
+                className="flex-1 px-3 py-1.5 border border-[#D1D5DB] rounded text-xs font-medium hover:bg-[#F3F4F6]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setIsAddingCategoryLimit(true)}
+            className="mt-3 text-sm text-[#4F46E5] hover:underline transition-colors"
+          >
+            + Add Category Limit
+          </button>
+        )}
       </div>
     </section>
   );
@@ -718,20 +1177,66 @@ function PurchaseLimits() {
 
 // Product Constraints Component
 function ProductConstraints() {
-  const constraints = [
-    { product: 'Tomato', category: 'Vegetables', min: 50, max: 200, unit: 'kg' },
-    { product: 'Apple', category: 'Fruits', min: 30, max: 150, unit: 'kg' },
-    { product: 'Milk', category: 'Dairy', min: 20, max: 100, unit: 'L' },
-    { product: 'Rice (Basmati)', category: 'Rice', min: 100, max: 500, unit: 'kg' },
-    { product: 'Mustard Oil', category: 'Oil', min: 50, max: 300, unit: 'L' },
+  const STORAGE_KEY = 'vendor_product_constraints';
+  const defaultConstraints = [
+    { id: '1', product: 'Tomato', category: 'Vegetables', min: 50, max: 200, unit: 'kg' },
+    { id: '2', product: 'Apple', category: 'Fruits', min: 30, max: 150, unit: 'kg' },
+    { id: '3', product: 'Milk', category: 'Dairy', min: 20, max: 100, unit: 'L' },
+    { id: '4', product: 'Rice (Basmati)', category: 'Rice', min: 100, max: 500, unit: 'kg' },
+    { id: '5', product: 'Mustard Oil', category: 'Oil', min: 50, max: 300, unit: 'L' },
   ];
+
+  const [constraints, setConstraints] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : defaultConstraints;
+  });
+  const [editingConstraintId, setEditingConstraintId] = useState<string | null>(null);
+  const [isAddingConstraint, setIsAddingConstraint] = useState(false);
+  const [newConstraint, setNewConstraint] = useState({ product: '', category: '', min: '', max: '', unit: 'kg' });
+
+  // Save to localStorage whenever constraints change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(constraints));
+  }, [constraints]);
+
+  const handleEditConstraint = (constraintId: string) => {
+    setEditingConstraintId(constraintId);
+  };
+
+  const handleDeleteConstraint = (constraintId: string) => {
+    setConstraints(prev => prev.filter(c => c.id !== constraintId));
+    toast.success('Product constraint deleted');
+  };
+
+  const handleSaveEdit = (constraintId: string) => {
+    setEditingConstraintId(null);
+    toast.success('Product constraint updated');
+  };
+
+  const handleAddConstraint = () => {
+    if (newConstraint.product && newConstraint.category && newConstraint.min && newConstraint.max) {
+      setConstraints(prev => [...prev, {
+        id: `pc${Date.now()}`,
+        product: newConstraint.product,
+        category: newConstraint.category,
+        min: parseInt(newConstraint.min),
+        max: parseInt(newConstraint.max),
+        unit: newConstraint.unit
+      }]);
+      setNewConstraint({ product: '', category: '', min: '', max: '', unit: 'kg' });
+      setIsAddingConstraint(false);
+      toast.success('Product constraint added');
+    } else {
+      toast.error('Please fill all fields');
+    }
+  };
 
   return (
     <section className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm p-6 mb-8">
       <h3 className="text-lg font-bold text-[#1F2937] mb-4">Product-Specific Constraints</h3>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
         <table className="w-full text-sm">
-          <thead className="bg-[#F9FAFB] text-[#6B7280] font-medium border-b border-[#E5E7EB]">
+          <thead className="bg-[#F9FAFB] text-[#6B7280] font-medium border-b border-[#E5E7EB] sticky top-0">
             <tr>
               <th className="px-4 py-3 text-left">Product</th>
               <th className="px-4 py-3 text-left">Category</th>
@@ -741,31 +1246,174 @@ function ProductConstraints() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E5E7EB]">
-            {constraints.map((item, index) => (
-              <tr key={index} className="hover:bg-[#F9FAFB] transition-colors">
-                <td className="px-4 py-3 font-medium text-[#1F2937]">{item.product}</td>
-                <td className="px-4 py-3 text-[#6B7280]">{item.category}</td>
-                <td className="px-4 py-3 font-mono text-[#1F2937]">{item.min} {item.unit}</td>
-                <td className="px-4 py-3 font-mono text-[#1F2937]">{item.max} {item.unit}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button className="p-1 hover:bg-[#F0F7FF] rounded" title="Edit">
-                      <Edit size={16} className="text-[#4F46E5]" />
-                    </button>
-                    <button className="p-1 hover:bg-[#FEE2E2] rounded" title="Delete">
-                      <Trash2 size={16} className="text-[#EF4444]" />
-                    </button>
+            {constraints.map((item) => (
+              editingConstraintId === item.id ? (
+                <tr key={item.id} className="bg-[#F0F7FF]">
+                  <td colSpan={5} className="px-4 py-3">
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={item.product}
+                          onChange={(e) => setConstraints(prev => prev.map(c => c.id === item.id ? { ...c, product: e.target.value } : c))}
+                          className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                          placeholder="Product name"
+                        />
+                        <input
+                          type="text"
+                          value={item.category}
+                          onChange={(e) => setConstraints(prev => prev.map(c => c.id === item.id ? { ...c, category: e.target.value } : c))}
+                          className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                          placeholder="Category"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={item.min}
+                          onChange={(e) => setConstraints(prev => prev.map(c => c.id === item.id ? { ...c, min: parseInt(e.target.value) || 0 } : c))}
+                          placeholder="Min"
+                          className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        />
+                        <input
+                          type="number"
+                          value={item.max}
+                          onChange={(e) => setConstraints(prev => prev.map(c => c.id === item.id ? { ...c, max: parseInt(e.target.value) || 0 } : c))}
+                          placeholder="Max"
+                          className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        />
+                        <select
+                          value={item.unit}
+                          onChange={(e) => setConstraints(prev => prev.map(c => c.id === item.id ? { ...c, unit: e.target.value } : c))}
+                          className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        >
+                          <option value="kg">kg</option>
+                          <option value="L">L</option>
+                          <option value="pieces">pieces</option>
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSaveEdit(item.id)}
+                          className="flex-1 px-3 py-1.5 bg-[#4F46E5] text-white rounded text-xs font-medium hover:bg-[#4338CA]"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingConstraintId(null)}
+                          className="flex-1 px-3 py-1.5 border border-[#D1D5DB] rounded text-xs font-medium hover:bg-[#F3F4F6]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={item.id} className="hover:bg-[#F9FAFB] transition-colors">
+                  <td className="px-4 py-3 font-medium text-[#1F2937]">{item.product}</td>
+                  <td className="px-4 py-3 text-[#6B7280]">{item.category}</td>
+                  <td className="px-4 py-3 font-mono text-[#1F2937]">{item.min} {item.unit}</td>
+                  <td className="px-4 py-3 font-mono text-[#1F2937]">{item.max} {item.unit}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleEditConstraint(item.id)}
+                        className="p-1 hover:bg-[#F0F7FF] rounded transition-colors" 
+                        title="Edit"
+                      >
+                        <Edit size={16} className="text-[#4F46E5]" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteConstraint(item.id)}
+                        className="p-1 hover:bg-[#FEE2E2] rounded transition-colors" 
+                        title="Delete"
+                      >
+                        <Trash2 size={16} className="text-[#EF4444]" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            ))}
+            {isAddingConstraint && (
+              <tr className="bg-[#F0F7FF]">
+                <td colSpan={5} className="px-4 py-3">
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={newConstraint.product}
+                        onChange={(e) => setNewConstraint({ ...newConstraint, product: e.target.value })}
+                        className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        placeholder="Product name"
+                      />
+                      <input
+                        type="text"
+                        value={newConstraint.category}
+                        onChange={(e) => setNewConstraint({ ...newConstraint, category: e.target.value })}
+                        className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                        placeholder="Category"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={newConstraint.min}
+                        onChange={(e) => setNewConstraint({ ...newConstraint, min: e.target.value })}
+                        placeholder="Min"
+                        className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                      />
+                      <input
+                        type="number"
+                        value={newConstraint.max}
+                        onChange={(e) => setNewConstraint({ ...newConstraint, max: e.target.value })}
+                        placeholder="Max"
+                        className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                      />
+                      <select
+                        value={newConstraint.unit}
+                        onChange={(e) => setNewConstraint({ ...newConstraint, unit: e.target.value })}
+                        className="px-3 py-2 border border-[#D1D5DB] rounded-lg text-sm focus:outline-none focus:border-[#4F46E5]"
+                      >
+                        <option value="kg">kg</option>
+                        <option value="L">L</option>
+                        <option value="pieces">pieces</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleAddConstraint}
+                        className="flex-1 px-3 py-1.5 bg-[#4F46E5] text-white rounded text-xs font-medium hover:bg-[#4338CA]"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingConstraint(false);
+                          setNewConstraint({ product: '', category: '', min: '', max: '', unit: 'kg' });
+                        }}
+                        className="flex-1 px-3 py-1.5 border border-[#D1D5DB] rounded text-xs font-medium hover:bg-[#F3F4F6]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
       <div className="mt-4 text-center">
-        <button className="text-[#4F46E5] text-sm font-medium hover:underline">
-          + Add Product Constraint
-        </button>
+        {!isAddingConstraint ? (
+          <button 
+            onClick={() => setIsAddingConstraint(true)}
+            className="text-[#4F46E5] text-sm font-medium hover:underline transition-colors"
+          >
+            + Add Product Constraint
+          </button>
+        ) : null}
       </div>
     </section>
   );

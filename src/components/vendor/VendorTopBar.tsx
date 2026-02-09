@@ -1,7 +1,12 @@
 import React from 'react';
 import { Bell, Search, ShieldCheck, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 
-export function VendorTopBar() {
+interface VendorTopBarProps {
+  searchQuery?: string;
+  onSearchChange?: (value: string) => void;
+}
+
+export function VendorTopBar({ searchQuery = '', onSearchChange }: VendorTopBarProps) {
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const notificationsRef = React.useRef<HTMLDivElement>(null);
 
@@ -96,6 +101,8 @@ export function VendorTopBar() {
           <input 
             type="text" 
             placeholder="Search vendor, PO #, SKU..." 
+            value={searchQuery}
+            onChange={(e) => onSearchChange?.(e.target.value)}
             className="h-9 pl-9 pr-4 rounded-lg bg-[#F5F5F5] border-transparent text-sm focus:bg-white focus:ring-2 focus:ring-[#4F46E5] focus:border-transparent w-64 transition-all focus:w-80 placeholder-[#BDBDBD]"
           />
         </div>
@@ -107,7 +114,7 @@ export function VendorTopBar() {
 
           {/* Notifications Dropdown */}
           {isNotificationsOpen && (
-            <div className="absolute top-full right-0 mt-2 bg-white border border-[#E0E0E0] shadow-lg rounded-lg min-w-[360px] max-w-[420px] w-[90vw] z-50 overflow-x-hidden">
+            <div className="absolute top-full right-2 mt-2 bg-white border border-[#E0E0E0] shadow-lg rounded-lg min-w-[480px] max-w-[600px] w-[90vw] z-50 overflow-x-hidden">
               {/* Header */}
               <div className="p-4 border-b border-[#E0E0E0] flex items-center justify-between">
                 <div className="flex items-center gap-2">

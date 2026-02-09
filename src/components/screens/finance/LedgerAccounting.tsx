@@ -44,10 +44,23 @@ export function LedgerAccounting() {
               fetchAccounts()
           ]);
           setSummary(sumData);
-          setEntries(entData);
-          setAccounts(accData);
+          // fetchLedgerEntries now always returns data (from storage or defaults)
+          setEntries(entData || []);
+          // fetchAccounts now always returns default accounts
+          setAccounts(accData || []);
       } catch (e) {
           toast.error("Failed to load ledger data");
+          // Still try to set data from API fallback
+          try {
+            const mockSummary = await fetchAccountingSummary();
+            const mockEntries = await fetchLedgerEntries();
+            const mockAccounts = await fetchAccounts();
+            setSummary(mockSummary);
+            setEntries(mockEntries || []);
+            setAccounts(mockAccounts || []);
+          } catch (e2) {
+            console.error('Failed to load mock data', e2);
+          }
       } finally {
           setIsLoading(false);
       }

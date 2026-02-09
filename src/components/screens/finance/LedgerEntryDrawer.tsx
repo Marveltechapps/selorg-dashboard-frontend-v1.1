@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../../ui/sheet";
 import { Badge } from "../../ui/badge";
+import { Button } from "../../ui/button";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Separator } from "../../ui/separator";
 import { Skeleton } from "../../ui/skeleton";
 import { format } from "date-fns";
 import { FileText, ExternalLink, User } from 'lucide-react';
+import { toast } from 'sonner';
 import { LedgerEntry, JournalEntry, fetchJournalDetails } from './accountingApi';
 
 interface Props {
@@ -20,13 +22,42 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
 
   useEffect(() => {
       if (open && entry) {
-          setLoading(true);
-          fetchJournalDetails(entry.journalId).then(data => {
-              setDetails(data);
-              setLoading(false);
+          // Show entry details immediately
+          setDetails({
+            id: entry.journalId,
+            date: entry.date,
+            reference: entry.reference,
+            memo: entry.description,
+            lines: [{
+              accountCode: entry.accountCode,
+              accountName: entry.accountName,
+              debit: entry.debit,
+              credit: entry.credit,
+              description: entry.description
+            }],
+            status: 'posted',
+            createdBy: entry.createdBy,
+            createdAt: entry.createdAt
           });
+          
+          // Try to fetch full journal details in background (non-blocking)
+          setLoading(true);
+          fetchJournalDetails(entry.journalId)
+            .then(data => {
+              if (data && data.lines && data.lines.length > 1) {
+                // Only update if we got more complete data
+                setDetails(data);
+              }
+              setLoading(false);
+            })
+            .catch(error => {
+              console.error('Failed to fetch journal details:', error);
+              // Keep the entry-based details we already set
+              setLoading(false);
+            });
       } else {
           setDetails(null);
+          setLoading(false);
       }
   }, [open, entry]);
 
@@ -52,7 +83,7 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
              </SheetDescription>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 200px)', maxHeight: 'calc(100vh - 200px)' }}>
              <div className="p-6 space-y-8">
                  {/* Audit Info */}
                  <div className="grid grid-cols-2 gap-4 text-sm">
@@ -73,9 +104,46 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
 
                  <Separator />
 
-                 {/* Journal Lines */}
+                 {/* Entry Details */}
                  <div>
-                     <h3 className="font-semibold text-gray-900 mb-4">Journal Lines</h3>
+                     <h3 className="font-semibold text-gray-900 mb-4">Entry Details</h3>
+                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 text-sm">
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Account Code</span>
+                             <span className="font-mono font-medium text-gray-900">{entry.accountCode}</span>
+                         </div>
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Account Name</span>
+                             <span className="font-medium text-gray-900">{entry.accountName}</span>
+                         </div>
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Date</span>
+                             <span className="font-medium text-gray-900">{format(new Date(entry.date), "PPP")}</span>
+                         </div>
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Reference</span>
+                             <span className="font-mono font-medium text-gray-900">{entry.reference}</span>
+                         </div>
+                         <Separator />
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Debit Amount</span>
+                             <span className="font-mono font-bold text-gray-900">
+                                 {entry.debit > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(entry.debit) : '-'}
+                             </span>
+                         </div>
+                         <div className="flex justify-between">
+                             <span className="text-gray-500">Credit Amount</span>
+                             <span className="font-mono font-bold text-gray-900">
+                                 {entry.credit > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(entry.credit) : '-'}
+                             </span>
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Journal Lines - Show if details are loaded */}
+                 {details && details.lines && details.lines.length > 1 && (
+                 <div>
+                     <h3 className="font-semibold text-gray-900 mb-4">All Journal Lines</h3>
                      
                      {loading ? (
                          <div className="space-y-3">
@@ -89,23 +157,23 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
                                  <div className="text-right">Debit</div>
                                  <div className="text-right">Credit</div>
                              </div>
-                             <div className="divide-y">
-                                 {details?.lines.map((line, idx) => (
+                             <div className="divide-y max-h-[400px] overflow-y-auto">
+                                 {details.lines.map((line, idx) => (
                                      <div key={idx} className="grid grid-cols-[3fr,1fr,1fr] gap-2 p-3 text-sm">
                                          <div>
                                              <div className="font-medium text-gray-900 flex items-center gap-2">
                                                  <span className="font-mono text-gray-400 text-xs">{line.accountCode}</span>
-                                                 {line.accountName}
+                                                 {line.accountName || 'Unknown Account'}
                                              </div>
                                              {line.description && (
                                                  <p className="text-gray-500 text-xs mt-0.5">{line.description}</p>
                                              )}
                                          </div>
                                          <div className="text-right font-mono text-gray-900">
-                                             {line.debit > 0 ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(line.debit) : '-'}
+                                             {line.debit > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(line.debit) : '-'}
                                          </div>
                                          <div className="text-right font-mono text-gray-900">
-                                             {line.credit > 0 ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(line.credit) : '-'}
+                                             {line.credit > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(line.credit) : '-'}
                                          </div>
                                      </div>
                                  ))}
@@ -114,19 +182,20 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
                              <div className="grid grid-cols-[3fr,1fr,1fr] gap-2 p-3 bg-gray-50 text-sm font-bold border-t">
                                  <div className="text-right pr-4 text-gray-500 uppercase text-xs pt-1">Totals</div>
                                  <div className="text-right font-mono">
-                                     {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(
-                                         details?.lines.reduce((s, l) => s + l.debit, 0) || 0
+                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(
+                                         details.lines.reduce((s, l) => s + (l.debit || 0), 0)
                                      )}
                                  </div>
                                  <div className="text-right font-mono">
-                                     {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(
-                                         details?.lines.reduce((s, l) => s + l.credit, 0) || 0
+                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(
+                                         details.lines.reduce((s, l) => s + (l.credit || 0), 0)
                                      )}
                                  </div>
                              </div>
                          </div>
                      )}
                  </div>
+                 )}
 
                  {entry.sourceModule === 'vendor' && (
                      <div className="bg-blue-50 p-4 rounded border border-blue-100 flex items-start gap-3">
@@ -136,9 +205,22 @@ export function LedgerEntryDrawer({ entry, open, onClose }: Props) {
                              <p className="text-blue-700 text-xs mt-1">
                                  This journal entry was automatically generated from Vendor Bill #BILL-005.
                              </p>
-                             <button className="text-blue-600 text-xs font-bold mt-2 hover:underline">
-                                 View Source Bill
-                             </button>
+                             <Button
+                                 type="button"
+                                 variant="link"
+                                 className="text-blue-600 text-xs font-bold mt-2 p-0 h-auto hover:underline"
+                                 onClick={(e) => {
+                                   e.preventDefault();
+                                   e.stopPropagation();
+                                   // Navigate to vendor payments tab
+                                   const event = new CustomEvent('navigateToTab', { detail: { tab: 'vendor-payments' } });
+                                   window.dispatchEvent(event);
+                                   toast.success("Opening Vendor Payments");
+                                   onClose();
+                                 }}
+                             >
+                                 View Source Bill <ExternalLink className="ml-1 inline" size={12} />
+                             </Button>
                          </div>
                      </div>
                  )}

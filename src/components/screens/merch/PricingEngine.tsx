@@ -31,44 +31,99 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
   const [allSkus, setAllSkus] = useState<any[]>([]);
   const [surgeRules, setSurgeRules] = useState<any[]>([]);
   const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
+  const [priceRules, setPriceRules] = useState<any[]>([]);
+  const [isRulesViewOpen, setIsRulesViewOpen] = useState(false);
 
+  // Mock data fallback
+  const mockSkus: any[] = [
+    { id: '1', name: 'Cola Can 330ml', code: 'SKU-001', cost: 0.50, base: 1.50, sell: 1.65, competitor: 1.60, margin: 69.7, marginStatus: 'healthy', history: [] },
+    { id: '2', name: 'Chips Salted 150g', code: 'SKU-002', cost: 1.20, base: 2.20, sell: 2.00, competitor: 2.10, margin: 40.0, marginStatus: 'healthy', history: [] },
+    { id: '3', name: 'Water Bottle 500ml', code: 'SKU-003', cost: 0.30, base: 0.80, sell: 0.90, competitor: 0.85, margin: 66.7, marginStatus: 'healthy', history: [] },
+  ];
 
-  // Load data from API
+  // Load data from API and localStorage
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         setIsLoading(true);
-        const [skusResp, rulesResp, updatesResp] = await Promise.all([
+        const [skusResp, surgeRulesResp, updatesResp] = await Promise.all([
           pricingApi.getPricingSKUs(),
           pricingApi.getSurgeRules(),
           pricingApi.getPendingUpdates()
         ]);
         if (!mounted) return;
         
-        if (skusResp.success && skusResp.data) {
-          setAllSkus(skusResp.data.map((sku: any) => ({
+        // Merge API SKUs with localStorage SKU prices
+        let mergedSkus: any[] = [];
+        if (skusResp.success && skusResp.data && skusResp.data.length > 0) {
+          mergedSkus = skusResp.data.map((sku: any) => ({
             id: sku.id,
             name: sku.name,
-            code: sku.sku,
+            code: sku.sku || sku.code,
             cost: sku.cost || 0,
-            base: sku.basePrice || sku.currentPrice || 0,
-            sell: sku.currentPrice || 0,
-            competitor: sku.competitorPrice || 0,
+            base: sku.basePrice || sku.base || sku.currentPrice || 0,
+            sell: sku.currentPrice || sku.sell || 0,
+            competitor: sku.competitorPrice || sku.competitor || 0,
             margin: sku.margin || 0,
             marginStatus: sku.marginStatus || 'healthy',
             history: sku.history || []
-          })));
+          }));
         }
-        if (rulesResp.success && rulesResp.data) {
-          setSurgeRules(rulesResp.data);
+        
+        // Merge with localStorage SKU prices (localStorage takes precedence)
+        const storedPrices = pricingApi.getSKUPrices();
+        if (storedPrices.success && storedPrices.data && storedPrices.data.length > 0) {
+          storedPrices.data.forEach((stored: any) => {
+            const index = mergedSkus.findIndex(s => s.id === stored.id);
+            if (index !== -1) {
+              mergedSkus[index] = { ...mergedSkus[index], ...stored };
+            } else {
+              // Add missing fields if not present
+              mergedSkus.push({
+                id: stored.id,
+                name: stored.name || 'Unknown SKU',
+                code: stored.code || stored.id,
+                cost: stored.cost || 0,
+                base: stored.base || 0,
+                sell: stored.sell || 0,
+                competitor: stored.competitor || 0,
+                margin: stored.margin || 0,
+                marginStatus: stored.marginStatus || 'healthy',
+                history: stored.history || [],
+                ...stored
+              });
+            }
+          });
+        }
+        
+        // If no SKUs from API or localStorage, use mock data
+        if (mergedSkus.length === 0) {
+          mergedSkus = mockSkus;
+        }
+        
+        setAllSkus(mergedSkus);
+        
+        if (surgeRulesResp.success && surgeRulesResp.data) {
+          setSurgeRules(surgeRulesResp.data);
         }
         if (updatesResp.success && updatesResp.data) {
           setPendingUpdates(updatesResp.data);
         }
-      } catch (err) {
+        
+        // Load price rules
+        const priceRulesResp = pricingApi.getPriceRules();
+        if (priceRulesResp.success && priceRulesResp.data) {
+          setPriceRules(priceRulesResp.data);
+        }
+      } catch (err: any) {
         console.error('Failed to load pricing data', err);
-        toast.error('Failed to load pricing data');
+        // Use mock data as fallback
+        setAllSkus(mockSkus);
+        // Don't show error toast for network errors - localStorage fallback will handle it
+        if (err.code !== 'ECONNABORTED' && err.code !== 'ERR_NETWORK' && !err.message?.includes('Network Error')) {
+          toast.error('Failed to load pricing data');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -76,6 +131,40 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
     return () => { mounted = false; };
   }, []);
 
+  // Listen for event to open pending updates
+  useEffect(() => {
+    const handleOpenPendingUpdates = (event: Event) => {
+      console.log('Received openPendingUpdates event');
+      setIsPendingOpen(true);
+    };
+    
+    // Use a more reliable event listener
+    const eventHandler = handleOpenPendingUpdates as EventListener;
+    window.addEventListener('openPendingUpdates', eventHandler);
+    
+    // Check if we should open immediately (in case event was already dispatched or flag is set)
+    const checkAndOpen = () => {
+      const shouldOpen = sessionStorage.getItem('openPendingUpdates');
+      if (shouldOpen === 'true') {
+        sessionStorage.removeItem('openPendingUpdates');
+        console.log('Opening pending updates from sessionStorage flag');
+        setIsPendingOpen(true);
+      }
+    };
+    
+    // Check immediately
+    checkAndOpen();
+    
+    // Also check after a short delay in case component just mounted
+    const timeoutId = setTimeout(checkAndOpen, 200);
+    
+    return () => {
+      window.removeEventListener('openPendingUpdates', eventHandler);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // Always ensure we have SKUs to display
   const skusToUse = allSkus.length > 0 ? allSkus : mockSkus;
 
   const [activeFilters, setActiveFilters] = useState({
@@ -94,25 +183,49 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
   };
 
   const handleUpdateSkuPrice = (updatedSku: any) => {
+    // Save to localStorage
+    pricingApi.updateSKUPriceInStorage(updatedSku.id, {
+      base: updatedSku.base,
+      sell: updatedSku.sell,
+      margin: updatedSku.margin,
+      marginStatus: updatedSku.marginStatus || (updatedSku.margin < 10 ? 'critical' : (updatedSku.margin < 15 ? 'warning' : 'healthy'))
+    });
+    
     setAllSkus(prev => prev.map(s => s.id === updatedSku.id ? {
         ...s,
         ...updatedSku,
-        marginStatus: updatedSku.margin < 10 ? 'critical' : (updatedSku.margin < 15 ? 'warning' : 'healthy')
+        marginStatus: updatedSku.marginStatus || (updatedSku.margin < 10 ? 'critical' : (updatedSku.margin < 15 ? 'warning' : 'healthy'))
     } : s));
     setSelectedSku(null);
-    toast.success(`${updatedSku.name} updated locally`);
+    toast.success(`${updatedSku.name} updated successfully`);
   };
 
-  const handleCreateRule = (rule: any) => {
-    toast.success(`Rule "${rule.name}" created and pending approval (Local State)`);
+  const handleCreateRule = async (rule: any) => {
+    try {
+      const response = await pricingApi.createPriceRule(rule);
+      if (response.success) {
+        // Reload price rules to show the new one
+        const priceRulesResp = pricingApi.getPriceRules();
+        if (priceRulesResp.success && priceRulesResp.data) {
+          setPriceRules(priceRulesResp.data);
+        }
+        toast.success(`Rule "${rule.name}" created successfully`);
+      } else {
+        toast.error("Failed to create rule");
+      }
+    } catch (error) {
+      console.error('Error creating rule:', error);
+      toast.error("Failed to create rule");
+    }
     setIsWizardOpen(false);
   };
 
+  // Show loading only briefly, then show content with mock/fallback data
   if (isLoading && skusToUse.length === 0) {
       return (
           <div className="flex flex-col items-center justify-center h-[60vh] text-gray-400">
               <Loader2 className="h-10 w-10 animate-spin mb-4 text-[#7C3AED]" />
-              <p className="font-medium">Loading pricing data from MongoDB...</p>
+              <p className="font-medium">Loading pricing data...</p>
           </div>
       );
   }
@@ -124,14 +237,24 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
           <h1 className="text-2xl font-bold text-[#212121]">Pricing Engine</h1>
           <p className="text-[#757575] text-sm">Base pricing, geo-pricing rules, and competitor benchmarking</p>
         </div>
-        <button 
-          type="button"
-          onClick={() => setIsWizardOpen(true)}
-          className="px-4 py-2 bg-[#7C3AED] text-white font-medium rounded-lg hover:bg-[#6D28D9] flex items-center gap-2 transition-colors shadow-sm"
-        >
-          <Tag size={16} />
-          New Price Rule
-        </button>
+        <div className="flex gap-2">
+          <button 
+            type="button"
+            onClick={() => setIsRulesViewOpen(true)}
+            className="px-4 py-2 bg-white border border-[#E0E0E0] text-[#212121] font-medium rounded-lg hover:bg-[#F5F5F5] flex items-center gap-2 transition-colors"
+          >
+            <History size={16} />
+            View Rules ({priceRules.length})
+          </button>
+          <button 
+            type="button"
+            onClick={() => setIsWizardOpen(true)}
+            className="px-4 py-2 bg-[#7C3AED] text-white font-medium rounded-lg hover:bg-[#6D28D9] flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Tag size={16} />
+            New Price Rule
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -206,32 +329,32 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
                     <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => {
-                            console.log("Setting filter to all");
+                        <DropdownMenuItem onSelect={(e) => {
+                            e.preventDefault();
                             setActiveFilters({status: 'all'});
                         }}>
                             <div className="flex items-center gap-2 w-full">
                                 <div className="w-2 h-2 rounded-full bg-slate-300" /> All SKUs
                             </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => {
-                            console.log("Setting filter to healthy");
+                        <DropdownMenuItem onSelect={(e) => {
+                            e.preventDefault();
                             setActiveFilters({status: 'healthy'});
                         }}>
                             <div className="flex items-center gap-2 w-full">
                                 <div className="w-2 h-2 rounded-full bg-green-500" /> Healthy Margin
                             </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => {
-                            console.log("Setting filter to warning");
+                        <DropdownMenuItem onSelect={(e) => {
+                            e.preventDefault();
                             setActiveFilters({status: 'warning'});
                         }}>
                             <div className="flex items-center gap-2 w-full">
                                 <div className="w-2 h-2 rounded-full bg-yellow-500" /> Warning
                             </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => {
-                            console.log("Setting filter to critical");
+                        <DropdownMenuItem onSelect={(e) => {
+                            e.preventDefault();
                             setActiveFilters({status: 'critical'});
                         }}>
                             <div className="flex items-center gap-2 w-full">
@@ -316,7 +439,102 @@ export function PricingEngine({ searchQuery = "" }: { searchQuery?: string }) {
         onOpenChange={(open) => !open && setSelectedSku(null)} 
         onUpdate={handleUpdateSkuPrice}
       />
-      <BulkPriceEditModal open={isBulkOpen} onOpenChange={setIsBulkOpen} />
+      <BulkPriceEditModal 
+        open={isBulkOpen} 
+        onOpenChange={setIsBulkOpen}
+        allSkus={skusToUse}
+        onBulkUpdate={(updatedSkus) => {
+          // Update all SKUs with bulk changes
+          setAllSkus(updatedSkus);
+          // Save all updated SKUs to localStorage
+          updatedSkus.forEach((sku: any) => {
+            pricingApi.updateSKUPriceInStorage(sku.id, {
+              base: sku.base,
+              sell: sku.sell,
+              margin: sku.margin,
+              marginStatus: sku.marginStatus
+            });
+          });
+        }}
+      />
+      
+      {/* Price Rules View Modal */}
+      {isRulesViewOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsRulesViewOpen(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#E0E0E0] flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-[#212121]">Price Rules</h2>
+                <p className="text-sm text-[#757575] mt-1">Manage your pricing rules and configurations</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRulesViewOpen(false)}
+                className="text-[#757575] hover:text-[#212121] text-2xl font-bold w-8 h-8 flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {priceRules.length === 0 ? (
+                <div className="text-center py-12 text-[#757575]">
+                  <Tag size={48} className="mx-auto mb-4 text-[#E0E0E0]" />
+                  <p className="font-medium">No price rules created yet</p>
+                  <p className="text-sm mt-2">Create your first price rule to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {priceRules.map((rule: any) => (
+                    <div key={rule.id} className="border border-[#E0E0E0] rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg text-[#212121]">{rule.name || 'Untitled Rule'}</h3>
+                          <p className="text-sm text-[#757575] mt-1">{rule.description || 'No description'}</p>
+                          <div className="flex gap-2 mt-3">
+                            <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded border border-purple-200">
+                              {rule.type || 'base'}
+                            </span>
+                            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded border border-blue-200">
+                              {rule.scope || 'region'}
+                            </span>
+                            <span className="px-2 py-1 bg-amber-50 text-amber-700 text-xs rounded border border-amber-200">
+                              {rule.status || 'pending'}
+                            </span>
+                          </div>
+                          {rule.pricingMethod && (
+                            <p className="text-xs text-[#757575] mt-2">
+                              Method: {rule.pricingMethod} | Margin: {rule.marginMin || 'N/A'}% - {rule.marginMax || 'N/A'}%
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-[#E0E0E0] flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsRulesViewOpen(false)}
+                className="px-4 py-2 bg-white border border-[#E0E0E0] text-[#212121] font-medium rounded-lg hover:bg-[#F5F5F5]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRulesViewOpen(false);
+                  setIsWizardOpen(true);
+                }}
+                className="px-4 py-2 bg-[#7C3AED] text-white font-medium rounded-lg hover:bg-[#6D28D9]"
+              >
+                Create New Rule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

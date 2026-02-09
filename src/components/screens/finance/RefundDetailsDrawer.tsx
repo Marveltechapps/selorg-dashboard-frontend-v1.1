@@ -40,7 +40,7 @@ export function RefundDetailsDrawer({ refund, open, onClose, onApprove, onReject
             </SheetDescription>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 180px)', maxHeight: 'calc(100vh - 180px)' }}>
             <div className="p-6 space-y-8">
                 {/* Customer Info */}
                 <div className="flex items-start gap-4">

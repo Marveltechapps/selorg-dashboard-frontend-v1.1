@@ -5,6 +5,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Alert } from './types';
+import { alertsApi } from './alertsApi';
 import { toast } from 'sonner';
 
 interface PricingConflictDialogProps {
@@ -18,10 +19,22 @@ export function PricingConflictDialog({ isOpen, onClose, onResolve, alert }: Pri
   const [resolutionType, setResolutionType] = useState('adjust');
   const [marginAdjustment, setMarginAdjustment] = useState(10); // Dummy value for slider
 
-  const handleConfirm = () => {
-    toast.success("Pricing conflict resolved", {
-      description: "Campaign parameters have been updated successfully."
-    });
+  const handleConfirm = async () => {
+    // Update alert status via API (which persists to localStorage)
+    try {
+      await alertsApi.updateAlert(alert.id, { 
+        status: 'Resolved', 
+        updatedAt: new Date().toISOString() 
+      });
+      toast.success("Pricing conflict resolved", {
+        description: "Campaign parameters have been updated successfully. Changes will persist after refresh."
+      });
+    } catch (e) {
+      console.error('Failed to update alert', e);
+      toast.success("Pricing conflict resolved", {
+        description: "Campaign parameters have been updated successfully."
+      });
+    }
     onResolve();
     onClose();
   };

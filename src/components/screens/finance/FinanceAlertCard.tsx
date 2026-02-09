@@ -81,7 +81,11 @@ export function FinanceAlertCard({ alert, onAction, onClick }: Props) {
                       <Button 
                         size="sm" 
                         className={`h-8 text-xs font-bold ${theme.btnPrimary}`}
-                        onClick={(e) => { e.stopPropagation(); onAction(alert.id, { actionType: 'check_gateway' }); onClick(alert); }}
+                        onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            await onAction(alert.id, { actionType: 'check_gateway' }); 
+                            onClick(alert); 
+                        }}
                       >
                           Check Gateway
                       </Button>
@@ -89,7 +93,10 @@ export function FinanceAlertCard({ alert, onAction, onClick }: Props) {
                         size="sm" 
                         variant="outline"
                         className={`h-8 text-xs font-bold ${theme.btnSecondary}`}
-                        onClick={(e) => { e.stopPropagation(); onAction(alert.id, { actionType: 'dismiss' }); }}
+                        onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            await onAction(alert.id, { actionType: 'dismiss' }); 
+                        }}
                       >
                           Dismiss
                       </Button>
@@ -100,7 +107,11 @@ export function FinanceAlertCard({ alert, onAction, onClick }: Props) {
                     <Button 
                         size="sm" 
                         className={`h-8 text-xs font-bold ${theme.btnPrimary}`}
-                        onClick={(e) => { e.stopPropagation(); onAction(alert.id, { actionType: 'review_txn' }); onClick(alert); }}
+                        onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            await onAction(alert.id, { actionType: 'review_txn' }); 
+                            onClick(alert); 
+                        }}
                     >
                         Review Txn
                     </Button>
@@ -109,8 +120,12 @@ export function FinanceAlertCard({ alert, onAction, onClick }: Props) {
                 return (
                     <Button 
                         size="sm" 
-                        className={`h-8 text-xs font-bold ${theme.btnPrimary}`} // Using primary style but maybe should be secondary-ish?
-                        onClick={(e) => { e.stopPropagation(); onAction(alert.id, { actionType: 'reconcile' }); onClick(alert); }}
+                        className={`h-8 text-xs font-bold ${theme.btnPrimary}`}
+                        onClick={async (e) => { 
+                            e.stopPropagation(); 
+                            await onAction(alert.id, { actionType: 'reconcile' }); 
+                            onClick(alert); 
+                        }}
                     >
                         Reconcile
                     </Button>
@@ -162,13 +177,31 @@ export function FinanceAlertCard({ alert, onAction, onClick }: Props) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onAction(alert.id, { actionType: 'acknowledge' })}>
+                    <DropdownMenuItem 
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await onAction(alert.id, { actionType: 'acknowledge' });
+                      }}
+                    >
                         <Eye className="mr-2 h-4 w-4" /> Acknowledge
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onAction(alert.id, { actionType: 'resolve' })}>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onAction(alert.id, { actionType: 'resolve' });
+                      }}
+                    >
                         <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" /> Mark Resolved
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onAction(alert.id, { actionType: 'dismiss' })}>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onAction(alert.id, { actionType: 'dismiss' });
+                      }}
+                    >
                         <XCircle className="mr-2 h-4 w-4 text-red-600" /> Dismiss
                     </DropdownMenuItem>
                 </DropdownMenuContent>

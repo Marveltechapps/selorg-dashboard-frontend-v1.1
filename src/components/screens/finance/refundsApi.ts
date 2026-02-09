@@ -39,9 +39,31 @@ export interface RefundQueueFilter {
   reason?: string;
   dateFrom?: string;
   dateTo?: string;
+  query?: string;
 }
 
-const MOCK_REFUNDS: RefundRequest[] = [
+// Load from localStorage or use default
+const loadRefundsFromStorage = (): RefundRequest[] => {
+  try {
+    const stored = localStorage.getItem('refundRequests');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load refunds from storage', e);
+  }
+  return [];
+};
+
+const saveRefundsToStorage = (refunds: RefundRequest[]) => {
+  try {
+    localStorage.setItem('refundRequests', JSON.stringify(refunds));
+  } catch (e) {
+    console.error('Failed to save refunds to storage', e);
+  }
+};
+
+let MOCK_REFUNDS: RefundRequest[] = loadRefundsFromStorage().length > 0 ? loadRefundsFromStorage() : [
   {
     id: "ref_001",
     orderId: "ORD-8821",
@@ -172,7 +194,28 @@ export const fetchRefundsSummary = async (): Promise<RefundsSummary> => {
 
 export const fetchRefundQueue = async (filter: RefundQueueFilter) => {
   await delay(600);
-  let filtered = [...MOCK_REFUNDS];
+  // Always use the latest from localStorage if available, otherwise use MOCK_REFUNDS
+  const storedRefunds = loadRefundsFromStorage();
+  const sourceRefunds = storedRefunds.length > 0 ? storedRefunds : MOCK_REFUNDS;
+  
+  // If no data in storage, ensure we have MOCK_REFUNDS
+  if (sourceRefunds.length === 0) {
+    // Save MOCK_REFUNDS to storage so they persist
+    saveRefundsToStorage(MOCK_REFUNDS);
+  }
+  
+  const finalRefunds = sourceRefunds.length > 0 ? sourceRefunds : MOCK_REFUNDS;
+  let filtered = [...finalRefunds];
+
+  if (filter.query) {
+    const q = filter.query.toLowerCase();
+    filtered = filtered.filter(r => 
+      r.orderId.toLowerCase().includes(q) ||
+      r.customerName.toLowerCase().includes(q) ||
+      r.customerEmail.toLowerCase().includes(q) ||
+      r.id.toLowerCase().includes(q)
+    );
+  }
 
   if (filter.status && filter.status !== 'all') {
     filtered = filtered.filter(r => r.status === filter.status);
@@ -211,6 +254,7 @@ export const approveRefund = async (id: string, notes?: string, partialAmount?: 
             notes: notes ? (MOCK_REFUNDS[index].notes ? MOCK_REFUNDS[index].notes + "\n" + notes : notes) : MOCK_REFUNDS[index].notes,
             amount: partialAmount ?? MOCK_REFUNDS[index].amount 
         };
+        saveRefundsToStorage(MOCK_REFUNDS);
         return MOCK_REFUNDS[index];
     }
     throw new Error("Refund not found");
@@ -225,6 +269,7 @@ export const rejectRefund = async (id: string, reason: string) => {
             status: "rejected", 
             notes: `Rejected: ${reason}` 
         };
+        saveRefundsToStorage(MOCK_REFUNDS);
         return MOCK_REFUNDS[index];
     }
     throw new Error("Refund not found");

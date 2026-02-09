@@ -149,15 +149,34 @@ export async function getChatDetails(chatId: string, options?: { limit?: number;
  * Send a message in a chat
  */
 export async function sendMessage(chatId: string, content: string): Promise<Message> {
-  const result = await apiRequest<any>(
-    API_ENDPOINTS.communication.chatMessages(chatId),
-    {
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    },
-    'Communication API'
-  );
-  return transformMessage(result);
+  try {
+    const result = await apiRequest<any>(
+      API_ENDPOINTS.communication.chatMessages(chatId),
+      {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      },
+      'Communication API'
+    );
+    if (!result || typeof result !== 'object') {
+      throw new Error('Invalid response from server');
+    }
+    // Ensure the response has required fields
+    if (!result.id || !result.content) {
+      throw new Error('Invalid message format from server');
+    }
+    return transformMessage({
+      ...result,
+      timestamp: result.timestamp ?? result.createdAt ?? new Date().toISOString(),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : (typeof error === 'object' && error !== null && 'message' in error)
+        ? String(error.message)
+        : 'Failed to send message';
+    throw new Error(errorMessage);
+  }
 }
 
 /**
@@ -210,13 +229,9 @@ export async function flagIssue(
     category?: 'delivery_issue' | 'technical_issue' | 'customer_issue' | 'other';
   }
 ): Promise<{ message: string; issueId: string }> {
-  try {
-    return await apiRequest<{ message: string; issueId: string }>(
-      API_ENDPOINTS.communication.flagIssue(chatId),
-      { method: 'POST', body: JSON.stringify({ reason: data.reason, priority: data.priority || 'medium', category: data.category || 'other' }) },
-      'Communication API'
-    );
-  } catch (_) {
-    return { message: 'Issue flagged. Will be reviewed.', issueId: `flag-${chatId}-${Date.now()}` };
-  }
+  return await apiRequest<{ message: string; issueId: string }>(
+    API_ENDPOINTS.communication.flagIssue(chatId),
+    { method: 'POST', body: JSON.stringify({ reason: data.reason, priority: data.priority || 'medium', category: data.category || 'other' }) },
+    'Communication API'
+  );
 }

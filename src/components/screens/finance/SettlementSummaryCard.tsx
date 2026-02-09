@@ -10,6 +10,7 @@ import { SettlementSummaryItem } from './reconciliationApi';
 import { Progress } from "../../ui/progress";
 import { Badge } from "../../ui/badge";
 import { Skeleton } from "../../ui/skeleton";
+import { ScrollArea } from "../../ui/scroll-area";
 
 interface Props {
   items: SettlementSummaryItem[];
@@ -20,14 +21,14 @@ interface Props {
 export function SettlementSummaryCard({ items, isLoading, onSelectGateway }: Props) {
   return (
     <div className="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden shadow-sm h-full flex flex-col">
-      <div className="p-5 border-b border-[#E0E0E0] bg-[#FAFAFA]">
+      <div className="p-5 border-b border-[#E0E0E0] bg-[#FAFAFA] flex-shrink-0">
         <h3 className="font-bold text-[#212121] flex items-center gap-2">
            Daily Settlement Summary
         </h3>
         <p className="text-xs text-[#757575] mt-1">Reconciliation status by payment gateway</p>
       </div>
       
-      <div className="flex-1 p-0 overflow-y-auto">
+      <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
         {isLoading ? (
              <div className="p-5 space-y-6">
                  {[1, 2, 3].map(i => (
@@ -122,7 +123,7 @@ export function SettlementSummaryCard({ items, isLoading, onSelectGateway }: Pro
                 ))}
             </div>
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

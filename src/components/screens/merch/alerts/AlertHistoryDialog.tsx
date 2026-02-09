@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from './types';
@@ -18,10 +19,34 @@ interface AlertHistoryDialogProps {
 }
 
 export function AlertHistoryDialog({ isOpen, onClose, resolvedAlerts }: AlertHistoryDialogProps) {
+  const [historyAlerts, setHistoryAlerts] = useState<Alert[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Load from localStorage
+      try {
+        const stored = localStorage.getItem('merch_alerts_history');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setHistoryAlerts(parsed);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load history from storage', e);
+      }
+      // Fallback to prop
+      setHistoryAlerts(resolvedAlerts);
+    }
+  }, [isOpen, resolvedAlerts]);
+
+  const allHistoryAlerts = historyAlerts.length > 0 ? historyAlerts : resolvedAlerts;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[800px] max-h-[80vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
+        <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Clock className="text-gray-400" size={20} />
             Alert Resolution History
@@ -31,8 +56,8 @@ export function AlertHistoryDialog({ isOpen, onClose, resolvedAlerts }: AlertHis
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {resolvedAlerts.length > 0 ? (
+        <ScrollArea className="flex-1 min-h-0 px-6">
+          {allHistoryAlerts.length > 0 ? (
             <div className="border rounded-lg overflow-hidden shadow-sm">
               <Table>
                 <TableHeader className="bg-gray-50">
@@ -44,7 +69,7 @@ export function AlertHistoryDialog({ isOpen, onClose, resolvedAlerts }: AlertHis
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {resolvedAlerts.map((alert) => (
+                  {allHistoryAlerts.map((alert) => (
                     <TableRow key={alert.id} className="hover:bg-gray-50/50 transition-colors">
                       <TableCell className="py-3">
                         <div className="font-bold text-xs text-gray-900">{alert.title}</div>
@@ -77,7 +102,7 @@ export function AlertHistoryDialog({ isOpen, onClose, resolvedAlerts }: AlertHis
                 <p className="text-xs">Resolved alerts will appear here for audit purposes.</p>
             </div>
           )}
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

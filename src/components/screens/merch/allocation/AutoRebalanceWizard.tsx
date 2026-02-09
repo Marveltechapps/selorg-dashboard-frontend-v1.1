@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, Loader2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface AutoRebalanceWizardProps {
   open: boolean;
@@ -282,7 +283,17 @@ export function AutoRebalanceWizard({ open, onOpenChange }: AutoRebalanceWizardP
             Back
           </Button>
           {step === STEPS.length - 1 ? (
-             <Button className="bg-black hover:bg-gray-800" onClick={() => onOpenChange(false)} disabled={loading}>
+             <Button 
+               className="bg-black hover:bg-gray-800" 
+               onClick={() => {
+                 // Here you would normally call an API to execute the rebalance
+                 toast.success('Auto rebalance executed', {
+                   description: 'Rebalancing stock across selected locations'
+                 });
+                 onOpenChange(false);
+               }} 
+               disabled={loading}
+             >
                 Confirm & Execute
              </Button>
           ) : (

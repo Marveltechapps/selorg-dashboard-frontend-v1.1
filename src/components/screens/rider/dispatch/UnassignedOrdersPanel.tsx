@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { DispatchOrder } from "./types";
 import { UnassignedOrderCard } from "./UnassignedOrderCard";
-import { Search, Filter, ArrowUpDown, Layers } from "lucide-react";
+import { Search, Filter, ArrowUpDown, Layers, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

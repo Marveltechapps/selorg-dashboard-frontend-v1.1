@@ -23,7 +23,11 @@ import {
   autoAssignOrders
 } from "./dispatch/dispatchApi";
 
-export function DispatchOps() {
+interface DispatchOpsProps {
+  searchQuery?: string;
+}
+
+export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
   // Data State
   const [unassignedOrders, setUnassignedOrders] = useState<DispatchOrder[]>([]);
   const [allOrders, setAllOrders] = useState<DispatchOrder[]>([]); // For map
@@ -43,6 +47,28 @@ export function DispatchOps() {
 
   const localNewOrdersRef = useRef<DispatchOrder[]>([]);
   const localOrderAssignmentsRef = useRef<Record<string, { riderId: string; status: 'assigned' }>>({});
+
+  // Filter orders and riders based on search query
+  const filteredUnassignedOrders = React.useMemo(() => {
+    if (!searchQuery.trim()) return unassignedOrders;
+    const query = searchQuery.toLowerCase();
+    return unassignedOrders.filter(o => 
+      o.id.toLowerCase().includes(query) ||
+      o.pickupLocation.address.toLowerCase().includes(query) ||
+      o.dropLocation.address.toLowerCase().includes(query) ||
+      o.zone?.toLowerCase().includes(query)
+    );
+  }, [unassignedOrders, searchQuery]);
+
+  const filteredRiders = React.useMemo(() => {
+    if (!searchQuery.trim()) return riders;
+    const query = searchQuery.toLowerCase();
+    return riders.filter(r => 
+      r.id.toLowerCase().includes(query) ||
+      r.name.toLowerCase().includes(query) ||
+      r.zone?.toLowerCase().includes(query)
+    );
+  }, [riders, searchQuery]);
 
   // Initial Load
   useEffect(() => {
@@ -115,14 +141,18 @@ export function DispatchOps() {
       setRules(Array.isArray(rulesData) ? rulesData : []);
     } catch (error) {
       console.error("Failed to load dispatch data", error);
-      const mergedAll = [...localNewOrdersRef.current];
+      const fallbackOrders: DispatchOrder[] = [
+        { id: 'ORD-1', priority: 'high', distanceKm: 2.5, etaMinutes: 12, zone: 'Central', status: 'unassigned', pickupLocation: { lat: 13.0827, lng: 80.2707, address: 'Hub A, Chennai' }, dropLocation: { lat: 13.09, lng: 80.28, address: '123 Main St' }, slaDeadline: new Date(Date.now() + 45 * 60000).toISOString(), createdAt: new Date().toISOString() },
+        { id: 'ORD-2', priority: 'medium', distanceKm: 4, etaMinutes: 18, zone: 'North', status: 'unassigned', pickupLocation: { lat: 13.09, lng: 80.28, address: 'Hub B' }, dropLocation: { lat: 13.07, lng: 80.26, address: '456 Oak Ave' }, slaDeadline: new Date(Date.now() + 60 * 60000).toISOString(), createdAt: new Date().toISOString() },
+      ];
+      const mergedAll = localNewOrdersRef.current.length > 0 ? [...localNewOrdersRef.current] : fallbackOrders;
       Object.keys(localOrderAssignmentsRef.current).forEach(id => {
         const existing = mergedAll.find(m => m.id === id);
         if (existing) Object.assign(existing, localOrderAssignmentsRef.current[id]);
       });
       setUnassignedOrders(mergedAll.filter(o => o.status === 'unassigned'));
       setAllOrders(mergedAll);
-      setRiders(prev => prev.length ? prev : [
+      setRiders([
         { id: 'r1', name: 'Raj K', status: 'online', currentLocation: { lat: 13.08, lng: 80.27 }, activeOrdersCount: 1, maxCapacity: 4, zone: 'Central', avgEtaMinutes: 12 },
         { id: 'r2', name: 'Priya M', status: 'idle', currentLocation: { lat: 13.09, lng: 80.28 }, activeOrdersCount: 0, maxCapacity: 4, zone: 'North', avgEtaMinutes: 10 },
       ]);
@@ -148,35 +178,29 @@ export function DispatchOps() {
 
   const confirmAssignment = async (riderId: string, overrideSla: boolean) => {
     const toAssign = batchOrders.length > 0 ? batchOrders : (selectedOrder ? [selectedOrder] : []);
-    toAssign.forEach(o => { localOrderAssignmentsRef.current[o.id] = { riderId, status: 'assigned' }; });
     try {
       if (batchOrders.length > 0) {
         await batchCreateAssignment(batchOrders.map(o => o.id), riderId);
+        toAssign.forEach(o => { localOrderAssignmentsRef.current[o.id] = { riderId, status: 'assigned' }; });
         setUnassignedOrders(prev => prev.filter(o => !batchOrders.some(b => b.id === o.id)));
         setAllOrders(prev => prev.map(o => batchOrders.some(b => b.id === o.id) ? { ...o, riderId, status: 'assigned' as const } : o));
         toast.success(`Batch assigned ${batchOrders.length} orders to rider`);
       } else if (selectedOrder) {
         await assignOrder(selectedOrder.id, riderId, overrideSla);
+        localOrderAssignmentsRef.current[selectedOrder.id] = { riderId, status: 'assigned' };
         setUnassignedOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
         setAllOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, riderId, status: 'assigned' as const } : o));
         toast.success(`Order ${selectedOrder.id} assigned successfully`);
       }
-      loadData();
-    } catch {
-      if (batchOrders.length > 0) {
-        setUnassignedOrders(prev => prev.filter(o => !batchOrders.some(b => b.id === o.id)));
-        setAllOrders(prev => prev.map(o => batchOrders.some(b => b.id === o.id) ? { ...o, riderId, status: 'assigned' as const } : o));
-        toast.success(`Batch assigned ${batchOrders.length} orders`);
-      } else if (selectedOrder) {
-        setUnassignedOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
-        setAllOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, riderId, status: 'assigned' as const } : o));
-        toast.success(`Order assigned`);
-      }
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Assignment failed");
+      await loadData();
+    } finally {
+      setAssignModalOpen(false);
+      setSelectedOrder(null);
+      setBatchOrders([]);
     }
-    setAssignModalOpen(false);
-    setSelectedOrder(null);
-    setBatchOrders([]);
-    loadData();
   };
 
   return (
@@ -207,7 +231,7 @@ export function DispatchOps() {
         {/* Left Panel: Queue */}
         <div className="lg:col-span-1">
           <UnassignedOrdersPanel 
-            orders={unassignedOrders} 
+            orders={filteredUnassignedOrders} 
             loading={loading} 
             onAssign={handleAssignClick}
             onBatchAssign={handleBatchAssignClick}
@@ -230,7 +254,7 @@ export function DispatchOps() {
         onClose={() => setAssignModalOpen(false)}
         order={selectedOrder}
         batchOrders={batchOrders}
-        riders={riders}
+        riders={filteredRiders.length > 0 ? filteredRiders : riders}
         onConfirm={confirmAssignment}
       />
 

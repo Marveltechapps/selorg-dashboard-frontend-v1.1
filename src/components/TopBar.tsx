@@ -130,7 +130,7 @@ export function TopBar({ setActiveTab }: TopBarProps = {}) {
             <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#EF4444] border-2 border-white rounded-full shadow-sm" />
           </button>
           {notificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-[#E0E0E0] rounded-xl shadow-xl py-2 z-50">
+            <div className="absolute right-2 top-full mt-2 w-80 bg-white border border-[#E0E0E0] rounded-xl shadow-xl py-2 z-50">
               <div className="px-4 py-2 border-b border-[#E0E0E0]">
                 <h3 className="font-bold text-sm text-[#212121]">Notifications</h3>
               </div>

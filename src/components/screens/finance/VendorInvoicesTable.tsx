@@ -147,7 +147,13 @@ export function VendorInvoicesTable({
                                     {invoice.status !== 'paid' && invoice.status !== 'rejected' && (
                                         <>
                                             <DropdownMenuSeparator />
-                                            <DropdownMenuItem className="text-red-600" onClick={() => onReject(invoice)}>
+                                            <DropdownMenuItem 
+                                              className="text-red-600" 
+                                              onSelect={(e) => {
+                                                e.preventDefault();
+                                                onReject(invoice);
+                                              }}
+                                            >
                                                 <XCircle className="mr-2 h-4 w-4" /> Reject Invoice
                                             </DropdownMenuItem>
                                         </>

@@ -26,6 +26,10 @@ import {
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { PageHeader } from '../../ui/page-header';
 import { EmptyState } from '../../ui/ux-components';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { exportToCSV } from '../../../utils/csvExport';
+import { exportToPDF } from '../../../utils/pdfExport';
+import { toast } from 'sonner';
 
 // Mock API for system metrics
 const generateSystemMetrics = () => {
@@ -298,27 +302,95 @@ const generateAlerts = () => [
   }
 ];
 
+// Load data from localStorage
+const loadAlertsFromStorage = () => {
+  try {
+    const saved = localStorage.getItem('vendorSystemHealth_alerts');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load alerts from localStorage', e);
+  }
+  return null;
+};
+
+const saveAlertsToStorage = (alerts: any[]) => {
+  try {
+    localStorage.setItem('vendorSystemHealth_alerts', JSON.stringify(alerts));
+  } catch (e) {
+    console.warn('Failed to save alerts to localStorage', e);
+  }
+};
+
+const loadServiceConfigFromStorage = () => {
+  try {
+    const saved = localStorage.getItem('vendorSystemHealth_serviceConfig');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load service config from localStorage', e);
+  }
+  return { checkInterval: 30, responseTimeThreshold: 100, uptimeThreshold: 99 };
+};
+
+const saveServiceConfigToStorage = (config: any) => {
+  try {
+    localStorage.setItem('vendorSystemHealth_serviceConfig', JSON.stringify(config));
+  } catch (e) {
+    console.warn('Failed to save service config to localStorage', e);
+  }
+};
+
 export function VendorSystemHealth() {
   const [metrics, setMetrics] = useState(generateSystemMetrics());
   const [performanceData, setPerformanceData] = useState(generatePerformanceData());
   const [services, setServices] = useState(generateServiceStatus());
   const [errorLogs, setErrorLogs] = useState(generateErrorLogs());
-  const [alerts, setAlerts] = useState(generateAlerts());
+  
+  // Load alerts from localStorage or use default
+  const [alerts, setAlerts] = useState(() => {
+    const saved = loadAlertsFromStorage();
+    return saved || generateAlerts();
+  });
+  
   const [selectedView, setSelectedView] = useState<'overview' | 'services' | 'logs' | 'alerts'>('overview');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [logLevelFilter, setLogLevelFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false); // Default to false - only refresh when checked
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  
+  // Service configuration state - load from localStorage
+  const [serviceConfig, setServiceConfig] = useState(loadServiceConfigFromStorage);
+  
+  // Modal states
+  const [showServiceDetailsModal, setShowServiceDetailsModal] = useState(false);
+  const [showConfigureServicesModal, setShowConfigureServicesModal] = useState(false);
+  const [showServiceUsageModal, setShowServiceUsageModal] = useState(false);
+  const [showErrorLogDetailsModal, setShowErrorLogDetailsModal] = useState(false);
+  const [showAlertDetailsModal, setShowAlertDetailsModal] = useState(false);
+  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedErrorLog, setSelectedErrorLog] = useState<any>(null);
+  const [selectedAlert, setSelectedAlert] = useState<any>(null);
 
-  // Auto-refresh every 5 seconds
+  // Manual refresh function - preserve alerts and service config from localStorage
+  const handleManualRefresh = () => {
+    setMetrics(generateSystemMetrics());
+    setPerformanceData(generatePerformanceData());
+    setServices(generateServiceStatus());
+    setErrorLogs(generateErrorLogs());
+    // Don't regenerate alerts - keep the persisted ones
+    // setAlerts(generateAlerts());
+    setLastUpdated(new Date());
+  };
+
+  // Auto-refresh every 5 seconds - only when autoRefresh is true
   useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(() => {
-        setMetrics(generateSystemMetrics());
-        setPerformanceData(generatePerformanceData());
-        setServices(generateServiceStatus());
-        setLastUpdated(new Date());
+        handleManualRefresh();
       }, 5000);
       return () => clearInterval(interval);
     }
@@ -382,6 +454,114 @@ export function VendorSystemHealth() {
 
   const activeAlerts = alerts.filter(a => a.status === 'active');
 
+  // Export report function
+  const handleExportReport = () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+      
+      const csvData: (string | number)[][] = [
+        ['System Monitoring Report', `Date: ${today}`, `Time: ${timestamp}`],
+        [''],
+        
+        // System Metrics
+        ['=== SYSTEM METRICS ==='],
+        ['Uptime', `${metrics.uptime}%`],
+        ['Total Requests', metrics.totalRequests],
+        ['Avg Latency', `${metrics.avgLatency}ms`],
+        ['Error Rate', `${metrics.errorRate}%`],
+        ['Active Connections', metrics.activeConnections],
+        ['CPU Usage', `${metrics.cpuUsage}%`],
+        ['Memory Usage', `${metrics.memoryUsage}%`],
+        ['Disk Usage', `${metrics.diskUsage}%`],
+        ['Network In', `${metrics.networkIn} MB/s`],
+        ['Network Out', `${metrics.networkOut} MB/s`],
+        [''],
+        
+        // Services
+        ['=== SERVICES STATUS ==='],
+        ['Service Name', 'Type', 'Status', 'Uptime', 'Response Time (ms)', '24h Requests', 'Endpoint'],
+        ...services.map(s => [
+          s.name,
+          s.type,
+          s.status,
+          `${s.uptime}%`,
+          s.responseTime,
+          s.requests24h,
+          s.endpoint,
+        ]),
+        [''],
+        
+        // Error Logs
+        ['=== ERROR LOGS ==='],
+        ['Timestamp', 'Service', 'Level', 'Message', 'Code', 'Details', 'Count'],
+        ...errorLogs.map(log => [
+          new Date(log.timestamp).toLocaleString(),
+          log.service,
+          log.level,
+          log.message,
+          log.code,
+          log.details,
+          log.count,
+        ]),
+        [''],
+        
+        // Alerts
+        ['=== ALERTS ==='],
+        ['Title', 'Severity', 'Service', 'Status', 'Message', 'Timestamp', 'Acknowledged By'],
+        ...alerts.map(a => [
+          a.title,
+          a.severity,
+          a.service,
+          a.status,
+          a.message,
+          new Date(a.timestamp).toLocaleString(),
+          a.acknowledgedBy || 'N/A',
+        ]),
+      ];
+      
+      exportToCSV(csvData, `system-monitoring-report-${today}-${timestamp.replace(/:/g, '-')}`);
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
+    }
+  };
+
+  // Handle alert actions - save to localStorage
+  const handleAcknowledgeAlert = (alertId: number) => {
+    setAlerts(prev => {
+      const updated = prev.map(a => 
+        a.id === alertId 
+          ? { ...a, status: 'acknowledged' as const, acknowledgedBy: 'current.user' }
+          : a
+      );
+      saveAlertsToStorage(updated);
+      return updated;
+    });
+    toast.success('Alert acknowledged');
+  };
+
+  const handleResolveAlert = (alertId: number) => {
+    setAlerts(prev => {
+      const updated = prev.map(a => 
+        a.id === alertId 
+          ? { ...a, status: 'resolved' as const }
+          : a
+      );
+      saveAlertsToStorage(updated);
+      return updated;
+    });
+    toast.success('Alert resolved');
+  };
+  
+  // Handle service configuration save
+  const handleSaveServiceConfig = () => {
+    saveServiceConfigToStorage(serviceConfig);
+    toast.success('Service configuration saved');
+    setShowConfigureServicesModal(false);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -394,7 +574,13 @@ export function VendorSystemHealth() {
               Last updated: {lastUpdated.toLocaleTimeString()}
             </div>
             <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
+              onClick={() => {
+                const newValue = !autoRefresh;
+                setAutoRefresh(newValue);
+                if (newValue) {
+                  handleManualRefresh(); // Refresh immediately when enabled
+                }
+              }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
                 autoRefresh 
                   ? 'bg-[#4F46E5] text-white' 
@@ -404,7 +590,10 @@ export function VendorSystemHealth() {
               <RefreshCw size={16} className={autoRefresh ? 'animate-spin' : ''} />
               Auto Refresh
             </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2">
+            <button 
+              onClick={handleExportReport}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2"
+            >
               <Download size={16} />
               Export Report
             </button>
@@ -755,7 +944,14 @@ export function VendorSystemHealth() {
                 </button>
               ))}
             </div>
-            <button className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2">
+            <button 
+              onClick={() => {
+                // Load saved config when opening modal
+                setServiceConfig(loadServiceConfigFromStorage());
+                setShowConfigureServicesModal(true);
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#616161] border border-[#E0E0E0] hover:bg-[#F5F7FA] transition-colors flex items-center gap-2"
+            >
               <Settings size={16} />
               Configure Services
             </button>
@@ -780,7 +976,14 @@ export function VendorSystemHealth() {
                       </div>
                       <p className="text-xs text-[#757575]">{service.type}</p>
                     </div>
-                    <button className="p-2 hover:bg-[#F5F7FA] rounded-lg transition-colors">
+                    <button 
+                      onClick={() => {
+                        setSelectedService(service);
+                        setShowServiceUsageModal(true);
+                      }}
+                      className="p-2 hover:bg-[#F5F7FA] rounded-lg transition-colors"
+                      title="View Usage"
+                    >
                       <Eye size={16} className="text-[#757575]" />
                     </button>
                   </div>
@@ -803,7 +1006,15 @@ export function VendorSystemHealth() {
                   <div className="pt-4 border-t border-[#E0E0E0]">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-[#757575]">Last checked: {service.lastCheck}</span>
-                      <button className="text-[#4F46E5] hover:underline font-medium">View Details</button>
+                      <button 
+                        onClick={() => {
+                          setSelectedService(service);
+                          setShowServiceDetailsModal(true);
+                        }}
+                        className="text-[#4F46E5] hover:underline font-medium"
+                      >
+                        View Details
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -899,7 +1110,13 @@ export function VendorSystemHealth() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button className="text-[#4F46E5] hover:underline text-xs font-medium">
+                          <button 
+                            onClick={() => {
+                              setSelectedErrorLog(log);
+                              setShowErrorLogDetailsModal(true);
+                            }}
+                            className="text-[#4F46E5] hover:underline text-xs font-medium"
+                          >
                             Details
                           </button>
                         </td>
@@ -1009,16 +1226,28 @@ export function VendorSystemHealth() {
                     </div>
                     <div className="flex gap-2">
                       {alert.status === 'active' && (
-                        <button className="px-3 py-1.5 bg-[#4F46E5] text-white rounded-lg text-xs font-medium hover:bg-[#4338CA] transition-colors">
+                        <button 
+                          onClick={() => handleAcknowledgeAlert(alert.id)}
+                          className="px-3 py-1.5 bg-[#4F46E5] text-white rounded-lg text-xs font-medium hover:bg-[#4338CA] transition-colors"
+                        >
                           Acknowledge
                         </button>
                       )}
                       {alert.status === 'acknowledged' && (
-                        <button className="px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-xs font-medium hover:bg-[#059669] transition-colors">
+                        <button 
+                          onClick={() => handleResolveAlert(alert.id)}
+                          className="px-3 py-1.5 bg-[#10B981] text-white rounded-lg text-xs font-medium hover:bg-[#059669] transition-colors"
+                        >
                           Resolve
                         </button>
                       )}
-                      <button className="px-3 py-1.5 bg-white text-[#616161] border border-[#E0E0E0] rounded-lg text-xs font-medium hover:bg-[#F5F7FA] transition-colors">
+                      <button 
+                        onClick={() => {
+                          setSelectedAlert(alert);
+                          setShowAlertDetailsModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-white text-[#616161] border border-[#E0E0E0] rounded-lg text-xs font-medium hover:bg-[#F5F7FA] transition-colors"
+                      >
                         View Details
                       </button>
                     </div>
@@ -1029,6 +1258,264 @@ export function VendorSystemHealth() {
           </div>
         </>
       )}
+
+      {/* Service Details Modal */}
+      <Dialog open={showServiceDetailsModal} onOpenChange={setShowServiceDetailsModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Service Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about {selectedService?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedService && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Service Name</p>
+                  <p className="font-medium text-[#212121]">{selectedService.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Type</p>
+                  <p className="font-medium text-[#212121]">{selectedService.type}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedService.status).bg} ${getStatusColor(selectedService.status).text}`}>
+                    {selectedService.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Uptime</p>
+                  <p className="font-medium text-[#212121]">{selectedService.uptime}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Response Time</p>
+                  <p className="font-medium text-[#212121]">{selectedService.responseTime}ms</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">24h Requests</p>
+                  <p className="font-medium text-[#212121]">{selectedService.requests24h.toLocaleString()}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-[#757575] mb-1">Endpoint</p>
+                  <p className="font-medium text-[#212121] break-all">{selectedService.endpoint}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Last Checked</p>
+                  <p className="font-medium text-[#212121]">{selectedService.lastCheck}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Configure Services Modal */}
+      <Dialog open={showConfigureServicesModal} onOpenChange={setShowConfigureServicesModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Configure Services</DialogTitle>
+            <DialogDescription>
+              Configure service monitoring settings and thresholds
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Check Interval (seconds)</label>
+              <input 
+                type="number" 
+                value={serviceConfig.checkInterval}
+                onChange={(e) => setServiceConfig(prev => ({ ...prev, checkInterval: parseInt(e.target.value) || 30 }))}
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Response Time Threshold (ms)</label>
+              <input 
+                type="number" 
+                value={serviceConfig.responseTimeThreshold}
+                onChange={(e) => setServiceConfig(prev => ({ ...prev, responseTimeThreshold: parseInt(e.target.value) || 100 }))}
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#212121] mb-2">Uptime Alert Threshold (%)</label>
+              <input 
+                type="number" 
+                value={serviceConfig.uptimeThreshold}
+                onChange={(e) => setServiceConfig(prev => ({ ...prev, uptimeThreshold: parseInt(e.target.value) || 99 }))}
+                className="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button 
+                onClick={() => {
+                  // Reset to saved values
+                  setServiceConfig(loadServiceConfigFromStorage());
+                  setShowConfigureServicesModal(false);
+                }}
+                className="px-4 py-2 bg-white text-[#616161] border border-[#E0E0E0] rounded-lg hover:bg-[#F5F7FA] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveServiceConfig}
+                className="px-4 py-2 bg-[#4F46E5] text-white rounded-lg hover:bg-[#4338CA] transition-colors"
+              >
+                Save Configuration
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Service Usage Modal */}
+      <Dialog open={showServiceUsageModal} onOpenChange={setShowServiceUsageModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Service Usage Statistics</DialogTitle>
+            <DialogDescription>
+              Usage metrics for {selectedService?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedService && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#F5F7FA] p-4 rounded-lg">
+                  <p className="text-sm text-[#757575] mb-1">24h Requests</p>
+                  <p className="text-2xl font-bold text-[#212121]">{selectedService.requests24h.toLocaleString()}</p>
+                </div>
+                <div className="bg-[#F5F7FA] p-4 rounded-lg">
+                  <p className="text-sm text-[#757575] mb-1">Avg Response Time</p>
+                  <p className="text-2xl font-bold text-[#212121]">{selectedService.responseTime}ms</p>
+                </div>
+                <div className="bg-[#F5F7FA] p-4 rounded-lg">
+                  <p className="text-sm text-[#757575] mb-1">Uptime</p>
+                  <p className="text-2xl font-bold text-[#212121]">{selectedService.uptime}%</p>
+                </div>
+                <div className="bg-[#F5F7FA] p-4 rounded-lg">
+                  <p className="text-sm text-[#757575] mb-1">Last Checked</p>
+                  <p className="text-sm font-medium text-[#212121]">{selectedService.lastCheck}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#212121] mb-2">Request Distribution (Last 24h)</p>
+                <div className="bg-[#E5E7EB] h-4 rounded-full overflow-hidden">
+                  <div className="bg-[#4F46E5] h-full" style={{ width: '85%' }}></div>
+                </div>
+                <p className="text-xs text-[#757575] mt-1">Peak: 12:00 PM - 2:00 PM</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Log Details Modal */}
+      <Dialog open={showErrorLogDetailsModal} onOpenChange={setShowErrorLogDetailsModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Error Log Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about the error log entry
+            </DialogDescription>
+          </DialogHeader>
+          {selectedErrorLog && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Timestamp</p>
+                  <p className="font-medium text-[#212121]">{new Date(selectedErrorLog.timestamp).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Service</p>
+                  <p className="font-medium text-[#212121]">{selectedErrorLog.service}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Level</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getLogLevelColor(selectedErrorLog.level).bg} ${getLogLevelColor(selectedErrorLog.level).text}`}>
+                    {selectedErrorLog.level}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Error Code</p>
+                  <code className="px-2 py-1 bg-[#F5F7FA] text-[#4F46E5] rounded text-xs font-mono">
+                    {selectedErrorLog.code}
+                  </code>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-[#757575] mb-1">Message</p>
+                  <p className="font-medium text-[#212121]">{selectedErrorLog.message}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-[#757575] mb-1">Details</p>
+                  <p className="font-medium text-[#212121] bg-[#F5F7FA] p-3 rounded-lg">{selectedErrorLog.details}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Occurrence Count</p>
+                  <p className="font-medium text-[#212121]">{selectedErrorLog.count}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Alert Details Modal */}
+      <Dialog open={showAlertDetailsModal} onOpenChange={setShowAlertDetailsModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Alert Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about the alert
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAlert && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Title</p>
+                  <p className="font-medium text-[#212121]">{selectedAlert.title}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Severity</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase ${getSeverityColor(selectedAlert.severity).bg} ${getSeverityColor(selectedAlert.severity).text}`}>
+                    {selectedAlert.severity}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Service</p>
+                  <p className="font-medium text-[#212121]">{selectedAlert.service}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                    selectedAlert.status === 'active' ? 'bg-[#FEE2E2] text-[#991B1B]' :
+                    selectedAlert.status === 'acknowledged' ? 'bg-[#FEF3C7] text-[#92400E]' :
+                    'bg-[#DCFCE7] text-[#166534]'
+                  }`}>
+                    {selectedAlert.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-[#757575] mb-1">Timestamp</p>
+                  <p className="font-medium text-[#212121]">{new Date(selectedAlert.timestamp).toLocaleString()}</p>
+                </div>
+                {selectedAlert.acknowledgedBy && (
+                  <div>
+                    <p className="text-sm text-[#757575] mb-1">Acknowledged By</p>
+                    <p className="font-medium text-[#212121]">{selectedAlert.acknowledgedBy}</p>
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <p className="text-sm text-[#757575] mb-1">Message</p>
+                  <p className="font-medium text-[#212121] bg-[#F5F7FA] p-3 rounded-lg">{selectedAlert.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

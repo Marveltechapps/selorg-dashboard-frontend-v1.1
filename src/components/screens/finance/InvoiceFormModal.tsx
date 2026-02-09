@@ -69,9 +69,22 @@ export function InvoiceFormModal({ open, onClose, onSuccess }: Props) {
       return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice * (1 + item.taxPercent/100)), 0);
   };
 
-  const handleSubmit = async (asDraft: boolean) => {
-      if (!customerName || !customerEmail || items.some(i => !i.description || i.unitPrice <= 0)) {
-          toast.error("Please fill in all required fields");
+  const handleSubmit = async (asDraft: boolean, e?: React.FormEvent) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      // Validate required fields
+      if (!customerName || !customerEmail) {
+          toast.error("Please fill in customer name and email");
+          return;
+      }
+      
+      // Filter out empty items and validate
+      const validItems = items.filter(i => i.description && i.unitPrice > 0);
+      if (validItems.length === 0) {
+          toast.error("Please add at least one item with description and price");
           return;
       }
 
@@ -82,14 +95,25 @@ export function InvoiceFormModal({ open, onClose, onSuccess }: Props) {
               customerEmail,
               issueDate,
               dueDate,
-              items,
+              items: validItems, // Use only valid items
               notes
           };
-          await createInvoice(payload, asDraft);
-          toast.success(asDraft ? "Draft saved" : "Invoice sent successfully");
+          const createdInvoice = await createInvoice(payload, asDraft);
+          toast.success(asDraft ? "Draft saved successfully" : "Invoice sent successfully");
+          
+          // Reset form before closing
+          setCustomerName('');
+          setCustomerEmail('');
+          setIssueDate(new Date().toISOString().split('T')[0]);
+          setDueDate('');
+          setNotes('');
+          setItems([{ description: 'Professional Services', quantity: 1, unitPrice: 0, taxPercent: 0 }]);
+          
+          // Reload data to show the new invoice
           onSuccess();
           onClose();
       } catch (e) {
+          console.error('Failed to create invoice:', e);
           toast.error("Failed to create invoice");
       } finally {
           setIsSubmitting(false);
@@ -192,13 +216,19 @@ export function InvoiceFormModal({ open, onClose, onSuccess }: Props) {
         </div>
 
         <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => handleSubmit(true)} disabled={isSubmitting}>
+            <Button 
+                variant="outline" 
+                onClick={(e) => handleSubmit(true, e)} 
+                disabled={isSubmitting}
+                type="button"
+            >
                 Save as Draft
             </Button>
             <Button 
-                onClick={() => handleSubmit(false)} 
+                onClick={(e) => handleSubmit(false, e)} 
                 disabled={isSubmitting}
                 className="bg-[#212121] text-white hover:bg-black"
+                type="button"
             >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 Save & Send

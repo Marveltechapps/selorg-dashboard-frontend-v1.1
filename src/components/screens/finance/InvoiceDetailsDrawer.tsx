@@ -36,10 +36,12 @@ export function InvoiceDetailsDrawer({ invoice, open, onClose, onUpdate }: Props
       try {
           await action();
           toast.success(successMsg);
-          onUpdate();
-          onClose(); // Optional: close drawer or keep open to show updated state? Let's close for now or keep open? 
-          // Usually keep open to show status change, but here let's keep it simple.
+          // Small delay to ensure localStorage is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          onUpdate(); // Refresh parent to update list and summary
+          // Don't close drawer - keep it open to show updated status
       } catch (e) {
+          console.error('Action failed:', e);
           toast.error("Action failed");
       } finally {
           setIsProcessing(false);
@@ -79,7 +81,115 @@ export function InvoiceDetailsDrawer({ invoice, open, onClose, onUpdate }: Props
 
              {/* Action Bar */}
              <div className="flex gap-2 mt-4">
-                 <Button variant="outline" size="sm" className="flex-1 bg-white" onClick={() => toast.info("PDF Download Started")}>
+                 <Button 
+                     variant="outline" 
+                     size="sm" 
+                     className="flex-1 bg-white" 
+                     onClick={(e) => {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         // Generate and download PDF
+                         const htmlContent = `
+                             <html>
+                               <head>
+                                 <title>Invoice ${invoice.invoiceNumber}</title>
+                                 <style>
+                                   body { font-family: Arial, sans-serif; margin: 40px; }
+                                   .header { border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+                                   .invoice-number { font-size: 24px; font-weight: bold; }
+                                   .info-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+                                   .bill-to, .dates { width: 45%; }
+                                   .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                                   .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                                   .table th { background-color: #f5f5f5; font-weight: bold; }
+                                   .text-right { text-align: right; }
+                                   .totals { margin-top: 20px; float: right; width: 300px; }
+                                   .totals-row { display: flex; justify-content: space-between; padding: 8px 0; }
+                                   .grand-total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 10px; }
+                                   @media print {
+                                     body { margin: 0; }
+                                     .no-print { display: none; }
+                                   }
+                                 </style>
+                               </head>
+                               <body>
+                                 <div class="header">
+                                   <div class="invoice-number">Invoice ${invoice.invoiceNumber}</div>
+                                   <div style="margin-top: 10px; color: #666;">Status: ${invoice.status.toUpperCase()}</div>
+                                 </div>
+                                 
+                                 <div class="info-section">
+                                   <div class="bill-to">
+                                     <h3 style="margin-bottom: 10px;">Bill To:</h3>
+                                     <p style="font-weight: bold; margin: 5px 0;">${invoice.customerName}</p>
+                                     <p style="margin: 5px 0;">${invoice.customerEmail}</p>
+                                     <p style="margin: 5px 0;">123 Business Rd, Tech City</p>
+                                   </div>
+                                   <div class="dates">
+                                     <p style="margin: 5px 0;"><strong>Issue Date:</strong> ${format(parseISO(invoice.issueDate), "MMM dd, yyyy")}</p>
+                                     <p style="margin: 5px 0;"><strong>Due Date:</strong> ${format(parseISO(invoice.dueDate), "MMM dd, yyyy")}</p>
+                                   </div>
+                                 </div>
+                                 
+                                 <table class="table">
+                                   <thead>
+                                     <tr>
+                                       <th>Item</th>
+                                       <th class="text-right">Qty</th>
+                                       <th class="text-right">Price</th>
+                                       <th class="text-right">Total</th>
+                                     </tr>
+                                   </thead>
+                                   <tbody>
+                                     ${invoice.items.map(item => `
+                                       <tr>
+                                         <td>${item.description}</td>
+                                         <td class="text-right">${item.quantity}</td>
+                                         <td class="text-right">$${item.unitPrice.toFixed(2)}</td>
+                                         <td class="text-right">$${(item.quantity * item.unitPrice).toFixed(2)}</td>
+                                       </tr>
+                                     `).join('')}
+                                   </tbody>
+                                 </table>
+                                 
+                                 <div class="totals">
+                                   <div class="totals-row">
+                                     <span>Subtotal:</span>
+                                     <span>$${subtotal.toFixed(2)}</span>
+                                   </div>
+                                   <div class="totals-row">
+                                     <span>Tax:</span>
+                                     <span>$${totalTax.toFixed(2)}</span>
+                                   </div>
+                                   <div class="totals-row grand-total">
+                                     <span>Grand Total:</span>
+                                     <span>$${invoice.amount.toFixed(2)}</span>
+                                   </div>
+                                 </div>
+                                 
+                                 ${invoice.notes ? `
+                                   <div style="margin-top: 40px; padding: 15px; background-color: #f5f5f5; border-radius: 5px;">
+                                     <strong>Notes:</strong><br>
+                                     ${invoice.notes}
+                                   </div>
+                                 ` : ''}
+                                 
+                                 <script>window.onload = () => window.print();</script>
+                               </body>
+                             </html>
+                         `;
+                         const blob = new Blob([htmlContent], { type: 'text/html' });
+                         const url = window.URL.createObjectURL(blob);
+                         const a = document.createElement('a');
+                         a.href = url;
+                         a.download = `Invoice-${invoice.invoiceNumber}.html`;
+                         document.body.appendChild(a);
+                         a.click();
+                         document.body.removeChild(a);
+                         window.URL.revokeObjectURL(url);
+                         toast.success("PDF downloaded successfully");
+                     }}
+                 >
                      <Download className="mr-2 h-4 w-4" /> PDF
                  </Button>
                  
@@ -110,7 +220,7 @@ export function InvoiceDetailsDrawer({ invoice, open, onClose, onUpdate }: Props
              </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 200px)', maxHeight: 'calc(100vh - 200px)' }}>
              <div className="p-6 space-y-8">
                  {/* Customer Info */}
                  <div className="grid grid-cols-2 gap-8">

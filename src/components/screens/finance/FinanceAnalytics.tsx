@@ -26,7 +26,11 @@ import { RevenueGrowthCharts } from './RevenueGrowthCharts';
 import { CashFlowCharts } from './CashFlowCharts';
 import { ExpenseBreakdownCharts } from './ExpenseBreakdownCharts';
 
-export function FinanceAnalytics() {
+interface FinanceAnalyticsProps {
+  initialView?: string | null;
+}
+
+export function FinanceAnalytics({ initialView }: FinanceAnalyticsProps) {
   // --- State ---
   const [activeReport, setActiveReport] = useState<ReportType | null>(null);
   const [dateRange, setDateRange] = useState("last_12_months");
@@ -41,6 +45,13 @@ export function FinanceAnalytics() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // --- Effects ---
+
+  // Handle initial view from navigation
+  useEffect(() => {
+    if (initialView === 'cash_flow' || initialView === 'cash-flow') {
+      setActiveReport('cash_flow');
+    }
+  }, [initialView]);
 
   // Fetch data when report type or filters change
   useEffect(() => {

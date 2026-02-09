@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../../ui/sheet";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -7,14 +7,19 @@ import { Separator } from "../../ui/separator";
 import { ScrollArea } from "../../ui/scroll-area";
 import { CustomerPayment } from './customerPaymentsApi';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { toast } from 'sonner';
+import { CustomerProfileModal } from './CustomerProfileModal';
 
 interface Props {
   payment: CustomerPayment | null;
   onClose: () => void;
   open: boolean;
+  onRetry?: (payment: CustomerPayment) => void;
 }
 
-export function PaymentDetailsDrawer({ payment, onClose, open }: Props) {
+export function PaymentDetailsDrawer({ payment, onClose, open, onRetry }: Props) {
+  const [profileOpen, setProfileOpen] = useState(false);
+  
   if (!payment) return null;
 
   const StatusIcon = {
@@ -53,7 +58,7 @@ export function PaymentDetailsDrawer({ payment, onClose, open }: Props) {
           </SheetDescription>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
             <div className="p-6 space-y-6">
                 {/* Status Banner */}
                 <div className={`p-4 rounded-xl border flex justify-between items-center ${statusColor}`}>
@@ -129,9 +134,50 @@ export function PaymentDetailsDrawer({ payment, onClose, open }: Props) {
                                     <p className="text-xs text-gray-500 mb-1">Email Address</p>
                                     <p className="font-medium text-gray-900">{payment.customerEmail}</p>
                                 </div>
-                                <Button variant="outline" size="sm" className="w-full">
+                                <Button 
+                                  type="button"
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setProfileOpen(true);
+                                  }}
+                                >
                                     View Full Profile
                                 </Button>
+                                <Button 
+                                  type="button"
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full justify-between"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const event = new CustomEvent('navigateToTab', { detail: { tab: 'reconciliation' } });
+                                    window.dispatchEvent(event);
+                                    toast.success("Opening Reconciliation");
+                                    onClose();
+                                  }}
+                                >
+                                  View in Reconciliation <ExternalLink size={14} />
+                                </Button>
+                                {payment.retryEligible && onRetry && (
+                                  <Button 
+                                    type="button"
+                                    size="sm" 
+                                    className="w-full bg-[#14B8A6] hover:bg-[#0D9488]"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onRetry(payment);
+                                      onClose();
+                                    }}
+                                  >
+                                    Retry Payment
+                                  </Button>
+                                )}
                             </div>
                          </div>
                     </TabsContent>
@@ -168,16 +214,42 @@ export function PaymentDetailsDrawer({ payment, onClose, open }: Props) {
         </ScrollArea>
 
         <div className="p-6 border-t border-gray-100 bg-gray-50 space-y-3">
-             <Button variant="outline" className="w-full justify-between bg-white hover:bg-gray-50">
+             <Button 
+               type="button"
+               variant="outline" 
+               className="w-full justify-between bg-white hover:bg-gray-50"
+               onClick={(e) => {
+                 e.preventDefault();
+                 e.stopPropagation();
+                 const event = new CustomEvent('navigateToTab', { detail: { tab: 'reconciliation' } });
+                 window.dispatchEvent(event);
+                 toast.success("Opening Reconciliation");
+               }}
+             >
                 View in Reconciliation <ExternalLink size={14} />
              </Button>
-             {payment.retryEligible && (
-                 <Button className="w-full bg-[#14B8A6] hover:bg-[#0D9488]">
+             {payment.retryEligible && onRetry && (
+                 <Button 
+                   type="button"
+                   className="w-full bg-[#14B8A6] hover:bg-[#0D9488]"
+                   onClick={(e) => {
+                     e.preventDefault();
+                     e.stopPropagation();
+                     onRetry(payment);
+                     onClose();
+                   }}
+                 >
                     Retry Payment
                  </Button>
              )}
         </div>
       </SheetContent>
+      
+      <CustomerProfileModal 
+        payment={payment}
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+      />
     </Sheet>
   );
 }

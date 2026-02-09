@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Boxes } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../ui/select";
 import { ScrollArea } from "../../../ui/scroll-area";
 import { AllocationDetailDrawer } from './AllocationDetailDrawer';
 import { SKURebalanceModal } from './SKURebalanceModal';
 import { TransferOrderModal } from './TransferOrderModal';
+import { allocationApi } from './allocationApi';
 
 const MOCK_SKUS = [
     {
@@ -52,21 +53,121 @@ export function SKUAllocationPanel({ searchQuery = "" }: { searchQuery?: string 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isRebalanceOpen, setIsRebalanceOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [skus, setSkus] = useState(MOCK_SKUS);
+
+  // Load persisted allocations on mount and when updates occur
+  const loadPersistedAllocations = () => {
+    const persisted = allocationApi.loadSKUAllocations();
+    setSkus(prevSkus => prevSkus.map(sku => {
+      const updatedLocations = sku.locations.map((loc: any) => {
+        const key = `${sku.id}_${loc.id}`;
+        const persistedData = persisted[key];
+        if (persistedData) {
+          // Merge persisted data with existing location data, prioritizing persisted values
+          return {
+            ...loc,
+            allocated: persistedData.allocated !== undefined ? persistedData.allocated : loc.allocated,
+            target: persistedData.target !== undefined ? persistedData.target : loc.target,
+            onHand: persistedData.onHand !== undefined ? persistedData.onHand : loc.onHand,
+            inTransit: persistedData.inTransit !== undefined ? persistedData.inTransit : loc.inTransit,
+            safetyStock: persistedData.safetyStock !== undefined ? persistedData.safetyStock : loc.safetyStock
+          };
+        }
+        return loc;
+      });
+      // Recalculate totalStock based on updated locations
+      const totalStock = updatedLocations.reduce((sum: number, loc: any) => sum + (loc.onHand || 0), 0);
+      return { ...sku, locations: updatedLocations, totalStock };
+    }));
+  };
+
+  useEffect(() => {
+    loadPersistedAllocations();
+  }, []);
+
+  const handleRebalanceComplete = () => {
+    // Reload SKUs to reflect rebalance changes
+    loadPersistedAllocations();
+    // Also update selected SKU if drawer is open - reload from persisted data
+    if (selectedSKU) {
+      const persisted = allocationApi.loadSKUAllocations();
+      const updatedSku = skus.find(s => s.id === selectedSKU.id);
+      if (updatedSku) {
+        const updatedLocations = updatedSku.locations.map((loc: any) => {
+          const key = `${updatedSku.id}_${loc.id}`;
+          const persistedData = persisted[key];
+          if (persistedData) {
+            return {
+              ...loc,
+              allocated: persistedData.allocated ?? loc.allocated,
+              target: persistedData.target ?? loc.target,
+              onHand: persistedData.onHand ?? loc.onHand,
+              inTransit: persistedData.inTransit ?? loc.inTransit
+            };
+          }
+          return loc;
+        });
+        setSelectedSKU({ ...updatedSku, locations: updatedLocations });
+      }
+    }
+  };
+
+  const handleTransferComplete = () => {
+    // Reload SKUs to reflect transfer changes
+    loadPersistedAllocations();
+    // Also update selected SKU if drawer is open - reload from persisted data
+    if (selectedSKU) {
+      const persisted = allocationApi.loadSKUAllocations();
+      const updatedSku = skus.find(s => s.id === selectedSKU.id);
+      if (updatedSku) {
+        const updatedLocations = updatedSku.locations.map((loc: any) => {
+          const key = `${updatedSku.id}_${loc.id}`;
+          const persistedData = persisted[key];
+          if (persistedData) {
+            return {
+              ...loc,
+              allocated: persistedData.allocated ?? loc.allocated,
+              target: persistedData.target ?? loc.target,
+              onHand: persistedData.onHand ?? loc.onHand,
+              inTransit: persistedData.inTransit ?? loc.inTransit
+            };
+          }
+          return loc;
+        });
+        setSelectedSKU({ ...updatedSku, locations: updatedLocations });
+      }
+    }
+  };
 
   const handleSKUClick = (sku: any) => {
       setSelectedSKU(sku);
       setIsDrawerOpen(true);
   };
 
-  const filteredSKUs = MOCK_SKUS.filter(sku => {
+  const filteredSKUs = skus.filter(sku => {
       // Search logic
       if (searchQuery && !sku.name.toLowerCase().includes(searchQuery.toLowerCase()) && !sku.code.toLowerCase().includes(searchQuery.toLowerCase())) {
           return false;
       }
 
+      // Filter logic
       if (filter === 'all') return true;
-      // Mock filter logic
-      if (filter === 'high-priority') return ['1', '2'].includes(sku.id);
+      if (filter === 'high-priority') {
+          // High priority: SKUs with locations below 80% of target
+          return sku.locations.some(loc => (loc.allocated / loc.target) < 0.8);
+      }
+      if (filter === 'low-stock') {
+          // Low stock: SKUs with any location below 50% of target
+          return sku.locations.some(loc => (loc.allocated / loc.target) < 0.5);
+      }
+      if (filter === 'promo') {
+          // Promo SKUs: Based on category or other criteria
+          return sku.category === 'Beverages' || sku.name.toLowerCase().includes('sale');
+      }
+      if (filter === 'new') {
+          // New launches: Based on ID or other criteria
+          return ['3'].includes(sku.id);
+      }
       return true;
   });
 
@@ -138,18 +239,21 @@ export function SKUAllocationPanel({ searchQuery = "" }: { searchQuery?: string 
             sku={selectedSKU} 
             onRebalance={() => setIsRebalanceOpen(true)}
             onCreateTransfer={() => setIsTransferOpen(true)}
+            onUpdate={handleRebalanceComplete}
          />
 
          <SKURebalanceModal 
             open={isRebalanceOpen}
             onOpenChange={setIsRebalanceOpen}
             sku={selectedSKU}
+            onComplete={handleRebalanceComplete}
          />
 
          <TransferOrderModal
             open={isTransferOpen}
             onOpenChange={setIsTransferOpen}
             sku={selectedSKU}
+            onComplete={handleTransferComplete}
          />
     </div>
   );

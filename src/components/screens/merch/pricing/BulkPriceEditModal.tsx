@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../../ui/dialog";
 import { Button } from "../../../ui/button";
 import { Input } from "../../../ui/input";
@@ -7,19 +7,95 @@ import { RadioGroup, RadioGroupItem } from "../../../ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../ui/table";
 import { Check, AlertCircle } from "lucide-react";
+import { pricingApi } from './pricingApi';
+import { toast } from "sonner";
 
 interface BulkPriceEditModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedCount?: number;
+  allSkus?: any[];
+  onBulkUpdate?: (updatedSkus: any[]) => void;
 }
 
-export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0 }: BulkPriceEditModalProps) {
+export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0, allSkus = [], onBulkUpdate }: BulkPriceEditModalProps) {
   const [step, setStep] = useState(1);
   const [actionType, setActionType] = useState('flat');
+  const [adjustValue, setAdjustValue] = useState('');
+  const [adjustType, setAdjustType] = useState('increase');
+  const [adjustUnit, setAdjustUnit] = useState('percent');
+  const [targetMargin, setTargetMargin] = useState('');
+  const [comment, setComment] = useState('');
   
   const nextStep = () => setStep(s => Math.min(s + 1, 3));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
+  
+  const applyBulkUpdate = () => {
+    if (!allSkus || allSkus.length === 0) {
+      toast.error("No SKUs available to update");
+      return;
+    }
+    
+    const skusToUpdate = selectedCount > 0 ? allSkus.slice(0, selectedCount) : allSkus;
+    const updatedSkus = skusToUpdate.map((sku: any) => {
+      let newPrice = sku.sell;
+      let newMargin = sku.margin;
+      
+      if (actionType === 'flat' && adjustValue) {
+        const value = parseFloat(adjustValue);
+        if (isNaN(value) || value <= 0) {
+          return sku; // Skip invalid values
+        }
+        if (adjustUnit === 'percent') {
+          const change = (sku.sell * value) / 100;
+          newPrice = adjustType === 'increase' ? sku.sell + change : sku.sell - change;
+        } else {
+          newPrice = adjustType === 'increase' ? sku.sell + value : sku.sell - value;
+        }
+        const cost = sku.cost || (sku.sell * (1 - sku.margin / 100));
+        newMargin = ((newPrice - cost) / newPrice) * 100;
+      } else if (actionType === 'margin' && targetMargin) {
+        const target = parseFloat(targetMargin);
+        if (isNaN(target) || target <= 0 || target >= 100) {
+          return sku; // Skip invalid values
+        }
+        const cost = sku.cost || (sku.sell * (1 - sku.margin / 100));
+        newPrice = cost / (1 - target / 100);
+        newMargin = target;
+      }
+      
+      return {
+        ...sku,
+        sell: parseFloat(newPrice.toFixed(2)),
+        margin: parseFloat(newMargin.toFixed(1)),
+        marginStatus: newMargin < 10 ? 'critical' : (newMargin < 15 ? 'warning' : 'healthy')
+      };
+    });
+    
+    // Update the remaining SKUs that weren't changed
+    const unchangedSkus = allSkus.filter((sku: any) => !skusToUpdate.find((u: any) => u.id === sku.id));
+    const finalSkus = [...updatedSkus, ...unchangedSkus];
+    
+    if (onBulkUpdate) {
+      onBulkUpdate(finalSkus);
+    }
+    
+    toast.success(`Bulk price update applied to ${updatedSkus.length} SKUs`);
+    setStep(3);
+  };
+  
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!open) {
+      setStep(1);
+      setActionType('flat');
+      setAdjustValue('');
+      setAdjustType('increase');
+      setAdjustUnit('percent');
+      setTargetMargin('');
+      setComment('');
+    }
+  }, [open]);
 
   // Step 1 is effectively done if triggered with selection, but we can show "Select Criteria" if count is 0.
   // Assuming this is triggered from "Bulk Edit" button on the table.
@@ -40,15 +116,21 @@ export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0 }: Bu
                     <p className="text-sm text-muted-foreground">Increase or decrease by amount or percentage</p>
                     {actionType === 'flat' && (
                         <div className="flex gap-2 mt-2 items-center">
-                            <Select defaultValue="increase">
+                            <Select value={adjustType} onValueChange={setAdjustType}>
                                 <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="increase">Increase by</SelectItem>
                                     <SelectItem value="decrease">Decrease by</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Input className="w-[80px]" placeholder="0.00" />
-                            <Select defaultValue="percent">
+                            <Input 
+                              className="w-[80px]" 
+                              placeholder="0.00" 
+                              value={adjustValue}
+                              onChange={(e) => setAdjustValue(e.target.value)}
+                              type="number"
+                            />
+                            <Select value={adjustUnit} onValueChange={setAdjustUnit}>
                                 <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="percent">%</SelectItem>
@@ -68,7 +150,13 @@ export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0 }: Bu
                      {actionType === 'margin' && (
                         <div className="flex gap-2 mt-2 items-center">
                             <span className="text-sm">Minimum Margin:</span>
-                            <Input className="w-[80px]" placeholder="20" />
+                            <Input 
+                              className="w-[80px]" 
+                              placeholder="20" 
+                              value={targetMargin}
+                              onChange={(e) => setTargetMargin(e.target.value)}
+                              type="number"
+                            />
                             <span className="text-sm">%</span>
                         </div>
                     )}
@@ -100,55 +188,96 @@ export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0 }: Bu
     </div>
   );
 
-  const renderStep2 = () => (
-    <div className="space-y-4">
-        <h3 className="font-medium flex items-center gap-2">
-            Preview Impact <span className="text-sm font-normal text-muted-foreground">(First 5 items)</span>
-        </h3>
-        <div className="border rounded-md">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Current</TableHead>
-                        <TableHead>New Price</TableHead>
-                        <TableHead>Margin Change</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    <TableRow>
-                        <TableCell>Coffee Beans</TableCell>
-                        <TableCell>$14.99</TableCell>
-                        <TableCell className="font-bold text-green-600">$15.75</TableCell>
-                        <TableCell>16.6% → 18.2%</TableCell>
-                    </TableRow>
-                    <TableRow>
-                        <TableCell>Almond Milk</TableCell>
-                        <TableCell>$4.50</TableCell>
-                        <TableCell className="font-bold text-green-600">$4.75</TableCell>
-                        <TableCell>15.5% → 17.1%</TableCell>
-                    </TableRow>
-                    <TableRow>
-                        <TableCell>Green Tea</TableCell>
-                        <TableCell>$8.20</TableCell>
-                        <TableCell className="font-bold text-green-600">$8.60</TableCell>
-                        <TableCell>22.0% → 24.1%</TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
-        </div>
-        <div className="bg-amber-50 p-3 rounded border border-amber-200 flex gap-2">
-            <AlertCircle className="text-amber-600 shrink-0" size={20} />
-            <p className="text-sm text-amber-800">
-                Warning: 2 SKUs will exceed the maximum price threshold for their category.
-            </p>
-        </div>
-        <div className="space-y-2">
-            <Label>Summary Comment (Required)</Label>
-            <Input placeholder="e.g. Annual inflation adjustment" />
-        </div>
-    </div>
-  );
+  const calculatePreview = () => {
+    if (!allSkus || allSkus.length === 0) return [];
+    
+    const skusToUpdate = selectedCount > 0 ? allSkus.slice(0, selectedCount) : allSkus.slice(0, 5);
+    
+    return skusToUpdate.map((sku: any) => {
+      let newPrice = sku.sell;
+      let newMargin = sku.margin;
+      
+      if (actionType === 'flat' && adjustValue) {
+        const value = parseFloat(adjustValue);
+        if (adjustUnit === 'percent') {
+          const change = (sku.sell * value) / 100;
+          newPrice = adjustType === 'increase' ? sku.sell + change : sku.sell - change;
+        } else {
+          newPrice = adjustType === 'increase' ? sku.sell + value : sku.sell - value;
+        }
+        const cost = sku.cost || (sku.sell * (1 - sku.margin / 100));
+        newMargin = ((newPrice - cost) / newPrice) * 100;
+      } else if (actionType === 'margin' && targetMargin) {
+        const target = parseFloat(targetMargin);
+        const cost = sku.cost || (sku.sell * (1 - sku.margin / 100));
+        newPrice = cost / (1 - target / 100);
+        newMargin = target;
+      }
+      
+      return {
+        ...sku,
+        newPrice: parseFloat(newPrice.toFixed(2)),
+        newMargin: parseFloat(newMargin.toFixed(1)),
+        oldPrice: sku.sell,
+        oldMargin: sku.margin
+      };
+    });
+  };
+
+  const renderStep2 = () => {
+    const previewData = calculatePreview();
+    
+    return (
+      <div className="space-y-4">
+          <h3 className="font-medium flex items-center gap-2">
+              Preview Impact <span className="text-sm font-normal text-muted-foreground">(First {previewData.length} items)</span>
+          </h3>
+          <div className="border rounded-md">
+              <Table>
+                  <TableHeader>
+                      <TableRow>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>Current</TableHead>
+                          <TableHead>New Price</TableHead>
+                          <TableHead>Margin Change</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                      {previewData.map((item: any) => (
+                          <TableRow key={item.id}>
+                              <TableCell>{item.name}</TableCell>
+                              <TableCell>${item.oldPrice.toFixed(2)}</TableCell>
+                              <TableCell className="font-bold text-green-600">${item.newPrice.toFixed(2)}</TableCell>
+                              <TableCell>{item.oldMargin.toFixed(1)}% → {item.newMargin.toFixed(1)}%</TableCell>
+                          </TableRow>
+                      ))}
+                      {previewData.length === 0 && (
+                          <TableRow>
+                              <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                                  No SKUs to preview
+                              </TableCell>
+                          </TableRow>
+                      )}
+                  </TableBody>
+              </Table>
+          </div>
+          <div className="bg-amber-50 p-3 rounded border border-amber-200 flex gap-2">
+              <AlertCircle className="text-amber-600 shrink-0" size={20} />
+              <p className="text-sm text-amber-800">
+                  Warning: Some SKUs may exceed the maximum price threshold for their category.
+              </p>
+          </div>
+          <div className="space-y-2">
+              <Label>Summary Comment (Required)</Label>
+              <Input 
+                placeholder="e.g. Annual inflation adjustment" 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+          </div>
+      </div>
+    );
+  };
 
   const renderStep3 = () => (
     <div className="flex flex-col items-center justify-center py-8 space-y-4 text-center">
@@ -179,7 +308,21 @@ export function BulkPriceEditModal({ open, onOpenChange, selectedCount = 0 }: Bu
             {step < 3 ? (
                 <>
                     <Button variant="outline" onClick={prevStep} disabled={step === 1}>Back</Button>
-                    <Button onClick={nextStep}>
+                    <Button 
+                      onClick={() => {
+                        if (step === 2) {
+                          // Validate before submitting
+                          if (!comment.trim()) {
+                            toast.error("Please provide a summary comment");
+                            return;
+                          }
+                          // Apply bulk update
+                          applyBulkUpdate();
+                        } else {
+                          nextStep();
+                        }
+                      }}
+                    >
                         {step === 2 ? "Submit Changes" : "Preview Impact"}
                     </Button>
                 </>

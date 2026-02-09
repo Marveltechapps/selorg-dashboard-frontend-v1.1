@@ -40,7 +40,7 @@ export function GatewayDetailDrawer({ gateway, open, onClose, onViewExceptions }
              </SheetDescription>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 200px)', maxHeight: 'calc(100vh - 200px)' }}>
              <div className="p-6 space-y-8">
                  {/* Big Stats */}
                  <div className="grid grid-cols-2 gap-4">

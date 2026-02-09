@@ -19,16 +19,17 @@ import { useDashboardNavigation } from '../hooks/useDashboardNavigation';
 
 export function VendorManagement({ onLogout }: { onLogout: () => void }) {
   const { activeTab, setActiveTab } = useDashboardNavigation('overview');
+  const [vendorSearchQuery, setVendorSearchQuery] = React.useState('');
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-[#212121] font-sans">
       <VendorSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
       
       <div className="pl-[240px]">
-        <VendorTopBar />
+        <VendorTopBar searchQuery={vendorSearchQuery} onSearchChange={setVendorSearchQuery} />
         
         <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
-            {activeTab === 'overview' && <VendorOverview />}
+            {activeTab === 'overview' && <VendorOverview searchQuery={vendorSearchQuery} />}
             {activeTab === 'vendor-list' && <VendorList />}
             {activeTab === 'onboarding' && <VendorOnboarding />}
             {activeTab === 'po' && <PurchaseOrders />}

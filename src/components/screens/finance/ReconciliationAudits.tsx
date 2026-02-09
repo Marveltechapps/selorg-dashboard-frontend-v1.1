@@ -13,7 +13,8 @@ import {
     SettlementSummaryItem,
     ReconciliationException,
     fetchReconSummary,
-    fetchExceptions
+    fetchExceptions,
+    investigateException
 } from './reconciliationApi';
 import { Button } from '../../ui/button';
 
@@ -40,6 +41,7 @@ export function ReconciliationAudits() {
         setIsLoadingSummary(true);
         setIsLoadingExceptions(true);
         try {
+            // fetchExceptions now uses localStorage data internally
             const [sum, exc] = await Promise.all([
                 fetchReconSummary(new Date().toISOString()),
                 fetchExceptions('open')
@@ -64,7 +66,8 @@ export function ReconciliationAudits() {
     };
 
     const handleResolveSuccess = () => {
-        loadData(); // Ideally, optimistically update state instead of full reload
+        // Reload data to get updated exceptions from localStorage
+        loadData();
     };
 
     const handleGatewayClick = (item: SettlementSummaryItem) => {
@@ -75,6 +78,18 @@ export function ReconciliationAudits() {
     const handleInvestigateClick = (ex: ReconciliationException) => {
         setSelectedException(ex);
         setInvestigateDrawerOpen(true);
+    };
+    
+    const handleCloseInvestigation = () => {
+        setInvestigateDrawerOpen(false);
+        // Optionally update exception status
+        if (selectedException) {
+            setExceptions(prev => prev.map(ex => 
+                ex.id === selectedException.id 
+                    ? { ...ex, status: 'in_review' as any }
+                    : ex
+            ));
+        }
     };
 
     const handleResolveClick = (ex: ReconciliationException) => {
@@ -136,7 +151,21 @@ export function ReconciliationAudits() {
             <ExceptionInvestigationDrawer 
                 exception={selectedException}
                 open={investigateDrawerOpen}
-                onClose={() => setInvestigateDrawerOpen(false)}
+                onClose={async () => {
+                    // Update exception status to in_review when closing investigation
+                    if (selectedException) {
+                        try {
+                            await investigateException(selectedException.id);
+                            toast.success("Investigation closed");
+                            // Reload data to show updated status
+                            await loadData();
+                        } catch (e) {
+                            console.error('Failed to close investigation', e);
+                            toast.error("Failed to close investigation");
+                        }
+                    }
+                    setInvestigateDrawerOpen(false);
+                }}
                 onResolve={(ex) => {
                     setInvestigateDrawerOpen(false);
                     handleResolveClick(ex);

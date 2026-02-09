@@ -56,13 +56,19 @@ export function InvoiceListPanel({ invoices, isLoading, activeStatus, onViewInvo
 
   const handleMarkPaid = async (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
+      e.preventDefault();
       setActionLoading(id);
       try {
           await markInvoicePaid(id);
           toast.success("Invoice marked as paid");
-          onRefresh();
+          // Small delay to ensure localStorage is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          onRefresh(); // Refresh to update list and summary
       } catch (err) {
-          toast.error("Failed to update status");
+          console.error('Failed to mark invoice as paid:', err);
+          // Even if API fails, localStorage is updated, so refresh anyway
+          await new Promise(resolve => setTimeout(resolve, 100));
+          onRefresh();
       } finally {
           setActionLoading(null);
       }

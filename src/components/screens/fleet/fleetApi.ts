@@ -144,22 +144,13 @@ export async function fetchMaintenanceTasks(): Promise<MaintenanceTask[]> {
 }
 
 export async function createMaintenanceTask(task: Partial<MaintenanceTask>): Promise<MaintenanceTask> {
-  try {
-    const response = await apiRequest('/maintenance', {
-      method: 'POST',
-      body: JSON.stringify(task),
-    });
-    return response.success ? response.data : response;
-  } catch (err) {
-    console.error('Failed to create maintenance task', err);
-    throw err;
-  }
+  const response = await apiRequest(API_ENDPOINTS.fleet.maintenance, {
+    method: 'POST',
+    body: JSON.stringify(task),
+  });
+  return (response?.data ?? response) as MaintenanceTask;
 }
 
 export async function updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>): Promise<void> {
-  try {
-    await apiRequest(`${API_ENDPOINTS.fleet.maintenanceTask(id)}`, { method: 'PUT', body: JSON.stringify(updates) });
-  } catch (_) {
-    return;
-  }
+  await apiRequest(`${API_ENDPOINTS.fleet.maintenanceTask(id)}`, { method: 'PUT', body: JSON.stringify(updates) });
 }

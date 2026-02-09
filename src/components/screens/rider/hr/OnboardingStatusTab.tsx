@@ -20,8 +20,10 @@ export function OnboardingStatusTab({ riders, loading, onRefresh }: OnboardingSt
     try {
       const result = await sendReminderToRider(riderId);
       toast.success(result?.message ?? `Reminder sent to ${riderName}`);
-    } catch (_) {
-      toast.success(`Reminder queued for ${riderName}`);
+      // Background refresh to sync with server (non-blocking)
+      onRefresh?.().catch(() => {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send reminder");
     }
   };
 

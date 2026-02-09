@@ -12,18 +12,11 @@ import { Switch } from "../../../ui/switch";
 import { Label } from "../../../ui/label";
 import { geofenceApi } from './geofenceApi';
 import { toast } from 'sonner';
+import { HeatmapDetailsDrawer } from './HeatmapDetailsDrawer';
 
 export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }) {
-  const [zones, setZones] = useState<Zone[]>([
-    { id: '1', name: 'Downtown Core', type: 'Serviceable', status: 'Active', isVisible: true, color: '#10B981', areaSqKm: 12.4, promoCount: 8, points: [{ x: 30, y: 30 }, { x: 50, y: 25 }, { x: 55, y: 45 }, { x: 35, y: 50 }] },
-    { id: '2', name: 'West End Hub', type: 'Priority', status: 'Active', isVisible: true, color: '#3B82F6', areaSqKm: 8.2, promoCount: 5, points: [{ x: 10, y: 40 }, { x: 25, y: 35 }, { x: 30, y: 60 }, { x: 15, y: 65 }] },
-    { id: '3', name: 'Exclusion Zone A', type: 'Exclusion', status: 'Active', isVisible: true, color: '#EF4444', areaSqKm: 4.1, promoCount: 0, points: [{ x: 60, y: 60 }, { x: 80, y: 55 }, { x: 85, y: 75 }, { x: 65, y: 80 }] }
-  ]);
-  const [stores, setStores] = useState<Store[]>([
-    { id: '1', name: 'Main St. Express', address: '123 Main St, Downtown', x: 42, y: 38, zones: ['Downtown Core'], serviceStatus: 'Full' },
-    { id: '2', name: 'Westside Market', address: '456 West Blvd, West End', x: 18, y: 52, zones: ['West End Hub'], serviceStatus: 'Full' },
-    { id: '3', name: 'North Hills Outpost', address: '789 North Rd, North Hills', x: 72, y: 22, zones: [], serviceStatus: 'Partial' }
-  ]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(false);
   
   // UI State
@@ -33,7 +26,20 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
   const [isZoneListOpen, setIsZoneListOpen] = useState(false);
   const [isStoreCoverageOpen, setIsStoreCoverageOpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [showHeatmapPanel, setShowHeatmapPanel] = useState(false);
+  const [isHeatmapDrawerOpen, setIsHeatmapDrawerOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Load data from localStorage on mount
+  const loadData = () => {
+    const loadedZones = geofenceApi.loadZones();
+    const loadedStores = geofenceApi.loadStores();
+    setZones(loadedZones);
+    setStores(loadedStores);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   // Filter zones and stores based on search query
   const filteredZones = useMemo(() => {
@@ -48,7 +54,11 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
 
   // Handlers - Updated locally
   const handleToggleVisibility = (id: string) => {
-    setZones(zones.map(z => z.id === id ? { ...z, isVisible: !z.isVisible } : z));
+    const updated = geofenceApi.updateZone(id, { isVisible: !zones.find(z => z.id === id)?.isVisible });
+    if (updated) {
+      const updatedZones = geofenceApi.loadZones();
+      setZones(updatedZones);
+    }
   };
 
   const handleZoneClick = (zone: Zone) => {
@@ -62,30 +72,54 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
 
   const handleAddZone = (newZone: Zone) => {
     const zoneWithId = { ...newZone, id: `zone-${Date.now()}` };
-    setZones([zoneWithId, ...zones]);
-    setSelectedZone(zoneWithId);
+    const createdZone = geofenceApi.createZone(zoneWithId);
+    const updatedZones = geofenceApi.loadZones();
+    setZones(updatedZones);
+    setSelectedZone(createdZone);
     setIsDrawerOpen(true);
     setIsWizardOpen(false); 
-    toast.success("Zone Created Locally");
+    toast.success("Zone Created", {
+      description: 'Zone has been saved and will persist after refresh'
+    });
   };
 
   const handleEditZone = (zone: Zone) => {
       setSelectedZone(zone);
+      setIsEditMode(true);
       setIsDrawerOpen(true);
+  };
+
+  const handleUpdateZone = (zoneId: string, updates: Partial<Zone>) => {
+    const updated = geofenceApi.updateZone(zoneId, updates);
+    if (updated) {
+      const updatedZones = geofenceApi.loadZones();
+      setZones(updatedZones);
+      setSelectedZone(updated);
+      toast.success("Zone Updated", {
+        description: 'Changes have been saved and will persist after refresh'
+      });
+    }
   };
 
   const handleArchiveZone = (zone: any) => {
       if (confirm(`Are you sure you want to archive ${zone.name}?`)) {
-          setZones(zones.filter(z => z.id !== zone.id));
+          geofenceApi.deleteZone(zone.id);
+          const updatedZones = geofenceApi.loadZones();
+          setZones(updatedZones);
           setIsDrawerOpen(false);
-          toast.success("Zone Archived Locally");
+          setSelectedZone(null);
+          toast.success("Zone Archived", {
+            description: 'Zone has been archived and will persist after refresh'
+          });
       }
   };
 
   const handleHeatmapToggle = () => {
       const newState = !showHeatmap;
       setShowHeatmap(newState);
-      setShowHeatmapPanel(newState);
+      if (newState) {
+        setIsHeatmapDrawerOpen(true);
+      }
   };
 
   const kpiStats = {
@@ -116,7 +150,12 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
         <div className="flex items-center gap-4">
              {zones.length === 0 && (
                 <Button variant="outline" onClick={() => {
-                    geofenceApi.seedData().then(() => fetchData());
+                    geofenceApi.seedData().then(() => {
+                        const loadedZones = geofenceApi.loadZones();
+                        const loadedStores = geofenceApi.loadStores();
+                        setZones(loadedZones);
+                        setStores(loadedStores);
+                    });
                 }} className="text-xs h-9">
                     Seed Mock Data
                 </Button>
@@ -152,59 +191,6 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
                 onArchiveZone={handleArchiveZone}
              />
 
-             {/* Heatmap Panel Overlay */}
-             {showHeatmapPanel && (
-                 <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-xl border border-gray-200 p-4 animate-in slide-in-from-right-10 z-[30]">
-                     <div className="flex justify-between items-start mb-4">
-                         <div>
-                            <h3 className="font-bold text-gray-900">Heatmap Details</h3>
-                            <p className="text-xs text-gray-500">Last 30 Days • All Campaigns</p>
-                         </div>
-                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowHeatmapPanel(false)}>
-                             <X className="h-4 w-4" />
-                         </Button>
-                     </div>
-                     
-                     <div className="space-y-4">
-                         <div>
-                             <div className="flex justify-between text-sm mb-1">
-                                 <span>Downtown Core</span>
-                                 <span className="font-bold text-green-600">$12.4k</span>
-                             </div>
-                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                 <div className="h-full bg-red-500 w-[85%]" />
-                             </div>
-                         </div>
-                          <div>
-                             <div className="flex justify-between text-sm mb-1">
-                                 <span>West End</span>
-                                 <span className="font-bold text-green-600">$8.2k</span>
-                             </div>
-                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                 <div className="h-full bg-orange-400 w-[65%]" />
-                             </div>
-                         </div>
-                          <div>
-                             <div className="flex justify-between text-sm mb-1">
-                                 <span>North Hills</span>
-                                 <span className="font-bold text-green-600">$3.1k</span>
-                             </div>
-                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                 <div className="h-full bg-yellow-400 w-[25%]" />
-                             </div>
-                         </div>
-
-                         <div className="pt-4 border-t">
-                            <h4 className="text-xs font-semibold text-gray-500 mb-2">METRIC</h4>
-                            <div className="flex gap-2">
-                                <Button size="sm" variant="secondary" className="h-7 text-xs">Revenue</Button>
-                                <Button size="sm" variant="ghost" className="h-7 text-xs">Redemptions</Button>
-                                <Button size="sm" variant="ghost" className="h-7 text-xs">Orders</Button>
-                            </div>
-                         </div>
-                     </div>
-                 </div>
-             )}
           </div>
       </div>
 
@@ -214,7 +200,7 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
             stats={kpiStats} 
             onViewActiveZones={() => setIsZoneListOpen(true)}
             onViewStoresCovered={() => setIsStoreCoverageOpen(true)}
-            onViewHeatmap={() => { setShowHeatmap(true); setShowHeatmapPanel(true); }}
+            onViewHeatmap={() => { setShowHeatmap(true); setIsHeatmapDrawerOpen(true); }}
           />
       </div>
 
@@ -222,9 +208,25 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
       <ZoneDetailDrawer 
         zone={selectedZone} 
         isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        onEdit={() => alert("Edit mode not implemented in this demo")}
+        onClose={() => {
+          setIsDrawerOpen(false);
+          setIsEditMode(false);
+        }} 
+        onEdit={handleEditZone}
+        onUpdate={handleUpdateZone}
         onArchive={handleArchiveZone}
+        isEditMode={isEditMode}
+        onEditModeChange={setIsEditMode}
+      />
+
+      {/* Heatmap Details Drawer */}
+      <HeatmapDetailsDrawer
+        isOpen={isHeatmapDrawerOpen}
+        onClose={() => {
+          setIsHeatmapDrawerOpen(false);
+          setShowHeatmap(false);
+        }}
+        zones={zones}
       />
 
       <AddZoneWizard 
@@ -240,12 +242,20 @@ export function GeofenceTargeting({ searchQuery = "" }: { searchQuery?: string }
         zones={zones}
         onEditZone={handleEditZone}
         onViewOnMap={(zone) => { setIsZoneListOpen(false); handleZoneClick(zone); }}
+        onArchiveZone={handleArchiveZone}
       />
 
       <StoreCoverageModal 
         isOpen={isStoreCoverageOpen}
         onClose={() => setIsStoreCoverageOpen(false)}
         stores={stores}
+        zones={zones}
+        onViewTargeting={(store) => {
+          toast.info(`Viewing targeting for ${store.name}`, {
+            description: `Zones: ${store.zones.join(', ') || 'None assigned'}`
+          });
+        }}
+        onStoresUpdated={loadData}
       />
     </div>
   );

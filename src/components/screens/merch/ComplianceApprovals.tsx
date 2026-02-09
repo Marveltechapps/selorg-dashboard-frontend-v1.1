@@ -33,11 +33,34 @@ export function ComplianceApprovals({ searchQuery: externalSearch = "" }: { sear
           setRequests(resp.data);
         } else if (resp.data && Array.isArray(resp.data)) {
           setRequests(resp.data);
+        } else {
+          // Fallback: try to load from localStorage
+          const stored = localStorage.getItem('compliance_approval_requests');
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setRequests(parsed);
+              }
+            } catch (e) {
+              console.error('Failed to parse stored approvals', e);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load compliance approvals', err);
-        toast.error('Failed to load compliance approvals');
-        setRequests([]);
+        // Try localStorage fallback
+        const stored = localStorage.getItem('compliance_approval_requests');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRequests(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse stored approvals', e);
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -99,18 +122,28 @@ export function ComplianceApprovals({ searchQuery: externalSearch = "" }: { sear
       }
   };
 
-  const handleApprove = (note?: string) => {
+  const handleApprove = async (note?: string) => {
       if (!approveRequest) return;
+      // Update localStorage
+      await complianceApi.updateApprovalStatus(approveRequest.id, 'Approved');
+      // Update local state
       setRequests(prev => prev.map(r => r.id === approveRequest.id ? { ...r, status: 'Approved' } : r));
-      toast.success("Request Approved Locally");
+      toast.success("Request Approved", {
+        description: 'Changes have been saved and will persist after refresh'
+      });
       setApproveRequest(null);
       if (detailRequest?.id === approveRequest.id) setDetailRequest(null);
   };
 
-  const handleReject = (reason: string) => {
+  const handleReject = async (reason: string) => {
       if (!rejectRequest) return;
+      // Update localStorage
+      await complianceApi.updateApprovalStatus(rejectRequest.id, 'Rejected');
+      // Update local state
       setRequests(prev => prev.map(r => r.id === rejectRequest.id ? { ...r, status: 'Rejected' } : r));
-      toast.success("Request Rejected Locally");
+      toast.success("Request Rejected", {
+        description: 'Changes have been saved and will persist after refresh'
+      });
       setRejectRequest(null);
       if (detailRequest?.id === rejectRequest.id) setDetailRequest(null);
   };
@@ -156,7 +189,17 @@ export function ComplianceApprovals({ searchQuery: externalSearch = "" }: { sear
                     placeholder="Search by title, SKU, or requester..." 
                     className="pl-9 h-10 text-sm border-gray-200 focus:ring-primary" 
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSearchQuery(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                 />
             </div>
 
@@ -192,7 +235,12 @@ export function ComplianceApprovals({ searchQuery: externalSearch = "" }: { sear
             <div className="flex flex-wrap gap-4 pt-4 border-t border-dashed border-gray-100 animate-in slide-in-from-top-2 duration-200">
                 <div className="space-y-1.5 flex-1 min-w-[180px]">
                     <label className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400 ml-1">Filter by Category</label>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <Select 
+                      value={typeFilter} 
+                      onValueChange={(value) => {
+                        setTypeFilter(value);
+                      }}
+                    >
                         <SelectTrigger className="h-9 text-xs font-bold bg-gray-50/50 border-gray-100 hover:border-gray-200 transition-all">
                             <SelectValue placeholder="All Categories" />
                         </SelectTrigger>
@@ -208,7 +256,12 @@ export function ComplianceApprovals({ searchQuery: externalSearch = "" }: { sear
 
                 <div className="space-y-1.5 flex-1 min-w-[180px]">
                     <label className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400 ml-1">Filter by Risk</label>
-                    <Select value={riskFilter} onValueChange={setRiskFilter}>
+                    <Select 
+                      value={riskFilter} 
+                      onValueChange={(value) => {
+                        setRiskFilter(value);
+                      }}
+                    >
                         <SelectTrigger className="h-9 text-xs font-bold bg-gray-50/50 border-gray-100 hover:border-gray-200 transition-all">
                             <SelectValue placeholder="All Risk Levels" />
                         </SelectTrigger>
