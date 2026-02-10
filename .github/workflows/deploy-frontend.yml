@@ -2,7 +2,8 @@ name: Deploy Selorg Frontend (Rollback Safe)
 
 on:
 push:
-branches: [ main ]
+branches:
+- main
 
 jobs:
 deploy:
@@ -43,10 +44,7 @@ steps:
 
         sudo docker image inspect $LATEST >/dev/null 2>&1 && sudo docker tag $LATEST $BACKUP || true
 
-        sudo docker build --no-cache \
-          --build-arg VITE_API_BASE_URL=$API_URL \
-          -t $NEW \
-          -f $DOCKERFILE .
+        sudo docker build --no-cache --build-arg VITE_API_BASE_URL=$API_URL -t $NEW -f $DOCKERFILE .
 
         sudo docker tag $NEW $LATEST
 
