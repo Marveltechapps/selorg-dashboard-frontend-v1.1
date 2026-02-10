@@ -9,7 +9,6 @@ jobs:
 deploy:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Deploy Frontend via SSH
     uses: appleboy/ssh-action@v1.0.3
@@ -27,52 +26,67 @@ steps:
 
         IMAGE="selorg-dashboard-frontend"
         CONTAINER="selorg-frontend"
-        PORT="8080:80"
+        PORTMAP="8080:80"
+
+        echo "===== FRONTEND DEPLOY START ====="
 
         cd $FRONTEND_DIR
         git reset --hard
         git clean -fd
         git pull origin main
 
+        echo "Reading API URL from env file"
         API_URL=$(grep VITE_API_BASE_URL $ENV_FILE | cut -d '=' -f2)
-        echo "Using API URL: $API_URL"
+        echo "API URL: $API_URL"
 
         COMMIT=$(git rev-parse --short HEAD)
         NEW="$IMAGE:$COMMIT"
         LATEST="$IMAGE:latest"
         BACKUP="$IMAGE:backup"
 
+        echo "Backing up previous image"
         sudo docker image inspect $LATEST >/dev/null 2>&1 && sudo docker tag $LATEST $BACKUP || true
 
-        sudo docker build --no-cache --build-arg VITE_API_BASE_URL=$API_URL -t $NEW -f $DOCKERFILE .
+        echo "Building new frontend image"
+        sudo docker build --no-cache \
+          --build-arg VITE_API_BASE_URL=$API_URL \
+          -t $NEW \
+          -f $DOCKERFILE .
 
         sudo docker tag $NEW $LATEST
 
+        echo "Stopping old container"
         sudo docker stop $CONTAINER || true
         sudo docker rm $CONTAINER || true
 
+        echo "Starting new container"
         sudo docker run -d \
           --name $CONTAINER \
           --restart always \
-          -p $PORT \
+          -p $PORTMAP \
           $LATEST
 
-        sleep 5
+        echo "Waiting for container..."
+        sleep 6
 
+        echo "Health check"
         if curl -f http://127.0.0.1:8080 >/dev/null 2>&1; then
-          echo "Frontend OK"
+          echo "Frontend deployed successfully"
         else
-          echo "Rollback frontend"
+          echo "Deployment failed — rolling back"
           sudo docker stop $CONTAINER || true
           sudo docker rm $CONTAINER || true
           sudo docker tag $BACKUP $LATEST
           sudo docker run -d \
             --name $CONTAINER \
             --restart always \
-            -p $PORT \
+            -p $PORTMAP \
             $LATEST
           exit 1
         fi
 
+        echo "Cleaning unused images"
         sudo docker image prune -af
-```
+
+        echo "===== FRONTEND DEPLOY END =====
+
