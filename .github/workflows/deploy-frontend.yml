@@ -1,4 +1,4 @@
-name: Deploy Selorg Frontend (Rollback Safe)
+name: Deploy Selorg Dashboard Frontend (Rollback Safe)
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Frontend via SSH
+      - name: Deploy Frontend to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -19,73 +19,69 @@ jobs:
           port: ${{ secrets.EC2_PORT }}
           script: |
             set -e
-
+            echo "=============================="
+            echo "✅ FRONTEND DEPLOYMENT STARTED"
+            echo "=============================="
             FRONTEND_DIR="/home/ubuntu/selorg/selorg-dashboard-frontend-v1.1"
-            DOCKERFILE="/home/ubuntu/dockerfiles/Dockerfile.frontend"
+            LOCAL_DOCKERFILE="/home/ubuntu/dockerfiles/Dockerfile.frontend"
+            IMAGE_NAME="selorg-dashboard-frontend"
+            CONTAINER_NAME="selorg-frontend"
+            PORT_MAPPING="8080:80"
             ENV_FILE="/home/ubuntu/envs/selorg-dashboard.env"
-
-            IMAGE="selorg-dashboard-frontend"
-            CONTAINER="selorg-frontend"
-            PORTMAP="8080:80"
-
-            echo "===== FRONTEND DEPLOY START ====="
-
+            echo "➡️ Go to frontend directory"
             cd $FRONTEND_DIR
+            echo "🧹 Clean repo & pull latest code"
             git reset --hard
             git clean -fd
             git pull origin main
-
-            echo "Reading API URL from env file"
-            API_URL=$(grep VITE_API_BASE_URL $ENV_FILE | cut -d '=' -f2)
-            echo "API URL: $API_URL"
-
+            echo "🔐 Apply env file before build"
+            cp $ENV_FILE .env
             COMMIT=$(git rev-parse --short HEAD)
-            NEW="$IMAGE:$COMMIT"
-            LATEST="$IMAGE:latest"
-            BACKUP="$IMAGE:backup"
-
-            echo "Backing up previous image"
-            sudo docker image inspect $LATEST >/dev/null 2>&1 && sudo docker tag $LATEST $BACKUP || true
-
-            echo "Building new frontend image"
-            sudo docker build --no-cache \
-              --build-arg VITE_API_BASE_URL=$API_URL \
-              -t $NEW \
-              -f $DOCKERFILE .
-
-            sudo docker tag $NEW $LATEST
-
-            echo "Stopping old container"
-            sudo docker stop $CONTAINER || true
-            sudo docker rm $CONTAINER || true
-
-            echo "Starting new container"
+            NEW_IMAGE="${IMAGE_NAME}:${COMMIT}"
+            LATEST_IMAGE="${IMAGE_NAME}:latest"
+            BACKUP_IMAGE="${IMAGE_NAME}:backup"
+            echo "✅ Commit: $COMMIT"
+            echo "🐳 New image: $NEW_IMAGE"
+            echo "📌 Backup current latest image (if exists)"
+            sudo docker image inspect $LATEST_IMAGE >/dev/null 2>&1 && sudo docker tag $LATEST_IMAGE $BACKUP_IMAGE || true
+            echo "🐳 Build new frontend image using LOCAL Dockerfile (no-cache)"
+            sudo docker build --no-cache -t $NEW_IMAGE -f $LOCAL_DOCKERFILE .
+            echo "📌 Tag new image as latest"
+            sudo docker tag $NEW_IMAGE $LATEST_IMAGE
+            echo "🛑 Stop & remove old frontend container"
+            sudo docker stop $CONTAINER_NAME || true
+            sudo docker rm $CONTAINER_NAME || true
+            echo "🚀 Run new frontend container"
             sudo docker run -d \
-              --name $CONTAINER \
+              --name $CONTAINER_NAME \
               --restart always \
-              -p $PORTMAP \
-              $LATEST
-
-            echo "Waiting for container..."
+              -p $PORT_MAPPING \
+              $LATEST_IMAGE
+            echo "⏳ Waiting for frontend to boot..."
             sleep 6
-
-            echo "Health check"
+            echo "🔍 Health check (http://127.0.0.1:8080)"
             if curl -f http://127.0.0.1:8080 >/dev/null 2>&1; then
-              echo "Frontend deployed successfully"
+              echo "✅ Frontend deployed successfully!"
             else
-              echo "Deployment failed — rolling back"
-              sudo docker stop $CONTAINER || true
-              sudo docker rm $CONTAINER || true
-              sudo docker tag $BACKUP $LATEST
-              sudo docker run -d \
-                --name $CONTAINER \
-                --restart always \
-                -p $PORTMAP \
-                $LATEST
-              exit 1
+              echo "❌ Frontend failed after deploy. Rolling back..."
+              sudo docker logs $CONTAINER_NAME --tail 80 || true
+              sudo docker stop $CONTAINER_NAME || true
+              sudo docker rm $CONTAINER_NAME || true
+              if sudo docker image inspect $BACKUP_IMAGE >/dev/null 2>&1; then
+                sudo docker tag $BACKUP_IMAGE $LATEST_IMAGE
+                sudo docker run -d \
+                  --name $CONTAINER_NAME \
+                  --restart always \
+                  -p $PORT_MAPPING \
+                  $LATEST_IMAGE
+                echo "✅ Rolled back successfully."
+              else
+                echo "⚠️ No backup image found. Manual fix needed."
+                exit 1
+              fi
             fi
-
-            echo "Cleaning unused images"
+            echo "🧹 Cleanup unused images"
             sudo docker image prune -af
-
-            echo "===== FRONTEND DEPLOY END ====="
+            echo "=============================="
+            echo "✅ FRONTEND DEPLOYMENT FINISHED"
+            echo "=============================="
