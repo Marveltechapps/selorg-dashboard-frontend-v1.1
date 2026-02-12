@@ -19,54 +19,68 @@ jobs:
           port: ${{ secrets.EC2_PORT }}
           script: |
             set -e
+
             echo "=============================="
             echo "✅ FRONTEND DEPLOYMENT STARTED"
             echo "=============================="
+
             FRONTEND_DIR="/home/ubuntu/selorg/selorg-dashboard-frontend-v1.1"
             LOCAL_DOCKERFILE="/home/ubuntu/dockerfiles/Dockerfile.frontend"
+            NGINX_CONFIG="/home/ubuntu/dockerfiles/nginx-frontend.conf"
+
             IMAGE_NAME="selorg-dashboard-frontend"
             CONTAINER_NAME="selorg-frontend"
             PORT_MAPPING="8080:80"
             ENV_FILE="/home/ubuntu/envs/selorg-dashboard.env"
-            echo "➡️ Go to frontend directory"
+
             cd $FRONTEND_DIR
+
             echo "🧹 Clean repo & pull latest code"
             git reset --hard
             git clean -fd
             git pull origin main
-            echo "🔐 Apply env file before build"
+
+            echo "🔐 Apply env file"
             cp $ENV_FILE .env
+
+            echo "📄 Copy nginx config into build context (VERY IMPORTANT)"
+            cp $NGINX_CONFIG nginx-frontend.conf
+
             COMMIT=$(git rev-parse --short HEAD)
             NEW_IMAGE="${IMAGE_NAME}:${COMMIT}"
             LATEST_IMAGE="${IMAGE_NAME}:latest"
             BACKUP_IMAGE="${IMAGE_NAME}:backup"
-            echo "✅ Commit: $COMMIT"
-            echo "🐳 New image: $NEW_IMAGE"
-            echo "📌 Backup current latest image (if exists)"
+
+            echo "📌 Backup current latest image"
             sudo docker image inspect $LATEST_IMAGE >/dev/null 2>&1 && sudo docker tag $LATEST_IMAGE $BACKUP_IMAGE || true
-            echo "🐳 Build new frontend image using LOCAL Dockerfile (no-cache)"
+
+            echo "🐳 Build new frontend image"
             sudo docker build --no-cache -t $NEW_IMAGE -f $LOCAL_DOCKERFILE .
-            echo "📌 Tag new image as latest"
+
             sudo docker tag $NEW_IMAGE $LATEST_IMAGE
-            echo "🛑 Stop & remove old frontend container"
+
+            echo "🛑 Stop old container"
             sudo docker stop $CONTAINER_NAME || true
             sudo docker rm $CONTAINER_NAME || true
-            echo "🚀 Run new frontend container"
+
+            echo "🚀 Start new container"
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --restart always \
               -p $PORT_MAPPING \
               $LATEST_IMAGE
-            echo "⏳ Waiting for frontend to boot..."
+
+            echo "⏳ Waiting for startup..."
             sleep 6
-            echo "🔍 Health check (http://127.0.0.1:8080)"
+
+            echo "🔍 Health check"
             if curl -f http://127.0.0.1:8080 >/dev/null 2>&1; then
               echo "✅ Frontend deployed successfully!"
             else
-              echo "❌ Frontend failed after deploy. Rolling back..."
-              sudo docker logs $CONTAINER_NAME --tail 80 || true
+              echo "❌ Deployment failed → Rolling back"
               sudo docker stop $CONTAINER_NAME || true
               sudo docker rm $CONTAINER_NAME || true
+
               if sudo docker image inspect $BACKUP_IMAGE >/dev/null 2>&1; then
                 sudo docker tag $BACKUP_IMAGE $LATEST_IMAGE
                 sudo docker run -d \
@@ -74,14 +88,16 @@ jobs:
                   --restart always \
                   -p $PORT_MAPPING \
                   $LATEST_IMAGE
-                echo "✅ Rolled back successfully."
+                echo "✅ Rollback successful"
               else
-                echo "⚠️ No backup image found. Manual fix needed."
+                echo "⚠️ No backup image available"
                 exit 1
               fi
             fi
-            echo "🧹 Cleanup unused images"
+
+            echo "🧹 Cleanup images"
             sudo docker image prune -af
+
             echo "=============================="
             echo "✅ FRONTEND DEPLOYMENT FINISHED"
             echo "=============================="
