@@ -27,7 +27,6 @@ jobs:
             FRONTEND_DIR="/home/ubuntu/selorg/selorg-dashboard-frontend-v1.1"
             LOCAL_DOCKERFILE="/home/ubuntu/dockerfiles/Dockerfile.frontend"
             NGINX_CONFIG="/home/ubuntu/dockerfiles/nginx-frontend.conf"
-
             IMAGE_NAME="selorg-dashboard-frontend"
             CONTAINER_NAME="selorg-frontend"
             PORT_MAPPING="8080:80"
@@ -40,11 +39,12 @@ jobs:
             git clean -fd
             git pull origin main
 
-            echo "🔐 Apply env file"
-            cp $ENV_FILE .env
-
-            echo "📄 Copy nginx config into build context (VERY IMPORTANT)"
+            echo "📄 Copy nginx config into build context"
             cp $NGINX_CONFIG nginx-frontend.conf
+
+            echo "🔑 Reading Vite env variable"
+            API_URL=$(grep VITE_API_BASE_URL $ENV_FILE | cut -d '=' -f2)
+            echo "Using API: $API_URL"
 
             COMMIT=$(git rev-parse --short HEAD)
             NEW_IMAGE="${IMAGE_NAME}:${COMMIT}"
@@ -54,8 +54,11 @@ jobs:
             echo "📌 Backup current latest image"
             sudo docker image inspect $LATEST_IMAGE >/dev/null 2>&1 && sudo docker tag $LATEST_IMAGE $BACKUP_IMAGE || true
 
-            echo "🐳 Build new frontend image"
-            sudo docker build --no-cache -t $NEW_IMAGE -f $LOCAL_DOCKERFILE .
+            echo "🐳 Build new frontend image with Vite env injection"
+            sudo docker build --no-cache \
+              --build-arg VITE_API_BASE_URL=$API_URL \
+              -t $NEW_IMAGE \
+              -f $LOCAL_DOCKERFILE .
 
             sudo docker tag $NEW_IMAGE $LATEST_IMAGE
 
@@ -78,6 +81,7 @@ jobs:
               echo "✅ Frontend deployed successfully!"
             else
               echo "❌ Deployment failed → Rolling back"
+
               sudo docker stop $CONTAINER_NAME || true
               sudo docker rm $CONTAINER_NAME || true
 
@@ -95,7 +99,7 @@ jobs:
               fi
             fi
 
-            echo "🧹 Cleanup images"
+            echo "🧹 Cleanup unused images"
             sudo docker image prune -af
 
             echo "=============================="
