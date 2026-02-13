@@ -56,7 +56,7 @@ jobs:
             rm -rf $WEB_DIR/*
 
             echo "📂 Deploy new build"
-            cp -r $FRONTEND_DIR/dist/* $WEB_DIR/
+            cp -r $FRONTEND_DIR/build/* $WEB_DIR/
 
             echo "🔄 Reload nginx"
             sudo systemctl reload nginx
