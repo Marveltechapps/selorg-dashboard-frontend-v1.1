@@ -116,7 +116,7 @@ export function AuditLogs() {
 
   const handleExport = async (format: 'csv' | 'json') => {
     try {
-      await exportAuditLogs(format, logs);
+      const result = await exportAuditLogs(format, logs);
       toast.success(`Audit logs exported as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export error:', error);
@@ -228,7 +228,7 @@ export function AuditLogs() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -432,11 +432,11 @@ export function AuditLogs() {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
-                      {log.user.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      {log.user ? log.user.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                     </div>
                     <div>
-                      <div className="font-medium text-sm text-[#18181b]">{log.user}</div>
-                      <div className="text-xs text-[#71717a]">{log.userEmail}</div>
+                      <div className="font-medium text-sm text-[#18181b]">{log.user || 'Unknown User'}</div>
+                      <div className="text-xs text-[#71717a]">{log.userEmail || 'N/A'}</div>
                     </div>
                   </div>
                 </TableCell>

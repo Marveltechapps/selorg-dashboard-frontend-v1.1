@@ -31,13 +31,22 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Redirect /dashboard/admin to /admin for backwards compatibility
+function RedirectDashboardAdmin() {
+  const { screen } = useParams<{ screen?: string }>();
+  const to = screen ? `/admin/${screen}` : '/admin';
+  return <Navigate to={to} replace />;
+}
+
 // Dashboard Route Component with Super Admin Support
 function DashboardRoute({ 
   component: Component, 
-  allowedRoles 
+  allowedRoles,
+  dashboardId 
 }: { 
   component: React.ComponentType<{ onLogout: () => void }>;
   allowedRoles: string[];
+  dashboardId?: string;
 }) {
   const user = getCurrentUser();
   const isSuperAdmin = localStorage.getItem('isSuperAdmin') === 'true';
@@ -54,14 +63,19 @@ function DashboardRoute({
     window.location.href = '/login';
   };
 
+  const currentDashboard = dashboardId ?? (user?.role as string);
+
   return (
     <>
       {isSuperAdmin && (
         <SuperAdminToolbar 
-          currentDashboard={user?.role as any} 
+          currentDashboard={currentDashboard} 
           onSwitch={(dashboard) => {
-            // Navigate to the selected dashboard
-            window.location.href = `/dashboard/${dashboard}`;
+            if (dashboard === 'admin') {
+              window.location.href = '/admin';
+            } else {
+              window.location.href = `/dashboard/${dashboard}`;
+            }
           }} 
           onLogout={handleLogout} 
         />
@@ -191,17 +205,36 @@ function App() {
           } 
         />
         
-        {/* Admin Dashboard with screen routing */}
+        {/* Admin at top-level /admin */}
         <Route 
-          path="/dashboard/admin/:screen?" 
+          path="/admin" 
+          element={
+            <ProtectedRoute>
+              <Navigate to="/admin/citywide" replace />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/:screen?" 
           element={
             <ProtectedRoute>
               <DashboardRoute 
                 component={(props) => <AdminManagement {...props} />} 
                 allowedRoles={['admin', 'super_admin']} 
+                dashboardId="admin"
               />
             </ProtectedRoute>
           } 
+        />
+        
+        {/* Redirect old /dashboard/admin to /admin for backwards compatibility */}
+        <Route 
+          path="/dashboard/admin" 
+          element={<RedirectDashboardAdmin />} 
+        />
+        <Route 
+          path="/dashboard/admin/:screen" 
+          element={<RedirectDashboardAdmin />} 
         />
         
         {/* Default redirect */}

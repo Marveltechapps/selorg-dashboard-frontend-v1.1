@@ -94,89 +94,63 @@ function transformChat(apiChat: ApiChat): Chat {
   };
 }
 
-const MOCK_CHATS: ChatSummary[] = [
-  { id: 'chat-1', participantId: 'r1', participantName: 'Raj K', participantType: 'Rider', lastMessage: 'On my way to pickup', lastMessageTime: new Date(Date.now() - 120000).toISOString(), unreadCount: 0, isOnline: true, relatedOrderId: 'ORD-101' },
-  { id: 'chat-2', participantId: 'r2', participantName: 'Priya M', participantType: 'Rider', lastMessage: 'Delivery completed', lastMessageTime: new Date(Date.now() - 3600000).toISOString(), unreadCount: 1, isOnline: false },
-];
-
 /**
  * List active chats
  */
 export async function listActiveChats(unreadOnly: boolean = false): Promise<ChatSummary[]> {
-  try {
-    const queryParams = new URLSearchParams();
-    if (unreadOnly) queryParams.append('unreadOnly', 'true');
-    const endpoint = queryParams.toString() ? `${API_ENDPOINTS.communication.chats}?${queryParams.toString()}` : API_ENDPOINTS.communication.chats;
-    const response = await apiRequest<ApiChatSummary>(endpoint, {}, 'Communication API');
-    const chats = response?.chats ?? response?.data ?? [];
-    return (Array.isArray(chats) ? chats : MOCK_CHATS).map((chat: any) => ({ ...chat, lastMessageTime: transformTimestamp(chat.lastMessageTime) }));
-  } catch (_) {
-    return MOCK_CHATS;
+  const queryParams = new URLSearchParams();
+  if (unreadOnly) {
+    queryParams.append('unreadOnly', 'true');
   }
-}
 
-const MOCK_CHAT_DETAIL: Chat = {
-  id: 'chat-1',
-  participantId: 'r1',
-  participantName: 'Raj K',
-  participantType: 'Rider',
-  isOnline: true,
-  relatedOrderId: 'ORD-101',
-  messages: [
-    { id: 'm1', chatId: 'chat-1', senderId: 'r1', senderName: 'Raj K', content: 'Picked up order', timestamp: new Date(Date.now() - 300000).toISOString(), direction: 'incoming', read: true },
-    { id: 'm2', chatId: 'chat-1', senderId: 'ops', senderName: 'Dispatch', content: 'Thanks, deliver by 2 PM', timestamp: new Date(Date.now() - 240000).toISOString(), direction: 'outgoing', read: true },
-  ],
-};
+  const endpoint = queryParams.toString()
+    ? `${API_ENDPOINTS.communication.chats}?${queryParams.toString()}`
+    : API_ENDPOINTS.communication.chats;
+
+  const response = await apiRequest<ApiChatSummary>(endpoint, {}, 'Communication API');
+  return response.chats.map(chat => ({
+    ...chat,
+    lastMessageTime: transformTimestamp(chat.lastMessageTime),
+  }));
+}
 
 /**
  * Get chat details with messages
  */
-export async function getChatDetails(chatId: string, options?: { limit?: number; before?: string }): Promise<Chat> {
-  try {
-    const queryParams = new URLSearchParams();
-    if (options?.limit) queryParams.append('limit', options.limit.toString());
-    if (options?.before) queryParams.append('before', options.before);
-    const queryString = queryParams.toString();
-    const endpoint = queryString ? `${API_ENDPOINTS.communication.chat(chatId)}?${queryString}` : API_ENDPOINTS.communication.chat(chatId);
-    const apiChat = await apiRequest<ApiChat>(endpoint, {}, 'Communication API');
-    return transformChat(apiChat);
-  } catch (_) {
-    return { ...MOCK_CHAT_DETAIL, id: chatId };
+export async function getChatDetails(
+  chatId: string,
+  options?: { limit?: number; before?: string }
+): Promise<Chat> {
+  const queryParams = new URLSearchParams();
+  if (options?.limit) {
+    queryParams.append('limit', options.limit.toString());
   }
+  if (options?.before) {
+    queryParams.append('before', options.before);
+  }
+
+  const queryString = queryParams.toString();
+  const endpoint = queryString
+    ? `${API_ENDPOINTS.communication.chat(chatId)}?${queryString}`
+    : API_ENDPOINTS.communication.chat(chatId);
+
+  const apiChat = await apiRequest<ApiChat>(endpoint, {}, 'Communication API');
+  return transformChat(apiChat);
 }
 
 /**
  * Send a message in a chat
  */
 export async function sendMessage(chatId: string, content: string): Promise<Message> {
-  try {
-    const result = await apiRequest<any>(
-      API_ENDPOINTS.communication.chatMessages(chatId),
-      {
-        method: 'POST',
-        body: JSON.stringify({ content }),
-      },
-      'Communication API'
-    );
-    if (!result || typeof result !== 'object') {
-      throw new Error('Invalid response from server');
-    }
-    // Ensure the response has required fields
-    if (!result.id || !result.content) {
-      throw new Error('Invalid message format from server');
-    }
-    return transformMessage({
-      ...result,
-      timestamp: result.timestamp ?? result.createdAt ?? new Date().toISOString(),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : (typeof error === 'object' && error !== null && 'message' in error)
-        ? String(error.message)
-        : 'Failed to send message';
-    throw new Error(errorMessage);
-  }
+  const result = await apiRequest<any>(
+    API_ENDPOINTS.communication.chatMessages(chatId),
+    {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    },
+    'Communication API'
+  );
+  return transformMessage(result);
 }
 
 /**
@@ -231,7 +205,15 @@ export async function flagIssue(
 ): Promise<{ message: string; issueId: string }> {
   return await apiRequest<{ message: string; issueId: string }>(
     API_ENDPOINTS.communication.flagIssue(chatId),
-    { method: 'POST', body: JSON.stringify({ reason: data.reason, priority: data.priority || 'medium', category: data.category || 'other' }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        reason: data.reason,
+        priority: data.priority || 'medium',
+        category: data.category || 'other',
+      }),
+    },
     'Communication API'
   );
 }
+

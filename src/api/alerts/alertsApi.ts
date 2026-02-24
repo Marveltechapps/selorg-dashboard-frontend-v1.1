@@ -1,11 +1,11 @@
 /**
  * Alerts & Exceptions API
  * Integrated with backend based on api-documentation.yaml
- * Base URL: http://localhost:5001/api/darkstore
+ * Base URL: http://localhost:5000/api/v1/darkstore
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-const ALERTS_ENDPOINT = `${API_BASE_URL}/api/darkstore/alerts`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const ALERTS_ENDPOINT = `${API_BASE_URL}/api/v1/darkstore/alerts`;
 
 export type AlertType = 
   | "sla_breach" 
@@ -124,39 +124,9 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   }
 }
 
-// Mock alerts when API unavailable
-const MOCK_ALERTS: Alert[] = [
-  {
-    id: 'ALT-001',
-    type: 'sla_breach',
-    title: 'SLA breach – delivery delayed',
-    description: 'Order ORD-2001 is 15 min past promised ETA.',
-    priority: 'critical',
-    createdAt: new Date(Date.now() - 10 * 60000).toISOString(),
-    lastUpdatedAt: new Date().toISOString(),
-    source: { orderId: 'ORD-2001', riderId: 'R1', riderName: 'Raj K', zone: 'Brooklyn' },
-    status: 'open',
-    actionsSuggested: ['notify_customer', 'reassign_rider', 'call_rider'],
-    timeline: [],
-  },
-  {
-    id: 'ALT-002',
-    type: 'rto_return',
-    title: 'RTO risk – customer unreachable',
-    description: 'Order ORD-2002: 2 call attempts failed.',
-    priority: 'high',
-    createdAt: new Date(Date.now() - 30 * 60000).toISOString(),
-    lastUpdatedAt: new Date().toISOString(),
-    source: { orderId: 'ORD-2002', riderId: 'R2', riderName: 'Priya M' },
-    status: 'acknowledged',
-    actionsSuggested: ['notify_customer', 'add_note'],
-    timeline: [],
-  },
-];
-
 /**
  * Fetch Alerts List
- * GET /api/darkstore/alerts
+ * GET /api/v1/darkstore/alerts
  */
 export async function fetchAlerts(
   statusFilter?: AlertStatus | "all",
@@ -169,28 +139,29 @@ export async function fetchAlerts(
     storeId?: string;
   }
 ): Promise<Alert[]> {
-  try {
-    const params = new URLSearchParams();
-    params.append('status', statusFilter || 'all');
-    if (options?.priority) params.append('priority', options.priority);
-    if (options?.type) params.append('type', options.type);
-    if (options?.search) params.append('search', options.search);
-    if (options?.page) params.append('page', options.page.toString());
-    if (options?.limit) params.append('limit', options.limit.toString());
-    if (options?.storeId) params.append('storeId', options.storeId);
-    else params.append('storeId', 'DS-Brooklyn-04');
+  const params = new URLSearchParams();
+  
+  params.append('status', statusFilter || 'all');
+  if (options?.priority) params.append('priority', options.priority);
+  if (options?.type) params.append('type', options.type);
+  if (options?.search) params.append('search', options.search);
+  if (options?.page) params.append('page', options.page.toString());
+  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.storeId) params.append('storeId', options.storeId);
+  else params.append('storeId', 'DS-Brooklyn-04'); // Default store ID
 
-    const response = await apiRequest(`${ALERTS_ENDPOINT}?${params.toString()}`) as AlertListResponse;
-    if (!response?.success || !response?.alerts?.length) return MOCK_ALERTS;
-    return response.alerts;
-  } catch {
-    return MOCK_ALERTS;
+  const response = await apiRequest(`${ALERTS_ENDPOINT}?${params.toString()}`) as AlertListResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch alerts');
   }
+  
+  return response.alerts;
 }
 
 /**
  * Fetch Alert by ID
- * GET /api/darkstore/alerts/:alertId
+ * GET /api/v1/darkstore/alerts/:alertId
  */
 export async function fetchAlertById(id: string): Promise<Alert | undefined> {
   const response = await apiRequest(`${ALERTS_ENDPOINT}/${id}`) as AlertDetailResponse;
@@ -204,7 +175,7 @@ export async function fetchAlertById(id: string): Promise<Alert | undefined> {
 
 /**
  * Perform Alert Action
- * POST /api/darkstore/alerts/:alertId/action
+ * POST /api/v1/darkstore/alerts/:alertId/action
  */
 export async function performAlertAction(
   id: string, 
@@ -230,7 +201,7 @@ export async function performAlertAction(
 
 /**
  * Clear Resolved Alerts
- * DELETE /api/darkstore/alerts/resolved
+ * DELETE /api/v1/darkstore/alerts/resolved
  */
 export async function clearResolvedAlerts(options?: {
   archive?: boolean;
@@ -254,3 +225,4 @@ export async function clearResolvedAlerts(options?: {
     message: response.message || 'Resolved alerts cleared successfully',
   };
 }
+

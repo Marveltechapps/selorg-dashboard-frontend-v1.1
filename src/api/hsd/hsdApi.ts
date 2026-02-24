@@ -1,11 +1,11 @@
 /**
  * HSD Device Management API
  * Integrated with backend based on api-documentation.yaml
- * Base URL: http://localhost:5001/api/darkstore
+ * Base URL: http://localhost:5000/api/v1/darkstore
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-const HSD_ENDPOINT = `${API_BASE_URL}/api/darkstore/hsd`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const HSD_ENDPOINT = `${API_BASE_URL}/api/v1/darkstore/hsd`;
 
 export interface HSDDevice {
   deviceId: string;
@@ -134,57 +134,30 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   }
 }
 
-// Mock data when API unavailable
-const MOCK_DEVICES: HSDDevice[] = [
-  { deviceId: 'HSD-001', status: 'online', battery: 85, signal: 'strong', lastSync: new Date().toISOString(), assignedTo: { userId: 'U1', userName: 'Raj K', userType: 'Picker' }, deviceType: 'Scanner', firmwareVersion: '1.2.0' },
-  { deviceId: 'HSD-002', status: 'online', battery: 72, signal: 'good', lastSync: new Date().toISOString(), assignedTo: { userId: 'U2', userName: 'Priya M', userType: 'Packer' }, deviceType: 'Scanner', firmwareVersion: '1.2.0' },
-  { deviceId: 'HSD-003', status: 'charging', battery: 100, signal: 'strong', lastSync: new Date().toISOString(), assignedTo: null, deviceType: 'Tablet', firmwareVersion: '1.1.0' },
-];
-const MOCK_FLEET: FleetOverviewResponse = {
-  success: true,
-  summary: { totalDevices: 12, onlineDevices: 8, offlineDevices: 2, chargingDevices: 2, errorDevices: 0, lowBatteryCount: 1, avgSyncLatency: 120 },
-  devices: MOCK_DEVICES,
-};
-const MOCK_LIVE_SESSIONS: LiveSession[] = [
-  { deviceId: 'HSD-001', userId: 'U1', userName: 'Raj K', taskType: 'picking', taskId: 'PL-101', currentStatus: 'Scanning', zone: 'A-1', startedAt: new Date().toISOString(), lastActivity: new Date().toISOString(), itemsCompleted: 12, itemsTotal: 24 },
-  { deviceId: 'HSD-002', userId: 'U2', userName: 'Priya M', taskType: 'packing', taskId: 'ORD-2001', currentStatus: 'Packing', startedAt: new Date().toISOString(), lastActivity: new Date().toISOString(), itemsCompleted: 2, itemsTotal: 5 },
-];
-const MOCK_ISSUES: DeviceIssue[] = [
-  { ticketId: 'TKT-001', deviceId: 'HSD-005', issueType: 'hardware', description: 'Screen flickering', status: 'open', reportedAt: new Date().toISOString(), reportedBy: 'Store Staff', priority: 'medium' },
-  { ticketId: 'TKT-002', deviceId: 'HSD-007', issueType: 'connectivity', description: 'WiFi drops frequently', status: 'in_progress', reportedAt: new Date().toISOString(), priority: 'high' },
-];
-const MOCK_HSD_LOGS: HSDLog[] = [
-  { timestamp: new Date().toISOString(), deviceId: 'HSD-001', userId: 'U1', userName: 'Raj K', eventType: 'scan_sku', details: 'SKU SKU-MILK-001 scanned', result: 'success' },
-  { timestamp: new Date(Date.now() - 60000).toISOString(), deviceId: 'HSD-002', userId: 'U2', userName: 'Priya M', eventType: 'qc_check', details: 'QC pass for order ORD-2001', result: 'success' },
-  { timestamp: new Date(Date.now() - 120000).toISOString(), deviceId: 'HSD-001', eventType: 'system', details: 'App restarted', result: 'success' },
-  { timestamp: new Date(Date.now() - 180000).toISOString(), deviceId: 'HSD-003', userId: 'U3', userName: 'Amit S', eventType: 'shelf_verification', details: 'Shelf A-01-02 verified', result: 'success' },
-  { timestamp: new Date(Date.now() - 240000).toISOString(), deviceId: 'HSD-002', eventType: 'scan_sku', details: 'SKU SKU-BRD-002 scanned', result: 'success' },
-  { timestamp: new Date(Date.now() - 300000).toISOString(), deviceId: 'HSD-001', eventType: 'error', details: 'Connection timeout – retried', result: 'warning' },
-];
-
 /**
  * Get Fleet Overview
- * GET /api/darkstore/hsd/fleet
+ * GET /api/v1/darkstore/hsd/fleet
  */
 export async function getFleetOverview(options?: {
   storeId?: string;
   status?: 'all' | 'online' | 'offline' | 'charging' | 'error';
 }): Promise<FleetOverviewResponse> {
-  try {
-    const params = new URLSearchParams();
-    params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
-    if (options?.status) params.append('status', options.status);
-    const response = await apiRequest(`${HSD_ENDPOINT}/fleet?${params.toString()}`) as FleetOverviewResponse;
-    if (response?.success && response?.devices?.length) return response;
-    return MOCK_FLEET;
-  } catch {
-    return MOCK_FLEET;
+  const params = new URLSearchParams();
+  params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
+  if (options?.status) params.append('status', options.status);
+
+  const response = await apiRequest(`${HSD_ENDPOINT}/fleet?${params.toString()}`) as FleetOverviewResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch fleet overview');
   }
+  
+  return response;
 }
 
 /**
  * Register Device
- * POST /api/darkstore/hsd/devices/register
+ * POST /api/v1/darkstore/hsd/devices/register
  */
 export async function registerDevice(payload: {
   deviceId: string;
@@ -210,7 +183,7 @@ export async function registerDevice(payload: {
 
 /**
  * Assign Device
- * POST /api/darkstore/hsd/devices/:deviceId/assign
+ * POST /api/v1/darkstore/hsd/devices/:deviceId/assign
  */
 export async function assignDevice(
   deviceId: string,
@@ -234,7 +207,7 @@ export async function assignDevice(
 
 /**
  * Unassign Device
- * POST /api/darkstore/hsd/devices/:deviceId/unassign
+ * POST /api/v1/darkstore/hsd/devices/:deviceId/unassign
  */
 export async function unassignDevice(
   deviceId: string
@@ -252,7 +225,7 @@ export async function unassignDevice(
 
 /**
  * Bulk Reset Devices
- * POST /api/darkstore/hsd/devices/bulk-reset
+ * POST /api/v1/darkstore/hsd/devices/bulk-reset
  */
 export async function bulkResetDevices(payload: {
   deviceIds: string[];
@@ -277,7 +250,7 @@ export async function bulkResetDevices(payload: {
 
 /**
  * Get Device History
- * GET /api/darkstore/hsd/devices/:deviceId/history
+ * GET /api/v1/darkstore/hsd/devices/:deviceId/history
  */
 export interface DeviceHistoryEntry {
   id: string;
@@ -307,27 +280,28 @@ export async function getDeviceHistory(
 
 /**
  * Get Live Sessions
- * GET /api/darkstore/hsd/sessions/live
+ * GET /api/v1/darkstore/hsd/sessions/live
  */
 export async function getLiveSessions(options?: {
   deviceId?: string;
   storeId?: string;
 }): Promise<LiveSession[]> {
-  try {
-    const params = new URLSearchParams();
-    if (options?.deviceId) params.append('deviceId', options.deviceId);
-    params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
-    const response = await apiRequest(`${HSD_ENDPOINT}/sessions/live?${params.toString()}`) as LiveSessionsResponse;
-    if (response?.success && response?.sessions?.length > 0) return response.sessions;
-    return MOCK_LIVE_SESSIONS;
-  } catch {
-    return MOCK_LIVE_SESSIONS;
+  const params = new URLSearchParams();
+  if (options?.deviceId) params.append('deviceId', options.deviceId);
+  params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
+
+  const response = await apiRequest(`${HSD_ENDPOINT}/sessions/live?${params.toString()}`) as LiveSessionsResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch live sessions');
   }
+  
+  return response.sessions;
 }
 
 /**
  * Get Device Actions
- * GET /api/darkstore/hsd/devices/:deviceId/actions
+ * GET /api/v1/darkstore/hsd/devices/:deviceId/actions
  */
 export async function getDeviceActions(
   deviceId: string,
@@ -347,7 +321,7 @@ export async function getDeviceActions(
 
 /**
  * Device Control
- * POST /api/darkstore/hsd/devices/:deviceId/control
+ * POST /api/v1/darkstore/hsd/devices/:deviceId/control
  */
 export async function deviceControl(
   deviceId: string,
@@ -377,29 +351,30 @@ export async function deviceControl(
 
 /**
  * Get Issues
- * GET /api/darkstore/hsd/issues
+ * GET /api/v1/darkstore/hsd/issues
  */
 export async function getIssues(options?: {
   status?: 'all' | 'open' | 'in_progress' | 'resolved';
   deviceId?: string;
   storeId?: string;
 }): Promise<DeviceIssue[]> {
-  try {
-    const params = new URLSearchParams();
-    if (options?.status) params.append('status', options.status);
-    if (options?.deviceId) params.append('deviceId', options.deviceId);
-    params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
-    const response = await apiRequest(`${HSD_ENDPOINT}/issues?${params.toString()}`) as IssueTrackerResponse;
-    if (response?.success && response?.issues) return response.issues;
-    return MOCK_ISSUES;
-  } catch {
-    return MOCK_ISSUES;
+  const params = new URLSearchParams();
+  if (options?.status) params.append('status', options.status);
+  if (options?.deviceId) params.append('deviceId', options.deviceId);
+  params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
+
+  const response = await apiRequest(`${HSD_ENDPOINT}/issues?${params.toString()}`) as IssueTrackerResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch issues');
   }
+  
+  return response.issues;
 }
 
 /**
  * Report Issue
- * POST /api/darkstore/hsd/issues/report
+ * POST /api/v1/darkstore/hsd/issues/report
  */
 export async function reportIssue(payload: {
   deviceId: string;
@@ -422,7 +397,7 @@ export async function reportIssue(payload: {
 
 /**
  * Get HSD Logs
- * GET /api/darkstore/hsd/logs
+ * GET /api/v1/darkstore/hsd/logs
  */
 export async function getHSDLogs(options?: {
   deviceId?: string;
@@ -432,27 +407,29 @@ export async function getHSDLogs(options?: {
   limit?: number;
   storeId?: string;
 }): Promise<{ logs: HSDLog[]; pagination: any }> {
-  try {
-    const params = new URLSearchParams();
-    if (options?.deviceId) params.append('deviceId', options.deviceId);
-    if (options?.eventType) params.append('eventType', options.eventType);
-    if (options?.search) params.append('search', options.search);
-    if (options?.page) params.append('page', (options?.page || 1).toString());
-    params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
-    params.append('limit', (options?.limit || 50).toString());
-    const response = await apiRequest(`${HSD_ENDPOINT}/logs?${params.toString()}`) as HSDLogsResponse;
-    if (response?.success && response?.logs) {
-      return { logs: response.logs, pagination: response.pagination || { current_page: 1, total_pages: 1, total_items: response.logs.length, items_per_page: 50 } };
-    }
-    return { logs: MOCK_HSD_LOGS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_HSD_LOGS.length, items_per_page: 50 } };
-  } catch {
-    return { logs: MOCK_HSD_LOGS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_HSD_LOGS.length, items_per_page: 50 } };
+  const params = new URLSearchParams();
+  if (options?.deviceId) params.append('deviceId', options.deviceId);
+  if (options?.eventType) params.append('eventType', options.eventType);
+  if (options?.search) params.append('search', options.search);
+  if (options?.page) params.append('page', options.page.toString());
+  params.append('storeId', options?.storeId || 'DS-Brooklyn-04');
+  params.append('limit', (options?.limit || 50).toString());
+
+  const response = await apiRequest(`${HSD_ENDPOINT}/logs?${params.toString()}`) as HSDLogsResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch HSD logs');
   }
+  
+  return {
+    logs: response.logs,
+    pagination: response.pagination,
+  };
 }
 
 /**
  * Session Action
- * POST /api/darkstore/hsd/sessions/:deviceId/action
+ * POST /api/v1/darkstore/hsd/sessions/:deviceId/action
  */
 export async function sessionAction(
   deviceId: string,
@@ -461,19 +438,21 @@ export async function sessionAction(
     payload?: any;
   }
 ): Promise<{ success: boolean; session: any; message: string }> {
-  try {
-    const response = await apiRequest(`${HSD_ENDPOINT}/sessions/${deviceId}/action`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    if (response?.success) return response;
-  } catch (_) {}
-  return { success: true, session: { deviceId }, message: payload.action === 'confirm_quantity' ? 'Quantity confirmed (mock)' : 'Issue reported (mock)' };
+  const response = await apiRequest(`${HSD_ENDPOINT}/sessions/${deviceId}/action`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  
+  if (!response.success) {
+    throw new Error('Failed to perform session action');
+  }
+  
+  return response;
 }
 
 /**
  * Create Requisition
- * POST /api/darkstore/hsd/requisitions
+ * POST /api/v1/darkstore/hsd/requisitions
  */
 export async function createRequisition(payload: {
   deviceIds: string[];
@@ -499,3 +478,4 @@ export async function createRequisition(payload: {
   
   return response;
 }
+

@@ -136,6 +136,7 @@ export function PricingManagement() {
     await loadData();
     toast.success('Data refreshed');
   };
+
   const handleDeleteSurgeRule = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
     try {
@@ -195,7 +196,7 @@ export function PricingManagement() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -214,7 +215,7 @@ export function PricingManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#71717a] uppercase tracking-wider">Total Revenue</p>
-                <p className="text-2xl font-bold text-[#18181b] mt-1">₹{(stats.totalRevenue / 1000).toFixed(0)}K</p>
+                <p className="text-2xl font-bold text-[#18181b] mt-1">₹{((stats.totalRevenue ?? 0) / 1000).toFixed(0)}K</p>
                 <p className="text-xs text-emerald-600 mt-1">↑ 12.5% vs last month</p>
               </div>
               <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
@@ -227,8 +228,8 @@ export function PricingManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#71717a] uppercase tracking-wider">Discounts Given</p>
-                <p className="text-2xl font-bold text-amber-600 mt-1">₹{(stats.totalDiscount / 1000).toFixed(0)}K</p>
-                <p className="text-xs text-[#71717a] mt-1">{((stats.totalDiscount / stats.totalRevenue) * 100).toFixed(1)}% of revenue</p>
+                <p className="text-2xl font-bold text-amber-600 mt-1">₹{((stats.totalDiscount ?? 0) / 1000).toFixed(0)}K</p>
+                <p className="text-xs text-[#71717a] mt-1">{(((stats.totalDiscount ?? 0) / (stats.totalRevenue ?? 1)) * 100).toFixed(1)}% of revenue</p>
               </div>
               <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
                 <Percent className="text-amber-600" size={20} />
@@ -240,8 +241,8 @@ export function PricingManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#71717a] uppercase tracking-wider">Active Coupons</p>
-                <p className="text-2xl font-bold text-purple-600 mt-1">{stats.activeCoupons}</p>
-                <p className="text-xs text-[#71717a] mt-1">{stats.couponRedemptionRate}% redemption rate</p>
+                <p className="text-2xl font-bold text-purple-600 mt-1">{stats.activeCoupons ?? 0}</p>
+                <p className="text-xs text-[#71717a] mt-1">{stats.couponRedemptionRate ?? 0}% redemption rate</p>
               </div>
               <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
                 <Ticket className="text-purple-600" size={20} />
@@ -253,7 +254,7 @@ export function PricingManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#71717a] uppercase tracking-wider">Avg Order Value</p>
-                <p className="text-2xl font-bold text-blue-600 mt-1">₹{stats.avgOrderValue}</p>
+                <p className="text-2xl font-bold text-blue-600 mt-1">₹{stats.avgOrderValue ?? 0}</p>
                 <p className="text-xs text-emerald-600 mt-1">↑ 8.3% improvement</p>
               </div>
               <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">

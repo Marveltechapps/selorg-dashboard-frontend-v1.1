@@ -1,11 +1,11 @@
 /**
  * Reports & Analytics API
  * Integrated with backend based on api-documentation.yaml
- * Base URL: http://localhost:5001/api/darkstore
+ * Base URL: http://localhost:5000/api/v1/darkstore
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-const ANALYTICS_ENDPOINT = `${API_BASE_URL}/api/darkstore/analytics`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const ANALYTICS_ENDPOINT = `${API_BASE_URL}/api/v1/darkstore/analytics`;
 
 export type Granularity = 'hour' | 'day' | 'week';
 
@@ -122,7 +122,7 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
 /**
  * Fetch Rider Performance Metrics
- * GET /api/darkstore/analytics/rider-performance
+ * GET /api/v1/darkstore/analytics/rider-performance
  */
 export async function fetchRiderPerformance(
   granularity: Granularity = 'day',
@@ -147,7 +147,7 @@ export async function fetchRiderPerformance(
 
 /**
  * Fetch Rider Performance with Summary
- * GET /api/darkstore/analytics/rider-performance
+ * GET /api/v1/darkstore/analytics/rider-performance
  */
 export async function fetchRiderPerformanceWithSummary(
   granularity: Granularity = 'day',
@@ -172,7 +172,7 @@ export async function fetchRiderPerformanceWithSummary(
 
 /**
  * Fetch SLA Adherence Metrics
- * GET /api/darkstore/analytics/sla-adherence
+ * GET /api/v1/darkstore/analytics/sla-adherence
  */
 export async function fetchSlaAdherence(
   granularity: Granularity = 'day',
@@ -197,7 +197,7 @@ export async function fetchSlaAdherence(
 
 /**
  * Fetch SLA Adherence with Summary
- * GET /api/darkstore/analytics/sla-adherence
+ * GET /api/v1/darkstore/analytics/sla-adherence
  */
 export async function fetchSlaAdherenceWithSummary(
   granularity: Granularity = 'day',
@@ -222,7 +222,7 @@ export async function fetchSlaAdherenceWithSummary(
 
 /**
  * Fetch Fleet Utilization Metrics
- * GET /api/darkstore/analytics/fleet-utilization
+ * GET /api/v1/darkstore/analytics/fleet-utilization
  */
 export async function fetchFleetUtilization(
   granularity: Granularity = 'day',
@@ -247,7 +247,7 @@ export async function fetchFleetUtilization(
 
 /**
  * Fetch Fleet Utilization with Summary
- * GET /api/darkstore/analytics/fleet-utilization
+ * GET /api/v1/darkstore/analytics/fleet-utilization
  */
 export async function fetchFleetUtilizationWithSummary(
   granularity: Granularity = 'day',
@@ -272,7 +272,7 @@ export async function fetchFleetUtilizationWithSummary(
 
 /**
  * Export Report
- * POST /api/darkstore/analytics/export
+ * POST /api/v1/darkstore/analytics/export
  */
 export async function exportReport(payload: ExportReportRequest): Promise<ExportReportResponse> {
   const response = await apiRequest(`${ANALYTICS_ENDPOINT}/export`, {
@@ -286,3 +286,4 @@ export async function exportReport(payload: ExportReportRequest): Promise<Export
   
   return response;
 }
+

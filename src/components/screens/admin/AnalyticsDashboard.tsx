@@ -224,6 +224,7 @@ export function AnalyticsDashboard() {
       toast.error(`Failed to export analytics: ${error?.message || 'Unknown error'}`);
     }
   };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -233,7 +234,7 @@ export function AnalyticsDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

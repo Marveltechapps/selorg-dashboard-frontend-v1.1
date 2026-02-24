@@ -5,7 +5,7 @@
 
 import { get } from './apiClient';
 
-const BASE_PATH = '/api/darkstore/inventory/audit-log';
+const BASE_PATH = '/api/v1/darkstore/inventory/audit-log';
 
 /**
  * Get audit logs with filtering
@@ -20,3 +20,4 @@ export async function fetchAuditLogs(params = {}) {
 export async function fetchItemHistory(sku, storeId = 'DS-Brooklyn-04') {
   return get(BASE_PATH, { sku, storeId });
 }
+

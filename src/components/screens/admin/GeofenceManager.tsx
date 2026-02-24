@@ -302,7 +302,7 @@ export function GeofenceManager() {
   // Don't block rendering on loading - show data as it loads
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

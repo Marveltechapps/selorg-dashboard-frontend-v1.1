@@ -357,6 +357,7 @@ export function UserManagement() {
     };
     input.click();
   };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-emerald-500';
@@ -404,7 +405,7 @@ export function UserManagement() {
   // Show loading state
   if (loading && users.length === 0 && roles.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 w-full min-w-0 max-w-full">
         <div className="flex items-center justify-center h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#e11d48] mx-auto mb-4"></div>
@@ -418,7 +419,7 @@ export function UserManagement() {
   // Show error state if there's a critical error
   if (error && users.length === 0 && roles.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 w-full min-w-0 max-w-full">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <AlertTriangle className="mx-auto mb-4 text-red-600" size={48} />
           <h2 className="text-xl font-bold text-red-900 mb-2">Failed to Load User Management</h2>
@@ -437,8 +438,9 @@ export function UserManagement() {
     loading,
     error 
   });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Page Header */}
       <div className="flex justify-between items-end">
         <div>

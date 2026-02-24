@@ -13,46 +13,39 @@ export const API_CONFIG = {
  * API Endpoints
  */
 export const API_ENDPOINTS = {
-  // Auth - Generic auth endpoints (role-based routing handled by backend)
+  // Auth - Login only; registration is disabled (company-issued credentials only)
   auth: {
     login: '/auth/login',
-    register: '/auth/register',
   },
   // Dashboard-specific auth endpoints
   darkstore: {
     auth: {
       login: '/darkstore/auth/login',
-      register: '/darkstore/auth/register',
     },
   },
   production: {
     auth: {
       login: '/production/auth/login',
-      register: '/production/auth/register',
     },
   },
   merch: {
     auth: {
       login: '/merch/auth/login',
-      register: '/merch/auth/register',
     },
   },
   rider: {
     auth: {
       login: '/rider/auth/login',
-      register: '/rider/auth/register',
     },
   },
   finance: {
     auth: {
       login: '/finance/auth/login',
-      register: '/finance/auth/register',
     },
   },
   warehouse: {
     auth: {
       login: '/warehouse/auth/login',
-      register: '/warehouse/auth/register',
     },
     metrics: '/warehouse/metrics',
     orderFlow: '/warehouse/order-flow',
@@ -63,7 +56,6 @@ export const API_ENDPOINTS = {
   admin: {
     auth: {
       login: '/admin/auth/login',
-      register: '/admin/auth/register',
     },
   },
   // Dashboard
@@ -182,7 +174,6 @@ export const API_ENDPOINTS = {
   vendor: {
     // Auth
     auth: {
-      register: '/vendor/auth/register',
       login: '/vendor/auth/login',
     },
     // Vendors

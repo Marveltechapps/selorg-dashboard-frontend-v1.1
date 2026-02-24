@@ -66,7 +66,7 @@ export function WarehouseUtilities() {
     try {
       await bulkUploadSKUs(uploadFile);
       setUploadStatus('success');
-      toast.success('Bulk SKUs processed successfully. Data is stored in browser session; use Export in other sections to download.');
+      toast.success('Bulk upload successful');
       setTimeout(() => {
         setShowUploadModal(false);
         setUploadFile(null);
@@ -82,7 +82,7 @@ export function WarehouseUtilities() {
     if (labelConfig.startLocation && labelConfig.endLocation) {
       try {
         await apiGenerateLabels(labelConfig);
-        toast.success(`Rack labels generated. Output is in-browser; use your browser print (Ctrl+P) or Export to save/print.`);
+        toast.success(`Generating labels for ${labelConfig.startLocation} to ${labelConfig.endLocation}...`);
         setShowLabelModal(false);
         setLabelConfig({ startLocation: '', endLocation: '', format: 'standard' });
       } catch (error) {
@@ -95,7 +95,7 @@ export function WarehouseUtilities() {
     if (reassignConfig.fromZone && reassignConfig.toZone) {
       try {
         await apiReassignBins(reassignConfig);
-        toast.success(`Bin reassignment saved. Zone ${reassignConfig.fromZone} → ${reassignConfig.toZone} (stored in session; syncs when backend is connected).`);
+        toast.success(`Moving stock from ${reassignConfig.fromZone} to ${reassignConfig.toZone}...`);
         setShowReassignModal(false);
         setReassignConfig({ fromZone: '', toZone: '', skuFilter: '' });
       } catch (error) {
@@ -106,7 +106,7 @@ export function WarehouseUtilities() {
 
   const printBarcodes = () => {
     if (barcodeConfig.sku) {
-      toast.success(`Barcode reprint queued for ${barcodeConfig.sku}. Use browser Print (Ctrl+P) when the print dialog opens to save/print.`);
+      alert(`Printing ${barcodeConfig.quantity} barcodes for ${barcodeConfig.sku}...`);
       setShowBarcodeModal(false);
       setBarcodeConfig({ sku: '', quantity: '1' });
     }

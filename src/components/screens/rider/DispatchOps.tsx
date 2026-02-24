@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
 import { Send, RefreshCw } from 'lucide-react';
@@ -12,7 +12,6 @@ import {
   DispatchRider, 
   AutoAssignRule 
 } from "./dispatch/types";
-import { ManualDispatchModal, ManualOrderPayload } from "./dispatch/ManualDispatchModal";
 import { 
   fetchUnassignedOrders, 
   fetchAllOrders, 
@@ -23,11 +22,7 @@ import {
   autoAssignOrders
 } from "./dispatch/dispatchApi";
 
-interface DispatchOpsProps {
-  searchQuery?: string;
-}
-
-export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
+export function DispatchOps() {
   // Data State
   const [unassignedOrders, setUnassignedOrders] = useState<DispatchOrder[]>([]);
   const [allOrders, setAllOrders] = useState<DispatchOrder[]>([]); // For map
@@ -39,36 +34,10 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [isManualDispatchOpen, setIsManualDispatchOpen] = useState(false);
   
   // Selection State
   const [selectedOrder, setSelectedOrder] = useState<DispatchOrder | null>(null);
   const [batchOrders, setBatchOrders] = useState<DispatchOrder[]>([]);
-
-  const localNewOrdersRef = useRef<DispatchOrder[]>([]);
-  const localOrderAssignmentsRef = useRef<Record<string, { riderId: string; status: 'assigned' }>>({});
-
-  // Filter orders and riders based on search query
-  const filteredUnassignedOrders = React.useMemo(() => {
-    if (!searchQuery.trim()) return unassignedOrders;
-    const query = searchQuery.toLowerCase();
-    return unassignedOrders.filter(o => 
-      o.id.toLowerCase().includes(query) ||
-      o.pickupLocation.address.toLowerCase().includes(query) ||
-      o.dropLocation.address.toLowerCase().includes(query) ||
-      o.zone?.toLowerCase().includes(query)
-    );
-  }, [unassignedOrders, searchQuery]);
-
-  const filteredRiders = React.useMemo(() => {
-    if (!searchQuery.trim()) return riders;
-    const query = searchQuery.toLowerCase();
-    return riders.filter(r => 
-      r.id.toLowerCase().includes(query) ||
-      r.name.toLowerCase().includes(query) ||
-      r.zone?.toLowerCase().includes(query)
-    );
-  }, [riders, searchQuery]);
 
   // Initial Load
   useEffect(() => {
@@ -127,37 +96,15 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
         fetchOnlineRiders(),
         fetchAutoAssignRules()
       ]);
-      const allFromApi = Array.isArray(aOrders) ? aOrders : [];
-      const mergedAll = allFromApi.map(o => ({ ...o, ...localOrderAssignmentsRef.current[o.id] }));
-      localNewOrdersRef.current.forEach(o => {
-        const patch = localOrderAssignmentsRef.current[o.id];
-        const entry = patch ? { ...o, ...patch } : o;
-        if (!mergedAll.find(m => m.id === o.id)) mergedAll.push(entry);
-      });
-      const mergedUnassigned = mergedAll.filter(o => o.status === 'unassigned');
-      setUnassignedOrders(mergedUnassigned);
-      setAllOrders(mergedAll);
-      setRiders(Array.isArray(onlineRiders) ? onlineRiders : []);
-      setRules(Array.isArray(rulesData) ? rulesData : []);
+      setUnassignedOrders(uOrders);
+      setAllOrders(aOrders);
+      setRiders(onlineRiders);
+      setRules(rulesData);
     } catch (error) {
       console.error("Failed to load dispatch data", error);
-      const fallbackOrders: DispatchOrder[] = [
-        { id: 'ORD-1', priority: 'high', distanceKm: 2.5, etaMinutes: 12, zone: 'Central', status: 'unassigned', pickupLocation: { lat: 13.0827, lng: 80.2707, address: 'Hub A, Chennai' }, dropLocation: { lat: 13.09, lng: 80.28, address: '123 Main St' }, slaDeadline: new Date(Date.now() + 45 * 60000).toISOString(), createdAt: new Date().toISOString() },
-        { id: 'ORD-2', priority: 'medium', distanceKm: 4, etaMinutes: 18, zone: 'North', status: 'unassigned', pickupLocation: { lat: 13.09, lng: 80.28, address: 'Hub B' }, dropLocation: { lat: 13.07, lng: 80.26, address: '456 Oak Ave' }, slaDeadline: new Date(Date.now() + 60 * 60000).toISOString(), createdAt: new Date().toISOString() },
-      ];
-      const mergedAll = localNewOrdersRef.current.length > 0 ? [...localNewOrdersRef.current] : fallbackOrders;
-      Object.keys(localOrderAssignmentsRef.current).forEach(id => {
-        const existing = mergedAll.find(m => m.id === id);
-        if (existing) Object.assign(existing, localOrderAssignmentsRef.current[id]);
+      toast.error("Failed to refresh dispatch data", {
+        description: error instanceof Error ? error.message : "Please check your connection and try again",
       });
-      setUnassignedOrders(mergedAll.filter(o => o.status === 'unassigned'));
-      setAllOrders(mergedAll);
-      setRiders([
-        { id: 'r1', name: 'Raj K', status: 'online', currentLocation: { lat: 13.08, lng: 80.27 }, activeOrdersCount: 1, maxCapacity: 4, zone: 'Central', avgEtaMinutes: 12 },
-        { id: 'r2', name: 'Priya M', status: 'idle', currentLocation: { lat: 13.09, lng: 80.28 }, activeOrdersCount: 0, maxCapacity: 4, zone: 'North', avgEtaMinutes: 10 },
-      ]);
-      setRules([]);
-      toast.info("Using sample data. Connect backend for live data.");
     } finally {
       setLoading(false);
     }
@@ -177,29 +124,28 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
   };
 
   const confirmAssignment = async (riderId: string, overrideSla: boolean) => {
-    const toAssign = batchOrders.length > 0 ? batchOrders : (selectedOrder ? [selectedOrder] : []);
     try {
       if (batchOrders.length > 0) {
         await batchCreateAssignment(batchOrders.map(o => o.id), riderId);
-        toAssign.forEach(o => { localOrderAssignmentsRef.current[o.id] = { riderId, status: 'assigned' }; });
-        setUnassignedOrders(prev => prev.filter(o => !batchOrders.some(b => b.id === o.id)));
-        setAllOrders(prev => prev.map(o => batchOrders.some(b => b.id === o.id) ? { ...o, riderId, status: 'assigned' as const } : o));
-        toast.success(`Batch assigned ${batchOrders.length} orders to rider`);
+        toast.success(`Batch assigned ${batchOrders.length} orders to rider`, {
+          description: "Orders have been successfully assigned",
+        });
       } else if (selectedOrder) {
         await assignOrder(selectedOrder.id, riderId, overrideSla);
-        localOrderAssignmentsRef.current[selectedOrder.id] = { riderId, status: 'assigned' };
-        setUnassignedOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
-        setAllOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, riderId, status: 'assigned' as const } : o));
-        toast.success(`Order ${selectedOrder.id} assigned successfully`);
+        toast.success(`Order ${selectedOrder.id} assigned successfully`, {
+          description: "The order has been assigned to the rider",
+        });
       }
-      await loadData();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Assignment failed");
-      await loadData();
-    } finally {
+      // Close modal and refresh data immediately after assignment
       setAssignModalOpen(false);
       setSelectedOrder(null);
       setBatchOrders([]);
+      await loadData(); // Refresh to move orders out of queue and update rider status
+    } catch (error) {
+      console.error("Assignment error:", error);
+      toast.error("Assignment failed", {
+        description: error instanceof Error ? error.message : "Please try again",
+      });
     }
   };
 
@@ -218,7 +164,7 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
               Refresh
             </button>
             <button 
-              onClick={() => setIsManualDispatchOpen(true)}
+              onClick={() => toast.info('Manual Order creation coming soon')}
               className="px-4 py-2 bg-[#16A34A] text-white font-medium rounded-lg hover:bg-[#15803D] flex items-center gap-2"
             >
               <Send size={16} />
@@ -231,7 +177,7 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
         {/* Left Panel: Queue */}
         <div className="lg:col-span-1">
           <UnassignedOrdersPanel 
-            orders={filteredUnassignedOrders} 
+            orders={unassignedOrders} 
             loading={loading} 
             onAssign={handleAssignClick}
             onBatchAssign={handleBatchAssignClick}
@@ -254,7 +200,7 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
         onClose={() => setAssignModalOpen(false)}
         order={selectedOrder}
         batchOrders={batchOrders}
-        riders={filteredRiders.length > 0 ? filteredRiders : riders}
+        riders={riders}
         onConfirm={confirmAssignment}
       />
 
@@ -263,30 +209,6 @@ export function DispatchOps({ searchQuery = '' }: DispatchOpsProps) {
         onClose={() => setIsRulesOpen(false)}
         rules={rules}
         onRulesUpdate={loadData}
-      />
-
-      <ManualDispatchModal 
-        isOpen={isManualDispatchOpen}
-        onClose={() => setIsManualDispatchOpen(false)}
-        onSuccess={(order) => {
-          const newOrder: DispatchOrder = {
-            id: order.id,
-            priority: 'medium',
-            distanceKm: 0,
-            etaMinutes: 15,
-            zone: 'General',
-            status: 'unassigned',
-            pickupLocation: { lat: 40.71, lng: -74, address: order.pickup },
-            dropLocation: { lat: 40.72, lng: -74.01, address: order.drop },
-            slaDeadline: new Date(Date.now() + 60 * 60000).toISOString(),
-            createdAt: new Date().toISOString(),
-          };
-          localNewOrdersRef.current = [newOrder, ...localNewOrdersRef.current];
-          setUnassignedOrders(prev => [newOrder, ...prev]);
-          setAllOrders(prev => [newOrder, ...prev]);
-          setIsManualDispatchOpen(false);
-          loadData();
-        }}
       />
     </div>
   );

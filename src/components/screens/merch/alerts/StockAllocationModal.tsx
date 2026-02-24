@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert } from './types';
-import { alertsApi } from './alertsApi';
 import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
 
@@ -20,27 +19,15 @@ export function StockAllocationModal({ isOpen, onClose, onResolve, alert }: Stoc
   const [quantity, setQuantity] = useState('500');
   const [source, setSource] = useState('central');
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!quantity || parseInt(quantity) <= 0) {
         toast.error("Invalid Quantity", { description: "Please enter a valid number of units to transfer." });
         return;
     }
 
-    // Update alert status via API (which persists to localStorage)
-    try {
-      await alertsApi.updateAlert(alert.id, { 
-        status: 'Resolved', 
-        updatedAt: new Date().toISOString() 
-      });
-      toast.success("Transfer Order Created", {
-        description: `${quantity} units requested from ${source === 'central' ? 'Central Warehouse' : source === 'north' ? 'North Hub' : 'East Hub'}. Order #${Math.floor(100000 + Math.random() * 900000)}. Changes will persist after refresh.`
-      });
-    } catch (e) {
-      console.error('Failed to update alert', e);
-      toast.success("Transfer Order Created", {
-        description: `${quantity} units requested from ${source === 'central' ? 'Central Warehouse' : source === 'north' ? 'North Hub' : 'East Hub'}. Order #${Math.floor(100000 + Math.random() * 900000)}`
-      });
-    }
+    toast.success("Transfer Order Created", {
+      description: `${quantity} units requested from ${source === 'central' ? 'Central Warehouse' : source === 'north' ? 'North Hub' : 'East Hub'}. Order #${Math.floor(100000 + Math.random() * 900000)}`
+    });
     onResolve();
     onClose();
   };

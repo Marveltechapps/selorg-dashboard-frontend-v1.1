@@ -18,6 +18,7 @@ import { GeofenceManager } from './screens/admin/GeofenceManager';
 import { IntegrationManager } from './screens/admin/IntegrationManager';
 import { ComplianceCenter } from './screens/admin/ComplianceCenter';
 import { AuditLogs } from './screens/admin/AuditLogs';
+import { CustomerAppHome } from './screens/admin/CustomerAppHome';
 import { AppCMS } from './screens/admin/AppCMS';
 import { SystemTools } from './screens/admin/SystemTools';
 import { 
@@ -33,7 +34,8 @@ import {
   Link, 
   FileCheck,
   History,
-  ShoppingCart
+  ShoppingCart,
+  Smartphone
 } from 'lucide-react';
 
 /* --- Inline Components for Config & Ops Screens to reduce file count while maintaining functionality --- */
@@ -143,26 +145,22 @@ function OpsScreen({ type }: { type: 'support' | 'fraud' | 'analytics' | 'notifi
 
 export function AdminManagement({ onLogout }: { onLogout: () => void }) {
   const { activeTab, setActiveTab } = useDashboardNavigation('citywide');
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-[#18181b] font-sans">
-      <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} />
-      
-      <div className="pl-[260px]">
-        <AdminTopBar setActiveTab={setActiveTab} />
-        
-        <main className="pt-[88px] px-8 pb-12 min-h-screen max-w-[1920px] mx-auto">
+      <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
+      <div className="admin-content-area">
+        <AdminTopBar onMenuClick={() => setSidebarOpen(true)} />
+        <main className="pt-[88px] px-4 sm:px-6 md:px-8 pb-12 min-h-screen">
             {activeTab === 'citywide' && <CitywideControl />}
-            
             {activeTab === 'master-data' && <MasterData />}
             {activeTab === 'users' && <UserManagement />}
             {activeTab === 'catalog' && <CatalogManagement />}
-            
             {activeTab === 'pricing' && <PricingManagement />}
             {activeTab === 'store-config' && <StoreWarehouseManagement />}
             {activeTab === 'system-config' && <SystemConfiguration />}
             {activeTab === 'finance' && <FinanceRules />}
-            
             {activeTab === 'support' && <SupportCenter />}
             {activeTab === 'fraud' && <FraudRiskHub />}
             {activeTab === 'analytics' && <AnalyticsDashboard />}
@@ -171,9 +169,9 @@ export function AdminManagement({ onLogout }: { onLogout: () => void }) {
             {activeTab === 'integrations' && <IntegrationManager />}
             {activeTab === 'compliance' && <ComplianceCenter />}
             {activeTab === 'audit' && <AuditLogs />}
-            
             {activeTab === 'system-tools' && <SystemTools />}
-            {activeTab === 'app-cms' && <AppCMS />}
+            {activeTab === 'customer-app-home' && <CustomerAppHome />}
+            {activeTab === 'app-cms' && <AppCMS onEditContent={() => setActiveTab('customer-app-home')} />}
         </main>
       </div>
     </div>

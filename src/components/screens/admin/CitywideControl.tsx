@@ -159,7 +159,7 @@ export function CitywideControl() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-[#18181b] tracking-tight">Citywide Control Room</h1>

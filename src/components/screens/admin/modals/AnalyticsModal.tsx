@@ -105,6 +105,7 @@ export function AnalyticsModal({ open, onClose }: AnalyticsModalProps) {
       toast.error('Failed to export report');
     }
   };
+
   if (!analytics) return null;
 
   const PIE_COLORS = ['#10b981', '#f59e0b', '#6b7280'];
@@ -274,7 +275,7 @@ export function AnalyticsModal({ open, onClose }: AnalyticsModalProps) {
                       ></div>
                       <span>{item.status}</span>
                     </div>
-                    <span className="font-bold">{item.count} riders</span>
+                    <span className="font-bold">{item.count ?? 0} riders</span>
                   </div>
                 ))}
               </div>

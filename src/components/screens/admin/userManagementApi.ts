@@ -401,6 +401,9 @@ import { apiRequest } from '@/api/apiClient';
 
 // --- API Functions ---
 
+/** Use mock data when API is unavailable or returns empty (e.g. no backend seed). Dev-only by default. */
+const useMockWhenEmpty = (import.meta.env?.DEV ?? true);
+
 export const fetchUsers = async (filters?: {
   status?: UserStatus;
   roleId?: string;
@@ -415,9 +418,22 @@ export const fetchUsers = async (filters?: {
 
   const queryString = queryParams.toString();
   const endpoint = `/admin/users${queryString ? `?${queryString}` : ''}`;
-  
-  const response = await apiRequest<{ success: boolean; data: User[] }>(endpoint);
-  return response.data;
+
+  try {
+    const response = await apiRequest<{ success: boolean; data: User[] }>(endpoint);
+    const data = response?.data ?? [];
+    if (data.length === 0 && useMockWhenEmpty) {
+      console.warn('Users API returned empty; using mock data for display.');
+      return [...MOCK_USERS];
+    }
+    return data;
+  } catch (error: any) {
+    if (useMockWhenEmpty) {
+      console.warn('Failed to fetch users, using mock data:', error?.message || error);
+      return [...MOCK_USERS];
+    }
+    throw error;
+  }
 };
 
 export const fetchUserById = async (id: string): Promise<User | null> => {
@@ -513,13 +529,14 @@ export const deleteUser = async (id: string): Promise<void> => {
 export const fetchRoles = async (): Promise<Role[]> => {
   try {
     const response = await apiRequest<{ success: boolean; data: Role[] }>('/admin/roles');
-    if (response && response.data && Array.isArray(response.data)) {
-      return response.data;
+    const data = response?.data && Array.isArray(response.data) ? response.data : [];
+    if (data.length === 0 && useMockWhenEmpty) {
+      console.warn('Roles API returned empty; using mock data for display.');
+      return MOCK_ROLES.map(role => ({ ...role, id: role.id }));
     }
-    throw new Error('Invalid response format');
+    return data;
   } catch (error: any) {
     console.warn('Failed to fetch roles from API, using mock data:', error?.message || error);
-    // Fallback to mock data if API fails
     return MOCK_ROLES.map(role => ({
       ...role,
       id: role.id,

@@ -3,7 +3,7 @@
  * Provides centralized HTTP client with error handling
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 /**
  * Base fetch wrapper with error handling
@@ -104,3 +104,4 @@ export function del(endpoint) {
 }
 
 export default { get, post, put, delete: del };
+

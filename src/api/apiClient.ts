@@ -61,25 +61,22 @@ export async function apiRequest<T>(
     } catch {
       errorData = { message: `Request failed with status ${response.status}` };
     }
-    
+
     // Handle authentication/authorization errors
     if (response.status === 401) {
-      // Token expired or invalid - clear and redirect to login
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       window.location.href = '/login';
       throw new Error('Session expired. Please login again.');
     }
-    
+
     if (response.status === 403) {
-      // Permission denied
       const errorMsg = errorData.error?.message || errorData.message || 'Permission denied. You do not have access to perform this action.';
       const error: any = new Error(errorMsg);
       error.response = { data: errorData, status: response.status };
       throw error;
     }
-    
-    // Create error object with response data for better error handling
+
     const error: any = new Error(errorData.error?.message || errorData.message || 'Request failed');
     error.response = { data: errorData, status: response.status };
     throw error;

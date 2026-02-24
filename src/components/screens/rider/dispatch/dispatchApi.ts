@@ -148,7 +148,7 @@ function transformOrder(apiOrder: ApiOrder): DispatchOrder {
     id: apiOrder.id,
     priority,
     distanceKm: apiOrder.distance || 0,
-    etaMinutes: apiOrder.etaMinutes || 15,
+    etaMinutes: apiOrder.etaMinutes ?? 0,
     zone: apiOrder.zone || 'Unknown',
     status,
     pickupLocation: {
@@ -179,22 +179,13 @@ function transformRider(apiRider: ApiRider): DispatchRider {
     activeOrdersCount: apiRider.capacity.currentLoad,
     maxCapacity: apiRider.capacity.maxLoad,
     zone: apiRider.zone || 'Unknown',
-    avgEtaMinutes: apiRider.avgEtaMins || 12,
+    avgEtaMinutes: apiRider.avgEtaMins ?? 0,
   };
 }
 
 /**
  * Real API implementation
  */
-const MOCK_DISPATCH_ORDERS: DispatchOrder[] = [
-  { id: 'd-ord-1', priority: 'high', distanceKm: 2.5, etaMinutes: 12, zone: 'Downtown', status: 'unassigned', pickupLocation: { lat: 40.71, lng: -74.00, address: 'Hub A' }, dropLocation: { lat: 40.72, lng: -74.01, address: '123 Main St' }, slaDeadline: new Date(Date.now() + 30 * 60000).toISOString(), createdAt: new Date().toISOString() },
-  { id: 'd-ord-2', priority: 'medium', distanceKm: 4, etaMinutes: 18, zone: 'Westside', status: 'unassigned', pickupLocation: { lat: 40.72, lng: -74.02, address: 'Hub B' }, dropLocation: { lat: 40.73, lng: -74.02, address: '456 Oak Ave' }, slaDeadline: new Date(Date.now() + 45 * 60000).toISOString(), createdAt: new Date().toISOString() },
-];
-const MOCK_DISPATCH_RIDERS: DispatchRider[] = [
-  { id: 'dr-1', name: 'Raj K', status: 'online', currentLocation: { lat: 40.7128, lng: -74.006 }, activeOrdersCount: 1, maxCapacity: 4, zone: 'Downtown', avgEtaMinutes: 12 },
-  { id: 'dr-2', name: 'Priya M', status: 'idle', currentLocation: { lat: 40.72, lng: -74.01 }, activeOrdersCount: 0, maxCapacity: 4, zone: 'Westside', avgEtaMinutes: 10 },
-];
-
 export async function fetchUnassignedOrders(params?: {
   priority?: string;
   zone?: string;
@@ -205,97 +196,82 @@ export async function fetchUnassignedOrders(params?: {
   limit?: number;
 }): Promise<DispatchOrder[]> {
   const queryParams = new URLSearchParams();
-  if (params?.priority && params.priority !== 'all') queryParams.append('priority', params.priority);
-  if (params?.zone) queryParams.append('zone', params.zone);
-  if (params?.search) queryParams.append('search', params.search);
-  if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
-  if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
-  if (params?.page) queryParams.append('page', params.page.toString());
-  if (params?.limit) queryParams.append('limit', params.limit.toString());
-  const queryString = queryParams.toString();
-  const endpoint = queryString ? `${API_ENDPOINTS.dispatch.unassignedOrders}?${queryString}` : API_ENDPOINTS.dispatch.unassignedOrders;
-  try {
-    const response = await apiRequest<{ orders?: ApiOrder[]; data?: ApiOrder[]; total?: number; page?: number; limit?: number; totalPages?: number }>(endpoint);
-    const orders = response.orders ?? response.data ?? [];
-    return Array.isArray(orders) ? orders.map(transformOrder) : MOCK_DISPATCH_ORDERS;
-  } catch (_) {
-    return MOCK_DISPATCH_ORDERS;
+  
+  if (params?.priority && params.priority !== 'all') {
+    queryParams.append('priority', params.priority);
   }
+  if (params?.zone) {
+    queryParams.append('zone', params.zone);
+  }
+  if (params?.search) {
+    queryParams.append('search', params.search);
+  }
+  if (params?.sortBy) {
+    queryParams.append('sortBy', params.sortBy);
+  }
+  if (params?.sortOrder) {
+    queryParams.append('sortOrder', params.sortOrder);
+  }
+  if (params?.page) {
+    queryParams.append('page', params.page.toString());
+  }
+  if (params?.limit) {
+    queryParams.append('limit', params.limit.toString());
+  }
+  
+  const queryString = queryParams.toString();
+  const endpoint = queryString 
+    ? `${API_ENDPOINTS.dispatch.unassignedOrders}?${queryString}`
+    : API_ENDPOINTS.dispatch.unassignedOrders;
+  
+  const response = await apiRequest<{ orders: ApiOrder[]; total: number; page: number; limit: number; totalPages: number }>(endpoint);
+  
+  return response.orders.map(transformOrder);
 }
 
 export async function fetchAllOrders(): Promise<DispatchOrder[]> {
-  try {
-    const mapData = await apiRequest<ApiMapData>(API_ENDPOINTS.dispatch.mapData);
-    const orders = mapData?.orders ?? [];
-    return orders.map((order: any) => ({
-      id: order.id,
-      priority: (order.priority || 'low') as Priority,
-      distanceKm: 0,
-      etaMinutes: 15,
-      zone: order.zone || 'Unknown',
-      status: order.status === 'pending' ? 'unassigned' : order.status as OrderStatus,
-      pickupLocation: order.pickupLocation?.coordinates ? { ...order.pickupLocation.coordinates, address: order.pickupLocation.address } : { lat: 40.71, lng: -74, address: order.pickupLocation?.address || 'Hub' },
-      dropLocation: order.dropLocation?.coordinates ? { ...order.dropLocation.coordinates, address: order.dropLocation.address } : { lat: 40.72, lng: -74.01, address: order.dropLocation?.address || 'Drop' },
-      riderId: order.riderId || undefined,
-      slaDeadline: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    }));
-  } catch (_) {
-    return [...MOCK_DISPATCH_ORDERS];
-  }
+  // Get map data which includes all orders
+  const mapData = await apiRequest<ApiMapData>(API_ENDPOINTS.dispatch.mapData);
+  
+  return mapData.orders.map(order => ({
+    id: order.id,
+    priority: order.priority as Priority,
+    distanceKm: 0, // Will be calculated
+    etaMinutes: 0,
+    zone: order.zone || 'Unknown',
+    status: order.status === 'pending' ? 'unassigned' : order.status as OrderStatus,
+    pickupLocation: {
+      ...order.pickupLocation.coordinates,
+      address: order.pickupLocation.address,
+    },
+    dropLocation: {
+      ...order.dropLocation.coordinates,
+      address: order.dropLocation.address,
+    },
+    riderId: order.riderId || undefined,
+    slaDeadline: new Date().toISOString(), // Will be provided by backend
+    createdAt: new Date().toISOString(),
+  }));
 }
 
 export async function fetchOnlineRiders(): Promise<DispatchRider[]> {
-  try {
-    const mapData = await apiRequest<ApiMapData>(API_ENDPOINTS.dispatch.mapData);
-    const riders = mapData?.riders ?? [];
-    return riders.map(transformRider);
-  } catch (_) {
-    return MOCK_DISPATCH_RIDERS;
-  }
-}
-
-export async function createOrder(payload: { orderId?: string; pickup: string; drop: string; customer?: string }): Promise<{ id: string; pickupLocation: string; dropLocation: string; customerName: string }> {
-  const res = await apiRequest<{ id: string; pickupLocation: string; dropLocation: string; customerName: string }>(
-    API_ENDPOINTS.dispatch.createOrder,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        orderId: payload.orderId,
-        pickup: payload.pickup,
-        drop: payload.drop,
-        customer: payload.customer || 'Customer',
-      }),
-    }
-  );
-  return res;
+  const mapData = await apiRequest<ApiMapData>(API_ENDPOINTS.dispatch.mapData);
+  
+  return mapData.riders.map(transformRider);
 }
 
 export async function assignOrder(orderId: string, riderId: string, overrideSla?: boolean): Promise<void> {
-  try {
-    const result = await apiRequest<any>(
-      API_ENDPOINTS.dispatch.assignOrder,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          orderId,
-          riderId,
-          overrideSla: overrideSla || false,
-        }),
-      }
-    );
-    // Return void but ensure the request succeeded
-    if (result && result.error) {
-      throw new Error(result.message || result.error || 'Assignment failed');
+  await apiRequest(
+    API_ENDPOINTS.dispatch.assignOrder,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        orderId,
+        riderId,
+        overrideSla: overrideSla || false,
+      }),
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : (typeof error === 'object' && error !== null && 'message' in error)
-        ? String(error.message)
-        : 'Assignment failed';
-    throw new Error(errorMessage);
-  }
+  );
 }
 
 export async function autoAssignOrders(orderIds: string[]): Promise<{ assigned: number; failed: number }> {

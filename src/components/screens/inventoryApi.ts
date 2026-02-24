@@ -146,7 +146,7 @@ export async function fetchShelfView(
     params.append('shelf_location', shelfLocation);
   }
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/shelf-view?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/shelf-view?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch shelf view: ${response.statusText}`);
@@ -172,7 +172,7 @@ export async function fetchStockLevels(
     status,
   });
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/stock-levels?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/stock-levels?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch stock levels: ${response.statusText}`);
@@ -185,7 +185,7 @@ export async function updateStockLevel(
   sku: string,
   data: { stock: number; location?: string }
 ): Promise<{ success: boolean; message: string; sku: string; stock: number }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/stock-levels/${sku}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/stock-levels/${sku}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ export async function updateStockLevel(
 }
 
 export async function deleteInventoryItem(sku: string): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/stock-levels/${sku}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/stock-levels/${sku}`, {
     method: 'DELETE',
   });
   
@@ -218,7 +218,7 @@ export async function changeItemStatus(
   sku: string,
   status: string
 ): Promise<{ success: boolean; message: string; sku: string; status: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/stock-levels/${sku}/status`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/stock-levels/${sku}/status`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export async function fetchAdjustments(
     limit: limit.toString(),
   });
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/adjustments?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/adjustments?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch adjustments: ${response.statusText}`);
@@ -261,7 +261,7 @@ export async function createAdjustment(data: {
   reason: string;
   notes?: string;
 }): Promise<{ success: boolean; message: string; adjustment_id: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/adjustments`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/adjustments`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -282,7 +282,7 @@ export async function fetchCycleCount(
 ): Promise<CycleCountResponse> {
   const params = new URLSearchParams({ storeId });
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/cycle-count?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/cycle-count?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch cycle count: ${response.statusText}`);
@@ -296,7 +296,7 @@ export async function downloadCycleCountReport(
 ): Promise<Blob> {
   const params = new URLSearchParams({ storeId });
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/cycle-count/report?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/cycle-count/report?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to download cycle count report: ${response.statusText}`);
@@ -309,7 +309,7 @@ export async function scanItem(data: {
   sku: string;
   location: string;
 }): Promise<ScanItemResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/scan`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/scan`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -353,7 +353,7 @@ export async function fetchAuditLog(
     limit: limit.toString(),
   });
   
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/audit-log?${params}`);
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/audit-log?${params}`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch audit log: ${response.statusText}`);
@@ -368,7 +368,7 @@ export async function createRestockTask(data: {
   quantity: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
 }): Promise<{ success: boolean; restock_id: string; estimated_arrival: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/restock-task`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/restock-task`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -390,7 +390,7 @@ export async function createRestock(data: {
   quantity: number;
   priority: 'low' | 'normal' | 'high' | 'urgent';
 }): Promise<{ success: boolean; restock_id: string; estimated_arrival: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/darkstore/inventory/restock`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/darkstore/inventory/restock`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -405,3 +405,4 @@ export async function createRestock(data: {
   
   return response.json();
 }
+

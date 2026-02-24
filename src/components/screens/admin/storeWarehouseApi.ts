@@ -439,6 +439,7 @@ const MOCK_STORE_PERFORMANCE: StorePerformance[] = [
   { storeId: 'store-4', storeName: 'HSR Layout Express', ordersToday: 72, ordersWeek: 504, ordersMonth: 2090, revenueToday: 144000, revenueWeek: 1008000, revenueMonth: 4180000, avgRating: 4.7, totalReviews: 3892, onTimeDelivery: 97, capacityUtilization: 55 },
   { storeId: 'store-5', storeName: 'Jayanagar Quick Stop', ordersToday: 54, ordersWeek: 378, ordersMonth: 1560, revenueToday: 108000, revenueWeek: 756000, revenueMonth: 3120000, avgRating: 4.4, totalReviews: 2945, onTimeDelivery: 95, capacityUtilization: 54 },
 ];
+
 // --- API Functions ---
 
 export async function fetchStores(): Promise<Store[]> {

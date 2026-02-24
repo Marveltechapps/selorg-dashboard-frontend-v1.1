@@ -96,7 +96,7 @@ const MOCK_SYSTEM_HEALTH: SystemHealth = {
   services: [
     { name: 'API Server', status: 'running', uptime: '15d 7h', port: 3000 },
     { name: 'Database', status: 'running', uptime: '15d 7h', port: 5432 },
-    { name: 'Redis Cache', status: 'running', uptime: '15d 7h', port: 6379 },
+    { name: 'Cache (in-memory)', status: 'running', uptime: '15d 7h' },
     { name: 'Message Queue', status: 'running', uptime: '15d 7h', port: 5672 },
     { name: 'Search Engine', status: 'running', uptime: '15d 7h', port: 9200 },
     { name: 'Worker Process', status: 'running', uptime: '15d 7h' },
@@ -255,7 +255,6 @@ const MOCK_ENV_VARIABLES: EnvVariable[] = [
   { key: 'NODE_ENV', value: 'production', isSensitive: false, category: 'General' },
   { key: 'PORT', value: '3000', isSensitive: false, category: 'General' },
   { key: 'DATABASE_URL', value: 'postgresql://user:••••••••@localhost:5432/quickcommerce', isSensitive: true, category: 'Database' },
-  { key: 'REDIS_URL', value: 'redis://localhost:6379', isSensitive: false, category: 'Cache' },
   { key: 'RAZORPAY_KEY_ID', value: 'rzp_live_••••••••••••', isSensitive: true, category: 'Payment' },
   { key: 'RAZORPAY_KEY_SECRET', value: '••••••••••••••••', isSensitive: true, category: 'Payment' },
   { key: 'STRIPE_SECRET_KEY', value: 'sk_live_••••••••••••••••', isSensitive: true, category: 'Payment' },
@@ -434,7 +433,6 @@ export async function fetchEnvVariables(): Promise<EnvVariable[]> {
     return response.data || [
       { key: 'NODE_ENV', value: 'production', isSensitive: false, category: 'core' },
       { key: 'DATABASE_URL', value: 'mongodb://...', isSensitive: true, category: 'database' },
-      { key: 'REDIS_URL', value: 'redis://...', isSensitive: true, category: 'cache' },
       { key: 'JWT_SECRET', value: '••••••••••••••••', isSensitive: true, category: 'security' },
       { key: 'API_BASE_URL', value: 'https://api.quickcommerce.com', isSensitive: false, category: 'api' },
     ];
@@ -443,7 +441,6 @@ export async function fetchEnvVariables(): Promise<EnvVariable[]> {
     return [
       { key: 'NODE_ENV', value: 'production', isSensitive: false, category: 'core' },
       { key: 'DATABASE_URL', value: 'mongodb://...', isSensitive: true, category: 'database' },
-      { key: 'REDIS_URL', value: 'redis://...', isSensitive: true, category: 'cache' },
       { key: 'JWT_SECRET', value: '••••••••••••••••', isSensitive: true, category: 'security' },
       { key: 'API_BASE_URL', value: 'https://api.quickcommerce.com', isSensitive: false, category: 'api' },
     ];

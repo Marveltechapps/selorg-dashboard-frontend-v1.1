@@ -173,75 +173,22 @@ export interface RejectTransferResponse {
   message: string;
 }
 
-// Mock data for when API is unavailable
-const MOCK_OUTBOUND_SUMMARY: OutboundSummary = {
-  success: true,
-  summary: {
-    active_riders: 8,
-    pending_transfers: 5,
-    waiting_riders: 3,
-    in_transit: 12,
-    store_delays: 1,
-  },
-  date: new Date().toISOString().split('T')[0],
-};
-
-const MOCK_DISPATCH_QUEUE: DispatchItem[] = [
-  { dispatch_id: 'DISP-001', rider_id: 'R1', rider_name: 'Raj Kumar', status: 'in_transit', orders_count: 4, eta: '12 min', dispatch_type: 'Standard', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { dispatch_id: 'DISP-002', rider_name: 'Waiting for assignment...', status: 'waiting', orders_count: 2, dispatch_type: 'Express', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { dispatch_id: 'DISP-003', rider_id: 'R3', rider_name: 'Amit Singh', status: 'assigned', orders_count: 3, eta: '8 min', dispatch_type: 'Standard', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { dispatch_id: 'DISP-004', rider_name: 'Waiting for assignment...', status: 'waiting', orders_count: 1, dispatch_type: 'Standard', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
-
-const MOCK_RIDERS: Rider[] = [
-  { rider_id: 'R1', rider_name: 'Raj Kumar', status: 'busy', current_orders: 4, max_capacity: 6, last_update: new Date().toISOString(), location: { lat: 13.08, lng: 80.27 } },
-  { rider_id: 'R2', rider_name: 'Priya M', status: 'waiting', current_orders: 0, max_capacity: 6, last_update: new Date().toISOString(), location: { lat: 13.09, lng: 80.28 } },
-  { rider_id: 'R3', rider_name: 'Amit Singh', status: 'busy', current_orders: 3, max_capacity: 6, last_update: new Date().toISOString(), location: { lat: 13.07, lng: 80.26 } },
-  { rider_id: 'R4', rider_name: 'Sneha K', status: 'online', current_orders: 1, max_capacity: 6, last_update: new Date().toISOString(), location: { lat: 13.10, lng: 80.29 } },
-];
-
-const MOCK_TRANSFER_REQUESTS: TransferRequest[] = [
-  { request_id: 'TR-001', from_store: 'DS-Brooklyn-04', to_store: 'DS-Manhattan-02', items_count: 24, priority: 'High', sla_remaining: '2h 15m', status: 'pending', requested_at: new Date().toISOString(), expected_dispatch: new Date(Date.now() + 3600000).toISOString() },
-  { request_id: 'TR-002', from_store: 'DS-Brooklyn-04', to_store: 'DS-Queens-01', items_count: 12, priority: 'Normal', sla_remaining: '4h 30m', status: 'approved', requested_at: new Date().toISOString(), expected_dispatch: new Date().toISOString() },
-];
-
-const MOCK_SLA_SUMMARY: SLASummary = {
-  success: true,
-  on_time_dispatch_percentage: 94,
-  average_prep_time: '18m',
-  total_transfers: 28,
-  completed_transfers: 26,
-  date: new Date().toISOString().split('T')[0],
-};
-
-const MOCK_FULFILLMENT: FulfillmentStatus = {
-  success: true,
-  request_id: 'TR-002',
-  status: 'in_progress',
-  picking_progress: { picked: 18, total: 24, percentage: 75 },
-  picker: { id: 'P1', name: 'John Picker' },
-  vehicle_id: 'Van-04',
-  estimated_completion: new Date(Date.now() + 1800000).toISOString(),
-};
-
 // API Functions
 
 export async function fetchOutboundSummary(
   storeId: string = 'DS-Brooklyn-04',
   date?: string
 ): Promise<OutboundSummary> {
-  try {
-    const dateParam = date || new Date().toISOString().split('T')[0];
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/summary?storeId=${storeId}&date=${dateParam}`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (!data?.summary) return MOCK_OUTBOUND_SUMMARY;
-    return data;
-  } catch {
-    return MOCK_OUTBOUND_SUMMARY;
+  const dateParam = date || new Date().toISOString().split('T')[0];
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/summary?storeId=${storeId}&date=${dateParam}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch outbound summary: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchDispatchQueue(
@@ -250,103 +197,88 @@ export async function fetchDispatchQueue(
   page: number = 1,
   limit: number = 50
 ): Promise<DispatchQueueResponse> {
-  try {
-    const params = new URLSearchParams({
-      storeId,
-      status,
-      page: page.toString(),
-      limit: limit.toString(),
-    });
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/dispatch?${params}`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (!data?.dispatch_queue?.length) {
-      return { success: true, dispatch_queue: MOCK_DISPATCH_QUEUE, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_DISPATCH_QUEUE.length, items_per_page: limit } };
-    }
-    return data;
-  } catch {
-    return { success: true, dispatch_queue: MOCK_DISPATCH_QUEUE, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_DISPATCH_QUEUE.length, items_per_page: limit } };
+  const params = new URLSearchParams({
+    storeId,
+    status,
+    page: page.toString(),
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/dispatch?${params}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch dispatch queue: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchActiveRiders(
   storeId: string = 'DS-Brooklyn-04',
   status: string = 'all'
 ): Promise<RidersResponse> {
-  try {
-    const params = new URLSearchParams({ storeId, status });
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/riders?${params}`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (!data?.riders?.length) return { success: true, riders: MOCK_RIDERS };
-    return data;
-  } catch {
-    return { success: true, riders: MOCK_RIDERS };
+  const params = new URLSearchParams({
+    storeId,
+    status,
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/riders?${params}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch riders: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function batchDispatchOrders(
   storeId: string,
   data: BatchDispatchRequest
 ): Promise<BatchDispatchResponse> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/dispatch/batch?storeId=${storeId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || response.statusText);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/dispatch/batch?storeId=${storeId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     }
-    return response.json();
-  } catch {
-    return {
-      success: true,
-      dispatch_id: 'DISP-BATCH-MOCK',
-      assigned_riders: 2,
-      orders_dispatched: data.order_ids?.length || 3,
-      message: 'Batch dispatch completed (mock)',
-    };
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || `Failed to batch dispatch orders: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function manuallyAssignRider(
   storeId: string,
   data: ManualAssignRequest
 ): Promise<ManualAssignResponse> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/dispatch/assign?storeId=${storeId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || response.statusText);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/dispatch/assign?storeId=${storeId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     }
-    return response.json();
-  } catch (e) {
-    const rider = MOCK_RIDERS.find(r => r.rider_id === data.rider_id);
-    return {
-      success: true,
-      dispatch_id: 'DISP-MOCK',
-      rider_id: data.rider_id,
-      rider_name: rider?.rider_name || 'Rider',
-      orders_assigned: data.order_ids?.length || 1,
-      message: 'Rider assigned successfully (mock)',
-    };
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || `Failed to assign rider: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchTransferRequests(
@@ -355,116 +287,98 @@ export async function fetchTransferRequests(
   page: number = 1,
   limit: number = 50
 ): Promise<TransferRequestsResponse> {
-  try {
-    const params = new URLSearchParams({
-      storeId,
-      status,
-      page: page.toString(),
-      limit: limit.toString(),
-    });
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/transfers?${params}`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (!data?.transfer_requests?.length) {
-      return { success: true, transfer_requests: MOCK_TRANSFER_REQUESTS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_TRANSFER_REQUESTS.length, items_per_page: limit } };
-    }
-    return data;
-  } catch {
-    return { success: true, transfer_requests: MOCK_TRANSFER_REQUESTS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_TRANSFER_REQUESTS.length, items_per_page: limit } };
+  const params = new URLSearchParams({
+    storeId,
+    status,
+    page: page.toString(),
+    limit: limit.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/transfers?${params}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch transfer requests: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function approveTransferRequest(
   requestId: string,
   data: ApproveTransferRequest = {}
 ): Promise<ApproveTransferResponse> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/transfers/${requestId}/approve`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || response.statusText);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/transfers/${requestId}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     }
-    return response.json();
-  } catch (e) {
-    return {
-      success: true,
-      request_id: requestId,
-      status: 'approved',
-      pick_pack_task_id: 'PP-MOCK',
-      message: 'Transfer approved (mock)',
-    };
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || `Failed to approve transfer request: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function rejectTransferRequest(
   requestId: string,
   data: RejectTransferRequest = {}
 ): Promise<RejectTransferResponse> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/transfers/${requestId}/reject`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || response.statusText);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/transfers/${requestId}/reject`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     }
-    return response.json();
-  } catch (e) {
-    return {
-      success: true,
-      request_id: requestId,
-      status: 'rejected',
-      message: 'Transfer rejected (mock)',
-    };
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || `Failed to reject transfer request: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchTransferFulfillmentStatus(
   requestId: string
 ): Promise<FulfillmentStatus> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/transfers/${requestId}/fulfillment`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (!data?.request_id) return { ...MOCK_FULFILLMENT, request_id: requestId };
-    return data;
-  } catch {
-    return { ...MOCK_FULFILLMENT, request_id: requestId };
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/transfers/${requestId}/fulfillment`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch fulfillment status: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchTransferSLASummary(
   storeId: string = 'DS-Brooklyn-04',
   date?: string
 ): Promise<SLASummary> {
-  try {
-    const dateParam = date || new Date().toISOString().split('T')[0];
-    const response = await fetch(
-      `${API_BASE_URL}/api/darkstore/outbound/transfers/sla-summary?storeId=${storeId}&date=${dateParam}`
-    );
-    if (!response.ok) throw new Error(response.statusText);
-    const data = await response.json();
-    if (data && typeof data.on_time_dispatch_percentage === 'number') return data;
-    return MOCK_SLA_SUMMARY;
-  } catch {
-    return MOCK_SLA_SUMMARY;
+  const dateParam = date || new Date().toISOString().split('T')[0];
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/darkstore/outbound/transfers/sla-summary?storeId=${storeId}&date=${dateParam}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch SLA summary: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 export async function fetchOutboundAuditLogs(
@@ -478,7 +392,7 @@ export async function fetchOutboundAuditLogs(
   });
 
   const response = await fetch(
-    `${API_BASE_URL}/api/darkstore/inventory/audit-log?${queryParams}`
+    `${API_BASE_URL}/api/v1/darkstore/inventory/audit-log?${queryParams}`
   );
 
   if (!response.ok) {
@@ -487,3 +401,4 @@ export async function fetchOutboundAuditLogs(
 
   return response.json();
 }
+

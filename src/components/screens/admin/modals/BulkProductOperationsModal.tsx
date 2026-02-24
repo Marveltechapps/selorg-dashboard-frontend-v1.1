@@ -25,7 +25,7 @@ interface BulkProductOperationsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedIds: string[];
-  onSuccess: () => void;
+  onSuccess?: () => void | Promise<void>;
 }
 
 type OperationType = 'price' | 'category' | 'status' | 'stock' | 'featured';
@@ -90,16 +90,15 @@ export function BulkProductOperationsModal({
 
     // Build updates based on operation type
     switch (operation) {
-      case 'price':
-        const adjustment = parseFloat(formData.priceAdjustment);
-        if (!adjustment || adjustment <= 0) {
-          toast.error('Please enter a valid price adjustment');
+      case 'price': {
+        const priceVal = parseFloat(formData.priceAdjustment);
+        if (Number.isNaN(priceVal) || priceVal < 0) {
+          toast.error('Please enter a valid price');
           return;
         }
-        // Note: In real implementation, we'd need to fetch current prices and calculate
-        // For now, this is a simplified version
-        toast.info('Price adjustment will be applied to selected products');
+        updates = { price: priceVal };
         break;
+      }
 
       case 'category':
         if (!formData.newCategory) {
@@ -107,8 +106,8 @@ export function BulkProductOperationsModal({
           return;
         }
         updates = {
-          category: formData.newCategory,
-          subcategory: formData.newSubcategory || '',
+          categoryId: formData.newCategory,
+          subcategoryId: formData.newSubcategory || null,
         };
         break;
 
@@ -116,15 +115,25 @@ export function BulkProductOperationsModal({
         updates = { status: formData.newStatus };
         break;
 
-      case 'stock':
-        const stockAdj = parseInt(formData.stockAdjustment);
-        if (!stockAdj || stockAdj <= 0) {
-          toast.error('Please enter a valid stock quantity');
-          return;
+      case 'stock': {
+        const stockVal = parseInt(formData.stockAdjustment, 10);
+        if (formData.stockAction === 'set') {
+          if (Number.isNaN(stockVal) || stockVal < 0) {
+            toast.error('Please enter a valid stock quantity (0 or more)');
+            return;
+          }
+          updates = { stockQuantity: stockVal };
+        } else {
+          if (Number.isNaN(stockVal) || stockVal <= 0) {
+            toast.error('Please enter a valid quantity to add or subtract');
+            return;
+          }
+          updates = {
+            stockIncrement: formData.stockAction === 'add' ? stockVal : -stockVal,
+          };
         }
-        // Note: In real implementation, we'd need to handle add/subtract/set logic
-        toast.info('Stock adjustment will be applied to selected products');
         break;
+      }
 
       case 'featured':
         updates = { featured: formData.featuredValue === 'true' };
@@ -135,7 +144,7 @@ export function BulkProductOperationsModal({
     try {
       const count = await bulkUpdateProducts(selectedIds, updates);
       toast.success(`Successfully updated ${count} products`);
-      onSuccess();
+      await Promise.resolve(onSuccess?.());
       onOpenChange(false);
     } catch (error) {
       toast.error('Failed to perform bulk operation');
@@ -145,7 +154,9 @@ export function BulkProductOperationsModal({
   };
 
   const topLevelCategories = categories.filter(c => c.parentId === null && c.status === 'active');
-  const subcategories = categories.filter(c => c.parentId && categories.find(cat => cat.id === c.parentId)?.name === formData.newCategory);
+  const subcategories = formData.newCategory
+    ? categories.filter(c => c.parentId === formData.newCategory && c.status === 'active')
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -278,16 +289,19 @@ export function BulkProductOperationsModal({
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label>New Category</Label>
-                  <Select value={formData.newCategory} onValueChange={(val) => {
-                    handleChange('newCategory', val);
-                    handleChange('newSubcategory', '');
-                  }}>
+                  <Select
+                    value={formData.newCategory || undefined}
+                    onValueChange={(val) => {
+                      handleChange('newCategory', val);
+                      handleChange('newSubcategory', '');
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
                       {topLevelCategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -296,16 +310,16 @@ export function BulkProductOperationsModal({
                 <div className="space-y-2">
                   <Label>New Subcategory (Optional)</Label>
                   <Select 
-                    value={formData.newSubcategory} 
+                    value={formData.newSubcategory || undefined}
                     onValueChange={(val) => handleChange('newSubcategory', val)}
-                    disabled={!formData.newCategory}
+                    disabled={!formData.newCategory || subcategories.length === 0}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select subcategory" />
+                      <SelectValue placeholder={subcategories.length === 0 ? 'No subcategories' : 'Select subcategory'} />
                     </SelectTrigger>
                     <SelectContent>
                       {subcategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

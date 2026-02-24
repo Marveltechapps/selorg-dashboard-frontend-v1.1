@@ -132,13 +132,13 @@ const generateServiceStatus = () => [
   },
   {
     id: 7,
-    name: 'Cache Layer (Redis)',
+    name: 'Cache Layer (in-memory)',
     type: 'Cache',
     status: 'operational',
     uptime: 99.97,
     responseTime: 2,
     lastCheck: '20 seconds ago',
-    endpoint: 'redis://cache.internal',
+    endpoint: 'in-memory',
     requests24h: 456780
   },
   {

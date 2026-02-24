@@ -21,19 +21,20 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Product, Category, createProduct, updateProduct, fetchCategories } from '../catalogApi';
+import { Product, Category, createProduct, updateProduct, fetchCategories, uploadProductImage } from '../catalogApi';
 import { toast } from 'sonner';
 import { X, Upload, Plus, Package } from 'lucide-react';
 
 interface AddProductModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess?: () => void | Promise<void>;
   editProduct?: Product | null;
 }
 
 export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: AddProductModalProps) {
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<string[]>(editProduct?.tags || []);
   const [tagInput, setTagInput] = useState('');
@@ -42,8 +43,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
     name: '',
     sku: '',
     description: '',
-    category: '',
-    subcategory: '',
+    categoryId: '',
+    subcategoryId: '',
     brand: '',
     price: '',
     costPrice: '',
@@ -68,8 +69,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
           name: editProduct.name,
           sku: editProduct.sku,
           description: editProduct.description,
-          category: editProduct.category,
-          subcategory: editProduct.subcategory,
+          categoryId: editProduct.categoryId || '',
+          subcategoryId: editProduct.subcategoryId || '',
           brand: editProduct.brand,
           price: editProduct.price.toString(),
           costPrice: editProduct.costPrice.toString(),
@@ -106,8 +107,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
       name: '',
       sku: '',
       description: '',
-      category: '',
-      subcategory: '',
+      categoryId: '',
+      subcategoryId: '',
       brand: '',
       price: '',
       costPrice: '',
@@ -143,7 +144,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (!formData.name.trim()) {
       toast.error('Product name is required');
       return;
@@ -152,7 +152,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
       toast.error('SKU is required');
       return;
     }
-    if (!formData.category) {
+    if (!formData.categoryId) {
       toast.error('Category is required');
       return;
     }
@@ -167,8 +167,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
         name: formData.name.trim(),
         sku: formData.sku.trim(),
         description: formData.description.trim(),
-        category: formData.category,
-        subcategory: formData.subcategory,
+        categoryId: formData.categoryId,
+        subcategoryId: formData.subcategoryId || '',
         brand: formData.brand.trim(),
         price: parseFloat(formData.price),
         costPrice: parseFloat(formData.costPrice) || 0,
@@ -197,7 +197,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
         toast.success(`Product "${formData.name}" created successfully`);
       }
 
-      onSuccess();
+      await Promise.resolve(onSuccess?.());
       onOpenChange(false);
       resetForm();
     } catch (error) {
@@ -208,9 +208,8 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
   };
 
   const topLevelCategories = categories.filter(c => !c.parentId && c.status === 'active');
-  const selectedCategory = categories.find(c => c.name === formData.category || c.id === formData.category);
-  const subcategories = selectedCategory 
-    ? categories.filter(c => c.parentId === selectedCategory.id && c.status === 'active')
+  const subcategories = formData.categoryId
+    ? categories.filter(c => c.parentId === formData.categoryId && c.status === 'active')
     : [];
 
   return (
@@ -243,7 +242,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
 
           <ScrollArea className="flex-1 px-6 min-h-0 overflow-y-auto max-h-[60vh]">
             <TabsContent value="basic" className="space-y-4 mt-4 pb-4">
-              {/* Product Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
                 <Input
@@ -254,7 +252,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* SKU */}
               <div className="space-y-2">
                 <Label htmlFor="sku">SKU *</Label>
                 <Input
@@ -269,7 +266,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 )}
               </div>
 
-              {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
@@ -281,45 +277,50 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* Category & Subcategory */}
+              {/* Category & Subcategory - using IDs */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category *</Label>
-                  <Select value={formData.category} onValueChange={(val) => {
-                    handleChange('category', val);
-                    handleChange('subcategory', '');
-                  }}>
+                  <Select
+                    value={formData.categoryId || undefined}
+                    onValueChange={(val) => {
+                      handleChange('categoryId', val);
+                      handleChange('subcategoryId', '');
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
                       {topLevelCategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {topLevelCategories.length === 0 && (
+                    <p className="text-xs text-amber-600">No categories yet. Create one in the Categories tab first.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label>Subcategory</Label>
                   <Select 
-                    value={formData.subcategory} 
-                    onValueChange={(val) => handleChange('subcategory', val)}
-                    disabled={!formData.category}
+                    value={formData.subcategoryId || undefined}
+                    onValueChange={(val) => handleChange('subcategoryId', val)}
+                    disabled={!formData.categoryId || subcategories.length === 0}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select subcategory" />
+                      <SelectValue placeholder={subcategories.length === 0 ? 'No subcategories' : 'Select subcategory'} />
                     </SelectTrigger>
                     <SelectContent>
                       {subcategories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {/* Brand */}
               <div className="space-y-2">
                 <Label htmlFor="brand">Brand</Label>
                 <Input
@@ -330,7 +331,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="imageUpload">Product Image</Label>
                 <div className="flex gap-2">
@@ -344,26 +344,39 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                     type="button"
                     variant="outline" 
                     size="icon"
+                    disabled={uploadingImage}
                     onClick={() => {
                       const input = document.createElement('input');
                       input.type = 'file';
                       input.accept = 'image/*';
-                      input.onchange = (e: Event) => {
+                      input.onchange = async (e: Event) => {
                         const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) {
-                          // Create a local URL for preview
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const result = event.target?.result as string;
-                            handleChange('imageUrl', result);
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                          const result = event.target?.result as string;
+                          if (!result || !result.startsWith('data:image/')) return;
+                          setUploadingImage(true);
+                          try {
+                            const url = await uploadProductImage(result);
+                            handleChange('imageUrl', url);
+                            toast.success('Image uploaded to storage');
+                          } catch {
+                            toast.error('Failed to upload image');
+                          } finally {
+                            setUploadingImage(false);
+                          }
+                        };
+                        reader.readAsDataURL(file);
                       };
                       input.click();
                     }}
                   >
-                    <Upload size={16} />
+                    {uploadingImage ? (
+                      <span className="text-xs">...</span>
+                    ) : (
+                      <Upload size={16} />
+                    )}
                   </Button>
                 </div>
                 {formData.imageUrl && (
@@ -373,7 +386,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 )}
               </div>
 
-              {/* Tags */}
               <div className="space-y-2">
                 <Label>Tags</Label>
                 <div className="flex gap-2">
@@ -400,22 +412,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {tags.map((tag, idx) => (
-                      <Badge key={idx} variant="secondary" className="flex items-center gap-1">
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => removeTag(tag)}
-                          className="ml-1 hover:text-red-600"
-                        >
-                          <X size={12} />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
                     {tags.map(tag => (
                       <Badge key={tag} variant="secondary" className="gap-1">
                         {tag}
@@ -428,10 +424,9 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
             </TabsContent>
 
             <TabsContent value="pricing" className="space-y-4 mt-4 pb-6">
-              {/* Price */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Selling Price (₹) *</Label>
+                  <Label htmlFor="price">Selling Price (*) *</Label>
                   <Input
                     id="price"
                     type="number"
@@ -444,7 +439,7 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="costPrice">Cost Price (₹)</Label>
+                  <Label htmlFor="costPrice">Cost Price (*)</Label>
                   <Input
                     id="costPrice"
                     type="number"
@@ -457,7 +452,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
               </div>
 
-              {/* Margin Calculation */}
               {formData.price && formData.costPrice && (
                 <div className="p-3 bg-[#f4f4f5] rounded-lg">
                   <p className="text-sm text-[#52525b]">
@@ -469,7 +463,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
               )}
 
-              {/* Stock */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="stockQuantity">Stock Quantity</Label>
@@ -496,7 +489,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
               </div>
 
-              {/* Status */}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={formData.status} onValueChange={(val: any) => handleChange('status', val)}>
@@ -511,7 +503,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </Select>
               </div>
 
-              {/* Featured */}
               <div className="flex items-center justify-between p-4 bg-[#f4f4f5] rounded-lg">
                 <div>
                   <Label htmlFor="featured" className="cursor-pointer">Featured Product</Label>
@@ -526,7 +517,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
             </TabsContent>
 
             <TabsContent value="attributes" className="space-y-4 mt-4 pb-4">
-              {/* Weight */}
               <div className="space-y-2">
                 <Label htmlFor="weight">Weight / Pack Size</Label>
                 <Input
@@ -537,7 +527,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* Dimensions */}
               <div className="space-y-2">
                 <Label htmlFor="dimensions">Dimensions</Label>
                 <Input
@@ -548,7 +537,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* Color & Size */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="color">Color</Label>
@@ -571,7 +559,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 </div>
               </div>
 
-              {/* Material */}
               <div className="space-y-2">
                 <Label htmlFor="material">Material</Label>
                 <Input
@@ -582,7 +569,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
                 />
               </div>
 
-              {/* Expiry Days */}
               <div className="space-y-2">
                 <Label htmlFor="expiryDays">Shelf Life (Days)</Label>
                 <Input
@@ -599,7 +585,6 @@ export function AddProductModal({ open, onOpenChange, onSuccess, editProduct }: 
           </ScrollArea>
         </Tabs>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-[#e4e4e7] flex justify-end gap-3 flex-shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel

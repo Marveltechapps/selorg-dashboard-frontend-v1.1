@@ -20,6 +20,16 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -36,10 +46,13 @@ import {
   deleteProduct,
   updateProduct,
   createProduct,
+  deleteCategory,
+  deleteAttribute,
   getStockStatus,
 } from './catalogApi';
 import { AddProductModal } from './modals/AddProductModal';
 import { AddCategoryModal } from './modals/AddCategoryModal';
+import { AddAttributeModal } from './modals/AddAttributeModal';
 import { BulkProductOperationsModal } from './modals/BulkProductOperationsModal';
 import { toast } from 'sonner';
 import {
@@ -82,8 +95,16 @@ export function CatalogManagement() {
   // Modals
   const [addProductOpen, setAddProductOpen] = useState(false);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [addAttributeOpen, setAddAttributeOpen] = useState(false);
   const [bulkOpsOpen, setBulkOpsOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editAttribute, setEditAttribute] = useState<ProductAttribute | null>(null);
+  const [editCategory, setEditCategory] = useState<Category | null>(null);
+  /** When true, Add Category modal opens in "Add Subcategory" mode (title + require parent) */
+  const [addCategoryAsSubcategory, setAddCategoryAsSubcategory] = useState(false);
+  /** Product delete confirmation: { id, name } when open */
+  const [deleteProductConfirm, setDeleteProductConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteProductLoading, setDeleteProductLoading] = useState(false);
   
   // Selection
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -110,15 +131,23 @@ export function CatalogManagement() {
     }
   };
 
-  const handleDeleteProduct = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-    
+  const handleDeleteProductClick = (id: string, name: string) => {
+    setDeleteProductConfirm({ id, name });
+  };
+
+  const handleDeleteProductConfirm = async () => {
+    if (!deleteProductConfirm) return;
+    const { id, name } = deleteProductConfirm;
+    setDeleteProductLoading(true);
     try {
       await deleteProduct(id);
       toast.success(`Product "${name}" deleted successfully`);
-      loadData();
+      setDeleteProductConfirm(null);
+      await loadData(); // wait for list refresh so deleted item disappears immediately
     } catch (error) {
       toast.error('Failed to delete product');
+    } finally {
+      setDeleteProductLoading(false);
     }
   };
 
@@ -127,7 +156,7 @@ export function CatalogManagement() {
     try {
       await updateProduct(product.id, { status: newStatus });
       toast.success(`Product ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
-      loadData();
+      await loadData();
     } catch (error) {
       toast.error('Failed to update product status');
     }
@@ -137,7 +166,7 @@ export function CatalogManagement() {
     try {
       await updateProduct(product.id, { featured: !product.featured });
       toast.success(product.featured ? 'Removed from featured' : 'Added to featured');
-      loadData();
+      await loadData();
     } catch (error) {
       toast.error('Failed to update product');
     }
@@ -162,7 +191,7 @@ export function CatalogManagement() {
       
       await createProduct(duplicateData);
       toast.success(`Product "${product.name}" duplicated successfully`);
-      loadData();
+      await loadData();
     } catch (error) {
       console.error('Duplicate product error:', error);
       toast.error('Failed to duplicate product');
@@ -366,7 +395,7 @@ export function CatalogManagement() {
         }
 
         toast.success(`Imported ${successCount} product(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
-        loadData();
+        await loadData();
       } catch (error: any) {
         console.error('Import failed:', error);
         toast.error(`Failed to import products: ${error.message || 'Unknown error'}`);
@@ -374,6 +403,7 @@ export function CatalogManagement() {
     };
     input.click();
   };
+
   // Filtering
   const filteredProducts = products.filter(product => {
     // Search filter
@@ -389,8 +419,11 @@ export function CatalogManagement() {
     // Status filter
     if (statusFilter !== 'all' && product.status !== statusFilter) return false;
     
-    // Category filter
-    if (categoryFilter !== 'all' && product.category !== categoryFilter) return false;
+    // Category filter - match by category ID or category name
+    if (categoryFilter !== 'all') {
+      const matchesCategory = product.categoryId === categoryFilter || product.category === categoryFilter;
+      if (!matchesCategory) return false;
+    }
     
     // Stock filter
     if (stockFilter !== 'all') {
@@ -411,6 +444,7 @@ export function CatalogManagement() {
   };
 
   const topLevelCategories = categories.filter(c => c.parentId === null);
+  const subcategories = categories.filter(c => c.parentId !== null);
 
   const getStockBadge = (product: Product) => {
     const status = getStockStatus(product);
@@ -424,7 +458,7 @@ export function CatalogManagement() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -458,7 +492,7 @@ export function CatalogManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-[#71717a] uppercase tracking-wider">Total Products</p>
-              <p className="text-2xl font-bold text-[#18181b] mt-1">{stats.total}</p>
+              <p className="text-2xl font-bold text-[#18181b] mt-1">{stats?.total ?? 0}</p>
             </div>
             <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
               <Package className="text-blue-600" size={20} />
@@ -470,7 +504,7 @@ export function CatalogManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-[#71717a] uppercase tracking-wider">Active</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.active}</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{stats?.active ?? 0}</p>
             </div>
             <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
               <TrendingUp className="text-emerald-600" size={20} />
@@ -482,7 +516,7 @@ export function CatalogManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-[#71717a] uppercase tracking-wider">Low Stock</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{stats.lowStock}</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{stats?.lowStock ?? 0}</p>
             </div>
             <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
               <AlertCircle className="text-amber-600" size={20} />
@@ -494,7 +528,7 @@ export function CatalogManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-[#71717a] uppercase tracking-wider">Out of Stock</p>
-              <p className="text-2xl font-bold text-rose-600 mt-1">{stats.outOfStock}</p>
+              <p className="text-2xl font-bold text-rose-600 mt-1">{stats?.outOfStock ?? 0}</p>
             </div>
             <div className="w-10 h-10 bg-rose-50 rounded-lg flex items-center justify-center">
               <AlertCircle className="text-rose-600" size={20} />
@@ -506,7 +540,7 @@ export function CatalogManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-[#71717a] uppercase tracking-wider">Featured</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">{stats.featured}</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">{stats?.featured ?? 0}</p>
             </div>
             <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
               <Star className="text-purple-600" size={20} />
@@ -554,7 +588,7 @@ export function CatalogManagement() {
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
                   {topLevelCategories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -709,28 +743,34 @@ export function CatalogManagement() {
                           {product.status === 'inactive' && <Badge variant="secondary">Inactive</Badge>}
                           {product.status === 'draft' && <Badge variant="outline">Draft</Badge>}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                              >
                                 <MoreVertical size={14} />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditProduct(product)}>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem onSelect={() => handleEditProduct(product)}>
                                 <Edit size={14} className="mr-2" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDuplicateProduct(product)}>
+                              <DropdownMenuItem onSelect={() => handleDuplicateProduct(product)}>
                                 <Copy size={14} className="mr-2" /> Duplicate
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleToggleFeatured(product)}>
+                              <DropdownMenuItem onSelect={() => handleToggleFeatured(product)}>
                                 {product.featured ? (
                                   <><StarOff size={14} className="mr-2" /> Remove Featured</>
                                 ) : (
                                   <><Star size={14} className="mr-2" /> Set Featured</>
                                 )}
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleToggleStatus(product)}>
+                              <DropdownMenuItem onSelect={() => handleToggleStatus(product)}>
                                 {product.status === 'active' ? (
                                   <><EyeOff size={14} className="mr-2" /> Deactivate</>
                                 ) : (
@@ -738,8 +778,8 @@ export function CatalogManagement() {
                                 )}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteProduct(product.id, product.name)}
+                              <DropdownMenuItem
+                                onSelect={() => handleDeleteProductClick(product.id, product.name)}
                                 className="text-rose-600"
                               >
                                 <Trash2 size={14} className="mr-2" /> Delete
@@ -771,54 +811,149 @@ export function CatalogManagement() {
         <TabsContent value="categories">
           <div className="bg-white border border-[#e4e4e7] rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-[#e4e4e7] bg-[#fcfcfc] flex justify-between items-center">
-              <h3 className="font-bold text-[#18181b]">Category Hierarchy</h3>
-              <Button size="sm" onClick={() => setAddCategoryOpen(true)}>
-                <Plus size={14} className="mr-1.5" /> Add Category
-              </Button>
+              <h3 className="font-bold text-[#18181b]">Categories &amp; Subcategories</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => { setEditCategory(null); setAddCategoryAsSubcategory(false); setAddCategoryOpen(true); }}>
+                  <Plus size={14} className="mr-1.5" /> Add Category
+                </Button>
+                <Button size="sm" onClick={() => { setEditCategory(null); setAddCategoryAsSubcategory(true); setAddCategoryOpen(true); }}>
+                  <Plus size={14} className="mr-1.5" /> Add Subcategory
+                </Button>
+              </div>
             </div>
 
-            <div className="p-6 space-y-4">
-              {topLevelCategories.map(category => {
-                const subcats = categories.filter(c => c.parentId === category.id);
-                return (
-                  <div key={category.id} className="border border-[#e4e4e7] rounded-lg overflow-hidden">
-                    <div className="p-4 bg-[#f9fafb] flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <FolderTree className="text-blue-600" size={20} />
-                        <div>
-                          <div className="font-bold text-[#18181b]">{category.name}</div>
-                          <div className="text-xs text-[#71717a]">{category.productCount} products</div>
-                        </div>
-                      </div>
-                      <Badge variant={category.status === 'active' ? 'default' : 'secondary'}>
-                        {category.status}
-                      </Badge>
-                    </div>
-                    {subcats.length > 0 && (
-                      <div className="p-4 space-y-2 max-h-[300px] overflow-y-auto">
-                        {subcats.map(subcat => (
-                          <div 
-                            key={subcat.id} 
-                            className="flex items-center justify-between py-2 px-3 rounded hover:bg-[#f4f4f5] cursor-pointer transition-colors"
-                            onClick={() => {
-                              // Filter products by subcategory
-                              setCategoryFilter(subcat.name);
-                              // Switch to products tab
-                              setActiveTab('products');
-                            }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-1 h-1 rounded-full bg-[#a1a1aa]"></div>
-                              <span className="text-sm text-[#52525b]">{subcat.name}</span>
+            <div className="p-6 space-y-6">
+              {/* Category hierarchy (top-level + nested subcategories) */}
+              <div>
+                <h4 className="text-sm font-semibold text-[#52525b] mb-3">Category Hierarchy</h4>
+                <div className="space-y-4">
+                  {topLevelCategories.map(category => {
+                    const subcats = categories.filter(c => c.parentId === category.id);
+                    const handleDeleteCategory = async (catId: string, catName: string) => {
+                      if (!confirm(`Are you sure you want to delete "${catName}"? This will also delete all subcategories.`)) return;
+                      try {
+                        await deleteCategory(catId);
+                        toast.success(`Category "${catName}" deleted`);
+                        await loadData();
+                      } catch { toast.error('Failed to delete category'); }
+                    };
+                    return (
+                      <div key={category.id} className="border border-[#e4e4e7] rounded-lg overflow-hidden">
+                        <div className="p-4 bg-[#f9fafb] flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FolderTree className="text-blue-600" size={20} />
+                            <div>
+                              <div className="font-bold text-[#18181b]">{category.name}</div>
+                              <div className="text-xs text-[#71717a]">{category.productCount} products &middot; {subcats.length} subcategories</div>
                             </div>
-                            <span className="text-xs text-[#71717a]">{subcat.productCount} products</span>
                           </div>
-                        ))}
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setEditCategory(category); setAddCategoryOpen(true); }}>
+                              <Edit size={14} />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDeleteCategory(category.id, category.name)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                        {subcats.length > 0 && (
+                          <div className="p-4 space-y-2 max-h-[280px] overflow-y-auto border-t border-[#e4e4e7]">
+                            {subcats.map(subcat => (
+                              <div
+                                key={subcat.id}
+                                className="flex items-center justify-between py-2 px-3 rounded hover:bg-[#f4f4f5] group"
+                              >
+                                <div
+                                  className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                                  onClick={() => { setCategoryFilter(subcat.id); setActiveTab('products'); }}
+                                >
+                                  <div className="w-1 h-1 rounded-full bg-[#a1a1aa] flex-shrink-0" />
+                                  <span className="text-sm text-[#52525b]">{subcat.name}</span>
+                                  <span className="text-xs text-[#71717a]">{subcat.productCount} products</span>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); setEditCategory(subcat); setAddCategoryOpen(true); }}>
+                                    <Edit size={12} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!confirm(`Delete subcategory "${subcat.name}"?`)) return;
+                                      try {
+                                        await deleteCategory(subcat.id);
+                                        toast.success(`Subcategory "${subcat.name}" deleted`);
+                                        await loadData();
+                                      } catch { toast.error('Failed to delete subcategory'); }
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subcategories list (CRUD view near category section) */}
+              <div>
+                <h4 className="text-sm font-semibold text-[#52525b] mb-3">Subcategories</h4>
+                {subcategories.length === 0 ? (
+                  <p className="text-sm text-[#71717a] py-4">No subcategories yet. Add a subcategory above (select a parent in the modal).</p>
+                ) : (
+                  <div className="border border-[#e4e4e7] rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-[#f9fafb]">
+                          <TableHead>Subcategory</TableHead>
+                          <TableHead>Parent Category</TableHead>
+                          <TableHead className="text-center">Products</TableHead>
+                          <TableHead className="w-[100px] text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {subcategories.map(subcat => {
+                          const parent = categories.find(c => c.id === subcat.parentId);
+                          return (
+                            <TableRow key={subcat.id} className="hover:bg-[#fcfcfc]">
+                              <TableCell className="font-medium">{subcat.name}</TableCell>
+                              <TableCell className="text-[#52525b]">{parent?.name ?? '—'}</TableCell>
+                              <TableCell className="text-center">{subcat.productCount}</TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="sm" className="h-7 mr-1" onClick={() => { setEditCategory(subcat); setAddCategoryOpen(true); }}>
+                                  <Edit size={12} className="mr-1" /> Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-rose-600 hover:bg-rose-50"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete subcategory "${subcat.name}"?`)) return;
+                                    try {
+                                      await deleteCategory(subcat.id);
+                                      toast.success(`Subcategory "${subcat.name}" deleted`);
+                                      await loadData();
+                                    } catch { toast.error('Failed to delete subcategory'); }
+                                    }}
+                                >
+                                  <Trash2 size={12} />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -826,32 +961,77 @@ export function CatalogManagement() {
         {/* Attributes Tab */}
         <TabsContent value="attributes">
           <div className="bg-white border border-[#e4e4e7] rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-[#e4e4e7] bg-[#fcfcfc]">
-              <h3 className="font-bold text-[#18181b]">Product Attributes</h3>
-              <p className="text-xs text-[#71717a] mt-1">Reusable attributes for product variants</p>
+            <div className="p-4 border-b border-[#e4e4e7] bg-[#fcfcfc] flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-[#18181b]">Product Attributes</h3>
+                <p className="text-xs text-[#71717a] mt-1">Reusable attributes for product variants</p>
+              </div>
+              <Button size="sm" onClick={() => {
+                setEditAttribute(null);
+                setAddAttributeOpen(true);
+              }}>
+                <Plus size={14} className="mr-1.5" /> Add Attribute
+              </Button>
             </div>
 
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {attributes.map(attr => (
-                  <div key={attr.id} className="border border-[#e4e4e7] rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="font-bold text-[#18181b]">{attr.name}</div>
-                        <Badge variant="outline" className="text-xs mt-1">{attr.type}</Badge>
+              {attributes.length === 0 ? (
+                <div className="text-center py-12 text-[#71717a]">
+                  <Tag size={32} className="mx-auto mb-3 text-[#a1a1aa]" />
+                  <p className="font-medium">No attributes yet</p>
+                  <p className="text-sm mt-1">Create your first product attribute to get started.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {attributes.map(attr => (
+                    <div key={attr.id} className="border border-[#e4e4e7] rounded-lg p-4 hover:border-[#a1a1aa] transition-colors">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-bold text-[#18181b]">{attr.name}</div>
+                          <Badge variant="outline" className="text-xs mt-1">{attr.type}</Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setEditAttribute(attr);
+                              setAddAttributeOpen(true);
+                            }}
+                          >
+                            <Edit size={13} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            onClick={async () => {
+                              if (!confirm(`Delete attribute "${attr.name}"?`)) return;
+                              try {
+                                await deleteAttribute(attr.id);
+                                toast.success(`Attribute "${attr.name}" deleted`);
+                                await loadData();
+                              } catch {
+                                toast.error('Failed to delete attribute');
+                              }
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        </div>
                       </div>
-                      <span className="text-xs text-[#71717a]">{attr.usageCount} uses</span>
+                      {attr.options && attr.options.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {attr.options.map(opt => (
+                            <Badge key={opt} variant="secondary" className="text-xs">{opt}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {attr.options && attr.options.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {attr.options.map(opt => (
-                          <Badge key={opt} variant="secondary" className="text-xs">{opt}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -896,19 +1076,70 @@ export function CatalogManagement() {
 
       <AddCategoryModal
         open={addCategoryOpen}
-        onOpenChange={setAddCategoryOpen}
+        onOpenChange={(open) => {
+          setAddCategoryOpen(open);
+          if (!open) { setEditCategory(null); setAddCategoryAsSubcategory(false); }
+        }}
         onSuccess={loadData}
+        editCategory={editCategory}
+        subcategoryMode={addCategoryAsSubcategory}
+      />
+
+      <AddAttributeModal
+        open={addAttributeOpen}
+        onOpenChange={(open) => {
+          setAddAttributeOpen(open);
+          if (!open) setEditAttribute(null);
+        }}
+        onSuccess={loadData}
+        editAttribute={editAttribute}
       />
 
       <BulkProductOperationsModal
         open={bulkOpsOpen}
         onOpenChange={setBulkOpsOpen}
         selectedIds={selectedProducts}
-        onSuccess={() => {
-          loadData();
+        onSuccess={async () => {
+          await loadData();
           setSelectedProducts([]);
         }}
       />
+
+      {/* Delete product confirmation — themed dialog instead of browser confirm */}
+      <AlertDialog open={!!deleteProductConfirm} onOpenChange={(open) => !open && setDeleteProductConfirm(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-red-100">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <AlertDialogTitle className="text-[#18181b]">Delete product?</AlertDialogTitle>
+                <AlertDialogDescription className="mt-2 text-[#71717a]">
+                  Are you sure you want to delete &quot;{deleteProductConfirm?.name}&quot;? This action cannot be undone.
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel
+              onClick={() => setDeleteProductConfirm(null)}
+              disabled={deleteProductLoading}
+              className="border-[#e4e4e7] text-[#52525b] hover:bg-[#f4f4f5]"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              onClick={handleDeleteProductConfirm}
+              disabled={deleteProductLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteProductLoading ? 'Deleting...' : 'Delete'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

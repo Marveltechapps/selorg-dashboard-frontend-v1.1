@@ -218,3 +218,31 @@ html {
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background: #9CA3AF;
 }
+
+/* Admin Dashboard — responsive sidebar layout
+   The pre-compiled Tailwind CSS is missing md: variants for arbitrary values
+   (md:translate-x-0, md:pl-[260px], md:left-[260px], md:hidden, etc.),
+   so we define them here as plain CSS. */
+
+.admin-sidebar-nav {
+  transform: translateX(-100%);
+  transition: transform 200ms ease;
+}
+.admin-sidebar-nav.is-open {
+  transform: translateX(0);
+}
+
+@media (min-width: 768px) {
+  .admin-sidebar-nav {
+    transform: translateX(0);
+  }
+  .admin-content-area {
+    margin-left: 260px;
+  }
+  .admin-topbar {
+    left: 260px;
+  }
+  .admin-mobile-only {
+    display: none !important;
+  }
+}

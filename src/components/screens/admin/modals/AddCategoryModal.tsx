@@ -17,17 +17,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Category, createCategory, fetchCategories } from '../catalogApi';
+import { Category, createCategory, updateCategory, fetchCategories } from '../catalogApi';
 import { toast } from 'sonner';
 import { FolderTree } from 'lucide-react';
 
 interface AddCategoryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess?: () => void | Promise<void>;
+  editCategory?: Category | null;
+  /** When set, form opens in "add subcategory" mode with this parent pre-selected */
+  initialParentId?: string | null;
+  /** When true, dialog shows "Add Subcategory" and requires a parent category */
+  subcategoryMode?: boolean;
 }
 
-export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryModalProps) {
+export function AddCategoryModal({ open, onOpenChange, onSuccess, editCategory, initialParentId, subcategoryMode = false }: AddCategoryModalProps) {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
@@ -36,15 +41,41 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
     parentId: '',
     description: '',
     imageUrl: '',
+    link: '',
     status: 'active' as 'active' | 'inactive',
   });
+
+  const isEditing = !!editCategory;
+  const isSubcategoryFlow = subcategoryMode || !!initialParentId;
 
   useEffect(() => {
     if (open) {
       loadCategories();
-      resetForm();
+      if (editCategory) {
+        setFormData({
+          name: editCategory.name,
+          slug: editCategory.slug,
+          parentId: editCategory.parentId || '',
+          description: editCategory.description || '',
+          imageUrl: editCategory.imageUrl || '',
+          link: (editCategory as { link?: string }).link || '',
+          status: editCategory.status,
+        });
+      } else if (initialParentId) {
+        setFormData({
+          name: '',
+          slug: '',
+          parentId: initialParentId,
+          description: '',
+          imageUrl: '',
+          link: '',
+          status: 'active',
+        });
+      } else {
+        resetForm();
+      }
     }
-  }, [open]);
+  }, [open, editCategory, initialParentId]);
 
   const loadCategories = async () => {
     try {
@@ -62,6 +93,7 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
       parentId: '',
       description: '',
       imageUrl: '',
+      link: '',
       status: 'active',
     });
   };
@@ -80,7 +112,6 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (!formData.name.trim()) {
       toast.error('Category name is required');
       return;
@@ -89,24 +120,36 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
       toast.error('Slug is required');
       return;
     }
+    if (isSubcategoryFlow && !formData.parentId) {
+      toast.error('Please select a parent category for the subcategory');
+      return;
+    }
 
     setLoading(true);
     try {
-      await createCategory({
+      const payload = {
         name: formData.name.trim(),
         slug: formData.slug.trim(),
         parentId: formData.parentId || null,
         description: formData.description.trim(),
         imageUrl: formData.imageUrl.trim(),
+        link: formData.link.trim() || undefined,
         status: formData.status,
-      });
+      };
 
-      toast.success(`Category "${formData.name}" created successfully`);
-      onSuccess();
+      if (isEditing) {
+        await updateCategory(editCategory!.id, payload);
+        toast.success(`Category "${formData.name}" updated successfully`);
+      } else {
+        await createCategory(payload);
+        toast.success(`Category "${formData.name}" created successfully`);
+      }
+
+      await Promise.resolve(onSuccess?.());
       onOpenChange(false);
       resetForm();
     } catch (error) {
-      toast.error('Failed to create category');
+      toast.error(isEditing ? 'Failed to update category' : 'Failed to create category');
     } finally {
       setLoading(false);
     }
@@ -121,8 +164,16 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
               <FolderTree className="text-blue-600" size={20} />
             </div>
             <div>
-              <DialogTitle>Add New Category</DialogTitle>
-              <DialogDescription>Create a new category or subcategory</DialogDescription>
+              <DialogTitle>
+                {isEditing ? 'Edit Category' : isSubcategoryFlow ? 'Add Subcategory' : 'Add New Category'}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing
+                  ? 'Update category details'
+                  : isSubcategoryFlow
+                    ? 'Create a new subcategory. Select a parent category and enter the subcategory name.'
+                    : 'Create a new category or subcategory'}
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -153,20 +204,26 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
 
           {/* Parent Category */}
           <div className="space-y-2">
-            <Label>Parent Category (Optional)</Label>
-            <Select value={formData.parentId} onValueChange={(val) => handleChange('parentId', val)}>
+            <Label>Parent Category {isSubcategoryFlow ? '*' : '(Optional)'} {initialParentId ? '(pre-selected)' : ''}</Label>
+            <Select
+              value={formData.parentId || (isSubcategoryFlow ? '__required__' : '__none__')}
+              onValueChange={(val) => handleChange('parentId', val === '__none__' || val === '__required__' ? '' : val)}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="None (Top Level)" />
+                <SelectValue placeholder={isSubcategoryFlow ? 'Select parent category...' : 'None (Top Level)'} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None (Top Level)</SelectItem>
+                {isSubcategoryFlow && (
+                  <SelectItem value="__required__" disabled>Select parent category...</SelectItem>
+                )}
+                {!isSubcategoryFlow && <SelectItem value="__none__">None (Top Level)</SelectItem>}
                 {categories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-[#71717a]">
-              {formData.parentId ? 'This will be a subcategory' : 'This will be a top-level category'}
+              {isSubcategoryFlow ? 'This will be a subcategory under the selected parent' : formData.parentId ? 'This will be a subcategory' : 'This will be a top-level category'}
             </p>
           </div>
 
@@ -193,6 +250,18 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
             />
           </div>
 
+          {/* On tap – link (home screen) */}
+          <div className="space-y-2">
+            <Label htmlFor="cat-link">On tap – navigate to (optional)</Label>
+            <Input
+              id="cat-link"
+              placeholder="product:ID / category:ID / https://... / ScreenName:param=val"
+              value={formData.link}
+              onChange={(e) => handleChange('link', e.target.value)}
+            />
+            <p className="text-xs text-[#71717a]">When user taps this category on the app home: product:ID → Product detail, category:ID → Category page, https://... → External URL. Leave empty to open category products.</p>
+          </div>
+
           {/* Status */}
           <div className="space-y-2">
             <Label>Status</Label>
@@ -214,7 +283,9 @@ export function AddCategoryModal({ open, onOpenChange, onSuccess }: AddCategoryM
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
-            {loading ? 'Creating...' : 'Create Category'}
+            {loading
+              ? (isEditing ? 'Updating...' : isSubcategoryFlow ? 'Creating subcategory...' : 'Creating...')
+              : (isEditing ? 'Update Category' : isSubcategoryFlow ? 'Create Subcategory' : 'Create Category')}
           </Button>
         </div>
       </DialogContent>

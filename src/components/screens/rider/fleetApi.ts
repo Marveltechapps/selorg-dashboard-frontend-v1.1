@@ -45,3 +45,4 @@ export const fleetApi = {
     return apiRequest<{ vehicles: Vehicle[], total: number }>(`${API_ENDPOINTS.fleet.vehicles}?${params.toString()}`);
   },
 };
+

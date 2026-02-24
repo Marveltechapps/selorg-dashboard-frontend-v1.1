@@ -1,11 +1,11 @@
 /**
  * Utilities & Settings API
  * Integrated with backend based on api-documentation.yaml
- * Base URL: http://localhost:5001/api/darkstore
+ * Base URL: http://localhost:5000/api/v1/darkstore
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-const UTILITIES_ENDPOINT = `${API_BASE_URL}/api/darkstore/utilities`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const UTILITIES_ENDPOINT = `${API_BASE_URL}/api/v1/darkstore/utilities`;
 
 export interface GenerateLabelRequest {
   searchTerm: string;
@@ -124,7 +124,7 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
 /**
  * Generate Label
- * POST /api/darkstore/utilities/labels/generate
+ * POST /api/v1/darkstore/utilities/labels/generate
  */
 export async function generateLabel(payload: GenerateLabelRequest): Promise<GenerateLabelResponse> {
   const response = await apiRequest(`${UTILITIES_ENDPOINT}/labels/generate`, {
@@ -141,7 +141,7 @@ export async function generateLabel(payload: GenerateLabelRequest): Promise<Gene
 
 /**
  * Bulk Upload
- * POST /api/darkstore/utilities/inventory/bulk-upload
+ * POST /api/v1/darkstore/utilities/inventory/bulk-upload
  */
 export async function bulkUpload(
   file: File,
@@ -177,7 +177,7 @@ export async function bulkUpload(
 
 /**
  * Download Upload Template
- * GET /api/darkstore/utilities/inventory/upload-template
+ * GET /api/v1/darkstore/utilities/inventory/upload-template
  */
 export async function downloadUploadTemplate(format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> {
   const response = await fetch(`${UTILITIES_ENDPOINT}/inventory/upload-template?format=${format}`);
@@ -189,43 +189,28 @@ export async function downloadUploadTemplate(format: 'csv' | 'xlsx' = 'csv'): Pr
   return await response.blob();
 }
 
-// Mock data when API unavailable
-const MOCK_SYSTEM_STATUS: SystemStatusResponse = {
-  success: true,
-  overallStatus: 'operational',
-  services: [
-    { name: 'Inventory API', status: 'operational', latency: 45, lastCheck: new Date().toISOString() },
-    { name: 'Order Service', status: 'operational', latency: 62, lastCheck: new Date().toISOString() },
-    { name: 'Auth & Sync', status: 'operational', latency: 28, lastCheck: new Date().toISOString() },
-  ],
-};
-const MOCK_AUDIT_LOGS: AuditLog[] = [
-  { timestamp: new Date().toISOString(), userId: 'U1', userName: 'Store Admin', module: 'inventory', action: 'ADJUSTMENT', details: 'Stock adjustment SKU-001 +5' },
-  { timestamp: new Date(Date.now() - 3600000).toISOString(), userId: 'U2', userName: 'Picker', module: 'picking', action: 'PICK_COMPLETE', details: 'Pick list PL-101 completed' },
-  { timestamp: new Date(Date.now() - 7200000).toISOString(), userId: 'U1', userName: 'Store Admin', module: 'settings', action: 'CONFIG_UPDATE', details: 'Label printer config updated' },
-];
-
 /**
  * Get System Status
- * GET /api/darkstore/utilities/system/status
+ * GET /api/v1/darkstore/utilities/system/status
  */
 export async function getSystemStatus(options?: {
   storeId?: string;
 }): Promise<SystemStatusResponse> {
-  try {
-    const params = new URLSearchParams();
-    if (options?.storeId) params.append('storeId', options.storeId);
-    const response = await apiRequest(`${UTILITIES_ENDPOINT}/system/status?${params.toString()}`) as SystemStatusResponse;
-    if (response?.success && response?.services) return response;
-    return MOCK_SYSTEM_STATUS;
-  } catch {
-    return MOCK_SYSTEM_STATUS;
+  const params = new URLSearchParams();
+  if (options?.storeId) params.append('storeId', options.storeId);
+
+  const response = await apiRequest(`${UTILITIES_ENDPOINT}/system/status?${params.toString()}`) as SystemStatusResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch system status');
   }
+  
+  return response;
 }
 
 /**
  * Run System Diagnostics
- * POST /api/darkstore/utilities/system/diagnostics
+ * POST /api/v1/darkstore/utilities/system/diagnostics
  */
 export async function runSystemDiagnostics(payload: {
   diagnosticType: 'database_reindex' | 'sync_check' | 'integrity_check';
@@ -248,7 +233,7 @@ export async function runSystemDiagnostics(payload: {
 
 /**
  * Force Global Sync
- * POST /api/darkstore/utilities/system/sync
+ * POST /api/v1/darkstore/utilities/system/sync
  */
 export async function forceGlobalSync(payload: {
   storeId?: string;
@@ -271,7 +256,7 @@ export async function forceGlobalSync(payload: {
 
 /**
  * Get Audit Logs
- * GET /api/darkstore/utilities/audit-logs
+ * GET /api/v1/darkstore/utilities/audit-logs
  */
 export async function getAuditLogs(options?: {
   module?: 'inventory' | 'picking' | 'packing' | 'auth' | 'settings' | 'sync' | 'all';
@@ -282,28 +267,30 @@ export async function getAuditLogs(options?: {
   page?: number;
   limit?: number;
 }): Promise<{ logs: AuditLog[]; pagination: any }> {
-  try {
-    const params = new URLSearchParams();
-    if (options?.module) params.append('module', options.module);
-    if (options?.userId) params.append('userId', options.userId);
-    if (options?.action) params.append('action', options.action);
-    if (options?.from) params.append('from', options.from);
-    if (options?.to) params.append('to', options.to);
-    if (options?.page) params.append('page', (options?.page || 1).toString());
-    params.append('limit', (options?.limit || 50).toString());
-    const response = await apiRequest(`${UTILITIES_ENDPOINT}/audit-logs?${params.toString()}`) as AuditLogsResponse;
-    if (response?.success && response?.logs) {
-      return { logs: response.logs, pagination: response.pagination || { current_page: 1, total_pages: 1, total_items: response.logs.length, items_per_page: 50 } };
-    }
-    return { logs: MOCK_AUDIT_LOGS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_AUDIT_LOGS.length, items_per_page: 50 } };
-  } catch {
-    return { logs: MOCK_AUDIT_LOGS, pagination: { current_page: 1, total_pages: 1, total_items: MOCK_AUDIT_LOGS.length, items_per_page: 50 } };
+  const params = new URLSearchParams();
+  if (options?.module) params.append('module', options.module);
+  if (options?.userId) params.append('userId', options.userId);
+  if (options?.action) params.append('action', options.action);
+  if (options?.from) params.append('from', options.from);
+  if (options?.to) params.append('to', options.to);
+  if (options?.page) params.append('page', options.page.toString());
+  params.append('limit', (options?.limit || 50).toString());
+
+  const response = await apiRequest(`${UTILITIES_ENDPOINT}/audit-logs?${params.toString()}`) as AuditLogsResponse;
+  
+  if (!response.success) {
+    throw new Error('Failed to fetch audit logs');
   }
+  
+  return {
+    logs: response.logs,
+    pagination: response.pagination,
+  };
 }
 
 /**
  * Export Audit Logs
- * POST /api/darkstore/utilities/audit-logs/export
+ * POST /api/v1/darkstore/utilities/audit-logs/export
  */
 export async function exportAuditLogs(payload: {
   module?: 'inventory' | 'picking' | 'packing' | 'auth' | 'settings' | 'sync' | 'all';
@@ -354,3 +341,4 @@ export async function exportAuditLogs(payload: {
     return response;
   }
 }
+

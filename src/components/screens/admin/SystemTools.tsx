@@ -118,8 +118,8 @@ export function SystemTools() {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [showMasked, setShowMasked] = useState<Record<string, boolean>>({});
 
-  // Filter ('' or 'all' = show all; 'error'|'warn'|'info'|'debug' = filter by level)
-  const [logFilter, setLogFilter] = useState('all');
+  // Filter
+  const [logFilter, setLogFilter] = useState('');
 
   useEffect(() => {
     loadInitialData();
@@ -170,7 +170,6 @@ export function SystemTools() {
       setMaintenanceMessage(maintenance.message);
     } catch (error) {
       toast.error('Failed to load system data');
-      // Still load logs and performance so those tabs show data
       try {
         const logsData = await fetchLogs();
         setLogs(logsData);
@@ -302,16 +301,15 @@ export function SystemTools() {
       setFilteredLogs(logs);
     }
   }, [logs, logFilter]);
-  
-  // Ensure filteredLogs is initialized
+
   useEffect(() => {
-    if (logs.length > 0 && filteredLogs.length === 0 && (!logFilter || logFilter === 'all')) {
+    if (logs.length > 0 && filteredLogs.length === 0 && !logFilter) {
       setFilteredLogs(logs);
     }
   }, [logs]);
 
   const handleFilterLogs = (level: string) => {
-    setLogFilter(level);
+    setLogFilter(level === 'all' ? '' : level);
   };
 
   const getStatusColor = (status: string) => {
@@ -342,10 +340,8 @@ export function SystemTools() {
     return <Icon size={16} />;
   };
 
-  // Don't block rendering - show content as data loads
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -919,7 +915,7 @@ export function SystemTools() {
         <TabsContent value="performance" className="mt-6 space-y-4">
           <div className="bg-white border border-[#e4e4e7] rounded-xl p-6 shadow-sm">
             <h3 className="font-bold text-[#18181b] mb-4">Real-Time Performance Metrics</h3>
-            
+
             {performanceMetrics.length === 0 ? (
               <div className="text-center py-12 text-[#71717a]">
                 <TrendingUp size={48} className="mx-auto mb-4 opacity-20" />

@@ -244,6 +244,7 @@ export function SystemConfiguration() {
       toast.error('Failed to update notification settings');
     }
   };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -253,7 +254,7 @@ export function SystemConfiguration() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>

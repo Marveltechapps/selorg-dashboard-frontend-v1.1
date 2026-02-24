@@ -17,8 +17,8 @@ import {
   FileCheck, 
   History, 
   Cpu, 
+  Home,
   Smartphone,
-  ChevronDown,
   LogOut,
   Globe
 } from 'lucide-react';
@@ -28,9 +28,11 @@ interface AdminSidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout?: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function AdminSidebar({ activeTab, setActiveTab, onLogout }: AdminSidebarProps) {
+export function AdminSidebar({ activeTab, setActiveTab, onLogout, mobileOpen, onMobileClose }: AdminSidebarProps) {
   const navItems = [
     { category: "Control Room", items: [
       { id: 'citywide', label: 'Citywide Control', icon: Globe },
@@ -56,15 +58,31 @@ export function AdminSidebar({ activeTab, setActiveTab, onLogout }: AdminSidebar
     { category: "System & App", items: [
       { id: 'audit', label: 'Audit Logs', icon: History },
       { id: 'system-tools', label: 'System Tools', icon: Cpu },
+      { id: 'customer-app-home', label: 'Customer App Home', icon: Home },
       { id: 'app-cms', label: 'App CMS', icon: Smartphone },
     ]}
   ];
 
   return (
-    <div className="w-[260px] h-screen bg-[#09090b] text-[#a1a1aa] flex flex-col fixed left-0 top-0 z-50 shadow-xl border-r border-[#27272a]">
+    <>
+      {/* Mobile overlay */}
+      {onMobileClose && (
+        <div
+          className={cn(
+            "admin-mobile-only fixed inset-0 bg-black/50 z-40 transition-opacity",
+            mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+          onClick={onMobileClose}
+          aria-hidden
+        />
+      )}
+      <div className={cn(
+        "admin-sidebar-nav w-[260px] h-screen bg-[#09090b] text-[#a1a1aa] flex flex-col fixed left-0 top-0 z-50 shadow-xl border-r border-[#27272a]",
+        mobileOpen && "is-open"
+      )}>
       {/* Header */}
-      <div className="p-4 border-b border-[#27272a]">
-        <div className="flex items-center gap-2 mb-4 text-white">
+      <div className="p-4 border-b border-[#27272a] flex items-center min-h-[86px]">
+        <div className="flex items-center gap-2 text-white">
           <div className="w-8 h-8 bg-[#e11d48] rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(225,29,72,0.5)]">
              <Settings className="text-white" size={18} />
           </div>
@@ -72,17 +90,6 @@ export function AdminSidebar({ activeTab, setActiveTab, onLogout }: AdminSidebar
             <h1 className="font-bold text-lg leading-none">AdminOps</h1>
             <p className="text-[10px] text-[#e11d48] font-bold tracking-wider uppercase mt-1">Superuser Access</p>
           </div>
-        </div>
-        
-        {/* City Selector */}
-        <div className="relative group">
-          <button className="w-full bg-[#18181b] hover:bg-[#27272a] transition-colors p-2.5 rounded-lg flex items-center justify-between cursor-pointer border border-[#27272a] hover:border-[#52525b] outline-none">
-            <div className="flex items-center gap-2">
-              <Globe size={14} className="text-[#e11d48]" />
-              <span className="font-medium text-sm text-[#e4e4e7]">Bangalore (All)</span>
-            </div>
-            <ChevronDown size={14} />
-          </button>
         </div>
       </div>
 
@@ -100,7 +107,10 @@ export function AdminSidebar({ activeTab, setActiveTab, onLogout }: AdminSidebar
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      onMobileClose?.();
+                    }}
                     className={cn(
                       "w-full h-9 px-3 flex items-center gap-3 transition-all rounded-md relative group",
                       isActive 
@@ -134,5 +144,6 @@ export function AdminSidebar({ activeTab, setActiveTab, onLogout }: AdminSidebar
         </div>
       </div>
     </div>
+    </>
   );
 }

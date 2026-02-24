@@ -1,11 +1,11 @@
 /**
  * Settings API
  * Manages application settings with real-time updates
- * Base URL: http://localhost:5001/api/darkstore
+ * Base URL: http://localhost:5000/api/v1/darkstore
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-const SETTINGS_ENDPOINT = `${API_BASE_URL}/api/darkstore/settings`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const SETTINGS_ENDPOINT = `${API_BASE_URL}/api/v1/darkstore/settings`;
 
 export interface AppSettings {
   refreshIntervals: {
@@ -78,7 +78,7 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
 /**
  * Get Application Settings
- * GET /api/darkstore/settings
+ * GET /api/v1/darkstore/settings
  */
 export async function getSettings(): Promise<AppSettings> {
   const response = await apiRequest(`${SETTINGS_ENDPOINT}`) as SettingsResponse;
@@ -92,7 +92,7 @@ export async function getSettings(): Promise<AppSettings> {
 
 /**
  * Update Application Settings
- * PUT /api/darkstore/settings
+ * PUT /api/v1/darkstore/settings
  */
 export async function updateSettings(settings: AppSettings): Promise<SettingsResponse> {
   const response = await apiRequest(`${SETTINGS_ENDPOINT}`, {
@@ -106,3 +106,4 @@ export async function updateSettings(settings: AppSettings): Promise<SettingsRes
   
   return response;
 }
+

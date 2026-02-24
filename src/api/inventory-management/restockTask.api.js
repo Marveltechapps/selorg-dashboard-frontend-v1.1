@@ -5,7 +5,7 @@
 
 import { post } from './apiClient';
 
-const BASE_PATH = '/api/darkstore/inventory/restock-task';
+const BASE_PATH = '/api/v1/darkstore/inventory/restock-task';
 
 /**
  * Create restock task
@@ -25,3 +25,4 @@ export async function createRestockTask(data) {
   
   return post(BASE_PATH, body);
 }
+

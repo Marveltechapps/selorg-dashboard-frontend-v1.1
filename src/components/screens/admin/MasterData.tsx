@@ -76,8 +76,9 @@ export function MasterData() {
       toast.error('Failed to delete store');
     }
   };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-[#18181b]">Master Data Management</h1>
@@ -232,7 +233,7 @@ export function MasterData() {
 
 export function UserManagement() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
        <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-[#18181b]">User & Role Management</h1>

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '../../ui/page-header';
 import { toast } from 'sonner';
-import { MessageSquare, Send, AlertTriangle, RefreshCw } from 'lucide-react';
+import { MessageSquare, BellRing, Send, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import {
   listActiveChats,
   getChatDetails,
@@ -19,11 +17,7 @@ import {
   Message,
 } from './communicationApi';
 
-interface CommunicationHubProps {
-  searchQuery?: string;
-}
-
-export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
+export function CommunicationHub() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -34,19 +28,6 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   // Cache for chat details to prevent unnecessary re-fetching
   const [chatCache, setChatCache] = useState<Map<string, Chat>>(new Map());
-
-  // Filter chats based on search query
-  const filteredChats = React.useMemo(() => {
-    if (!searchQuery.trim()) return chats;
-    const query = searchQuery.toLowerCase();
-    return chats.filter(c => 
-      c.id.toLowerCase().includes(query) ||
-      c.participantId.toLowerCase().includes(query) ||
-      c.participantName.toLowerCase().includes(query) ||
-      c.lastMessage?.toLowerCase().includes(query) ||
-      c.relatedOrderId?.toLowerCase().includes(query)
-    );
-  }, [chats, searchQuery]);
 
   // Load chats list
   const loadChats = async (skipDetailsReload = false) => {
@@ -62,11 +43,9 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
       }
     } catch (error) {
       console.error('Failed to load chats', error);
-      setChats([
-        { id: 'chat-1', participantId: 'r1', participantName: 'Raj K', participantType: 'Rider', lastMessage: 'On my way to pickup', lastMessageTime: new Date(Date.now() - 120000).toISOString(), unreadCount: 0, isOnline: true, relatedOrderId: 'ORD-101' },
-        { id: 'chat-2', participantId: 'r2', participantName: 'Priya M', participantType: 'Rider', lastMessage: 'Delivery completed', lastMessageTime: new Date(Date.now() - 3600000).toISOString(), unreadCount: 1, isOnline: false },
-      ]);
-      toast.info('Showing sample chats. Connect backend for live data.');
+      toast.error('Failed to load chats', {
+        description: error instanceof Error ? error.message : 'Please check your connection',
+      });
     } finally {
       setLoading(false);
     }
@@ -178,10 +157,14 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
     }
   };
 
-  const handleBroadcast = () => {
+  // Handle broadcast
+  const handleBroadcast = async () => {
     setIsBroadcastOpen(true);
+    // In a real implementation, you'd open a modal here
+    toast.info('Broadcast feature - open modal to send broadcast');
   };
 
+  // Handle flag issue
   const handleFlagIssue = async (chatId: string) => {
     const reason = prompt('Please provide a reason for flagging this issue:');
     if (!reason) return;
@@ -193,12 +176,9 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
         category: 'delivery_issue',
       });
       toast.success('Issue flagged successfully');
-      if (selectedChatId === chatId && selectedChat) {
-        setChatCache(prev => new Map(prev).set(chatId, { ...selectedChat, flagged: true } as Chat & { flagged?: boolean }));
-        setSelectedChat(prev => prev ? { ...prev, flagged: true } as Chat & { flagged?: boolean } : null);
-      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to flag issue');
+      console.error('Failed to flag issue', error);
+      toast.error('Failed to flag issue');
     }
   };
 
@@ -279,12 +259,12 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
               Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-20 m-2" />
               ))
-            ) : filteredChats.length === 0 ? (
+            ) : chats.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
-                {searchQuery ? `No chats found matching "${searchQuery}"` : 'No active chats'}
+                No active chats
               </div>
             ) : (
-              filteredChats.map((chat) => (
+              chats.map((chat) => (
                 <div
                   key={chat.id}
                   onClick={() => handleChatSelect(chat.id)}
@@ -416,94 +396,6 @@ export function CommunicationHub({ searchQuery = '' }: CommunicationHubProps) {
           )}
         </div>
       </div>
-
-      {/* Broadcast Modal */}
-      <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Send Broadcast</DialogTitle>
-            <DialogDescription>Send a message to selected riders or all riders.</DialogDescription>
-          </DialogHeader>
-          <BroadcastForm
-            onClose={() => setIsBroadcastOpen(false)}
-            onSuccess={() => {
-              setIsBroadcastOpen(false);
-              loadChats();
-            }}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
-  );
-}
-
-function BroadcastForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [message, setMessage] = useState('');
-  const [recipients, setRecipients] = useState('all');
-  const [priority, setPriority] = useState<'normal' | 'high' | 'urgent'>('normal');
-  const [sending, setSending] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    setSending(true);
-    try {
-      await createBroadcast({
-        message: message.trim(),
-        recipients: recipients === 'all' ? ['all-riders'] : [recipients],
-        priority,
-      });
-      toast.success('Broadcast sent successfully');
-      onSuccess();
-    } catch (err) {
-      toast.success('Broadcast queued. Connect backend to deliver.');
-      onSuccess();
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4 py-4">
-      <div className="space-y-2">
-        <Label htmlFor="broadcast-message">Message</Label>
-        <textarea
-          id="broadcast-message"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type your broadcast message..."
-          className="min-h-[100px] w-full rounded-lg border border-[#E0E0E0] px-3 py-2 text-sm focus:ring-2 focus:ring-[#F97316]"
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Recipients</Label>
-        <select
-          value={recipients}
-          onChange={(e) => setRecipients(e.target.value)}
-          className="w-full rounded-lg border border-[#E0E0E0] px-3 py-2 text-sm"
-        >
-          <option value="all">All riders</option>
-          <option value="online">Online only</option>
-          <option value="zone-downtown">Downtown Hub</option>
-        </select>
-      </div>
-      <div className="space-y-2">
-        <Label>Priority</Label>
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as 'normal' | 'high' | 'urgent')}
-          className="w-full rounded-lg border border-[#E0E0E0] px-3 py-2 text-sm"
-        >
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose} disabled={sending}>Cancel</Button>
-        <Button type="submit" disabled={sending}>{sending ? 'Sending...' : 'Send Broadcast'}</Button>
-      </DialogFooter>
-    </form>
   );
 }
